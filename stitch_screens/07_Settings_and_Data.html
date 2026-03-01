@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Unified Settings</title>
+<link href="https://fonts.googleapis.com/css2?family=Ibm+Plex+Sans:wght@400;500;600;700&amp;family=Space+Mono&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "bg-app": "#0F172A",
+                        "bg-card": "#1E293B",
+                        "surface-highlight": "#334155",
+                        "text-main": "#F8FAFC",
+                        "text-muted": "#94A3B8",
+                        "accent-indigo": "#6366F1",
+                        "accent-coral": "#FDA4AF",
+                        "accent-mint": "#6EE7B7"
+                    },
+                    fontFamily: {
+                        display: ["Ibm Plex Sans", "sans-serif"],
+                        body: ["Ibm Plex Sans", "sans-serif"],
+                        mono: ["Space Mono", "monospace"]
+                    }
+                }
+            }
+        };
+    </script>
+<style type="text/tailwindcss">
+        @layer base {
+            body {
+                -webkit-tap-highlight-color: transparent;
+                @apply bg-bg-app text-text-main font-body antialiased;
+            }
+        }
+        .safe-pb {
+            padding-bottom: env(safe-area-inset-bottom, 24px);
+        }
+        input[type=range] {
+            -webkit-appearance: none;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: #6366F1;
+            cursor: pointer;
+            margin-top: -8px;
+            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.2);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #334155;
+            border-radius: 2px;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="min-h-screen pb-32">
+<header class="sticky top-0 z-50 bg-bg-app/80 backdrop-blur-md border-b border-white/5 px-6 pt-12 pb-4">
+<div class="flex items-center justify-between max-w-md mx-auto">
+<h1 class="font-display text-2xl font-bold tracking-tight">Settings &amp; Data</h1>
+<button class="p-2 rounded-full hover:bg-white/5 transition-colors text-text-muted">
+<span class="material-symbols-outlined">help</span>
+</button>
+</div>
+</header>
+<main class="px-4 pt-6 space-y-6 max-w-md mx-auto">
+<section class="flex items-center gap-4 bg-bg-card p-4 rounded-2xl border border-white/5 shadow-sm">
+<div class="relative flex -space-x-3">
+<div class="w-12 h-12 rounded-full border-2 border-bg-card overflow-hidden bg-slate-600">
+<img alt="User avatar 1" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBTBqXnwpxTahVMGoQvsJVksAaSP9P2KCRzWOIprx-xBpdiNpcc_CdfIqPm8V_xtmeYFcRfUJomwGdLZ1ucv2sea17n0ActS-GQDIF-yafw4Q5oAxPm5WYxhSMOHCaldgPgaqB4QQAciBuW4pf09WffStswRjNKLa9W6GFtfdNuv73AeKrXGxBEBm5EKyHq1pEhsBKG7xXnkwcfC_PRCxk4RXIgvE-Y6QfJ4SpwevDfv8wdYna5ucMtf0NLksGWVSxqbU6OTV0A5lI"/>
+</div>
+<div class="w-12 h-12 rounded-full border-2 border-bg-card overflow-hidden bg-slate-600">
+<img alt="User avatar 2" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAZ2uHjLMByBQJEz0WIsToZuGnkUa8hBxAgc-ATDRZYj0M9IHlpBeW1iqcKaGGviTmXe87lEdpsz1jMnui8kmkSGpDlCoeHqR2Gav_TbCAc8UjFc_-uh7ISGx8xJ_SLkdUQx_rBl76-CO3ZY88maD8qDHx5m9mnx7w52756FLP5pHejlqHJJRD_XAj_3V-OGjM7zGOY28snFAyoQEncPLnBiiH6ZEEwRUyzGS9G5O8aRhCy4-7IDXX2-wUSo23qYKWPluCwtE5imBc"/>
+</div>
+</div>
+<div class="flex-1 min-w-0">
+<h2 class="font-semibold text-base truncate">Priya &amp; Rahul</h2>
+<p class="text-xs text-text-muted">Family Plan • Pro Member</p>
+</div>
+<button class="text-accent-indigo font-semibold text-xs px-4 py-2 rounded-full bg-accent-indigo/10 border border-accent-indigo/20">
+                Manage
+            </button>
+</section>
+<section class="space-y-2">
+<h3 class="px-2 text-[11px] font-bold uppercase tracking-widest text-text-muted">Joint Budget</h3>
+<div class="bg-bg-card rounded-2xl p-5 border border-white/5">
+<div class="flex justify-between items-baseline mb-4">
+<span class="text-sm text-text-muted font-medium">Monthly Limit</span>
+<span class="text-2xl font-mono font-bold">₹85,000</span>
+</div>
+<div class="relative w-full h-8 flex items-center">
+<input class="w-full z-20 opacity-0 cursor-pointer absolute inset-0" max="200000" min="10000" step="5000" type="range" value="85000"/>
+<div class="w-full h-1 bg-surface-highlight rounded-full absolute top-1/2 -translate-y-1/2">
+<div class="h-full bg-accent-indigo rounded-full" style="width: 42.5%"></div>
+</div>
+</div>
+<div class="flex justify-between text-[10px] text-text-muted font-mono">
+<span>₹10,000</span>
+<span>₹2,00,000</span>
+</div>
+</div>
+</section>
+<section class="space-y-2">
+<h3 class="px-2 text-[11px] font-bold uppercase tracking-widest text-text-muted">Preferences</h3>
+<div class="bg-bg-card rounded-2xl overflow-hidden border border-white/5 divide-y divide-white/5">
+<button class="w-full p-4 flex items-center justify-between active:bg-white/5 transition-colors text-left group">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-xl bg-accent-indigo/10 flex items-center justify-center text-accent-indigo">
+<span class="material-symbols-outlined text-[22px]">notifications</span>
+</div>
+<div>
+<span class="block font-medium text-sm">Notifications</span>
+<span class="block text-[11px] text-text-muted">Daily alerts &amp; activity feed</span>
+</div>
+</div>
+<div class="flex items-center gap-1">
+<span class="text-xs text-text-muted mr-1">On</span>
+<span class="material-symbols-outlined text-text-muted text-lg">chevron_right</span>
+</div>
+</button>
+<button class="w-full p-4 flex items-center justify-between active:bg-white/5 transition-colors text-left group">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-xl bg-accent-indigo/10 flex items-center justify-center text-accent-indigo">
+<span class="material-symbols-outlined text-[22px]">group</span>
+</div>
+<div>
+<span class="block font-medium text-sm">Shared Accounts</span>
+<span class="block text-[11px] text-text-muted">3 bank connections linked</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-text-muted text-lg">chevron_right</span>
+</button>
+<button class="w-full p-4 flex items-center justify-between active:bg-white/5 transition-colors text-left group">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-xl bg-accent-indigo/10 flex items-center justify-center text-accent-indigo">
+<span class="material-symbols-outlined text-[22px]">payments</span>
+</div>
+<div>
+<span class="block font-medium text-sm">Currency</span>
+<span class="block text-[11px] text-text-muted">Default transaction unit</span>
+</div>
+</div>
+<div class="flex items-center gap-1">
+<span class="text-xs font-mono bg-surface-highlight px-2 py-0.5 rounded text-text-main mr-1">INR (₹)</span>
+<span class="material-symbols-outlined text-text-muted text-lg">chevron_right</span>
+</div>
+</button>
+</div>
+</section>
+<section class="space-y-2">
+<h3 class="px-2 text-[11px] font-bold uppercase tracking-widest text-text-muted">Data &amp; Privacy</h3>
+<div class="bg-bg-card rounded-2xl overflow-hidden border border-white/5 divide-y divide-white/5">
+<button class="w-full p-4 flex items-center justify-between active:bg-white/5 transition-colors text-left group">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-xl bg-accent-indigo/10 flex items-center justify-center text-accent-indigo">
+<span class="material-symbols-outlined text-[22px]">cloud_download</span>
+</div>
+<div>
+<span class="block font-medium text-sm">Export Data</span>
+<span class="block text-[11px] text-text-muted">Download CSV or JSON history</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-text-muted text-lg">chevron_right</span>
+</button>
+<button class="w-full p-4 flex items-center justify-between active:bg-white/5 transition-colors text-left group">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-xl bg-accent-indigo/10 flex items-center justify-center text-accent-indigo">
+<span class="material-symbols-outlined text-[22px]">security</span>
+</div>
+<div>
+<span class="block font-medium text-sm">Security &amp; Privacy</span>
+<span class="block text-[11px] text-text-muted">Biometric lock &amp; permissions</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-text-muted text-lg">chevron_right</span>
+</button>
+</div>
+</section>
+<section class="py-8">
+<button class="w-full py-4 flex items-center justify-center gap-2 text-red-400 font-semibold bg-red-400/5 rounded-2xl border border-red-400/10 active:scale-[0.98] transition-all">
+<span class="material-symbols-outlined text-[20px]">logout</span>
+                Log Out
+            </button>
+<p class="text-center text-[10px] text-text-muted font-mono mt-8 opacity-40">Version 2.4.0 (Build 892)</p>
+</section>
+</main>
+<nav class="fixed bottom-0 left-0 w-full bg-bg-app/95 backdrop-blur-xl border-t border-white/5 pt-3 pb-8 px-6 z-[60] safe-pb">
+<div class="grid grid-cols-4 items-center justify-items-center max-w-md mx-auto">
+<a class="flex flex-col items-center gap-1 group w-full" href="#">
+<span class="material-symbols-outlined text-text-muted group-hover:text-text-main transition-colors text-[26px]">home</span>
+<span class="text-[10px] font-semibold text-text-muted group-hover:text-text-main transition-colors">Home</span>
+</a>
+<a class="flex flex-col items-center gap-1 group w-full" href="#">
+<span class="material-symbols-outlined text-text-muted group-hover:text-text-main transition-colors text-[26px]">receipt_long</span>
+<span class="text-[10px] font-semibold text-text-muted group-hover:text-text-main transition-colors">Feed</span>
+</a>
+<a class="flex flex-col items-center gap-1 group w-full" href="#">
+<span class="material-symbols-outlined text-text-muted group-hover:text-text-main transition-colors text-[26px]">pie_chart</span>
+<span class="text-[10px] font-semibold text-text-muted group-hover:text-text-main transition-colors">Budget</span>
+</a>
+<a class="flex flex-col items-center gap-1 group w-full" href="#">
+<span class="material-symbols-outlined text-accent-indigo text-[26px] fill-current" style="font-variation-settings: 'FILL' 1;">settings</span>
+<span class="text-[10px] font-bold text-accent-indigo">Settings</span>
+</a>
+</div>
+</nav>
+
+</body></html>

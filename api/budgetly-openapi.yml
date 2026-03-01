@@ -1,0 +1,1210 @@
+openapi: 3.0.3
+info:
+  title: Budgetly API
+  description: >
+    Family Harmony Budget App — Collaborative household expense tracking
+    with AI-powered SMS parsing, category budgets, and flexible N-member splits.
+  version: 1.0.0
+  contact:
+    name: Budgetly Team
+
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Local development
+
+tags:
+  - name: Auth
+    description: Google OAuth 2.0 authentication and JWT management
+  - name: Family Groups
+    description: Family group CRUD, invite, and member management
+  - name: Categories
+    description: Budget category management per family group
+  - name: Transactions
+    description: Expense/income transaction CRUD with filtering and pagination
+  - name: Messages
+    description: AI triage of SMS-parsed transactions
+  - name: Dashboard
+    description: Aggregated dashboard and budget summary
+
+paths:
+  # ─────────────────────────── AUTH ───────────────────────────
+  /auth/google:
+    post:
+      tags: [Auth]
+      operationId: googleSignIn
+      summary: Exchange Google ID token for app JWT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GoogleSignInRequest"
+      responses:
+        "200":
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid Google token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      operationId: refreshToken
+      summary: Refresh JWT token
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshTokenRequest"
+      responses:
+        "200":
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid or expired refresh token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      operationId: getCurrentUser
+      summary: Get current user profile
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current user profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ─────────────────────── FAMILY GROUPS ─────────────────────
+  /families:
+    post:
+      tags: [Family Groups]
+      operationId: createFamily
+      summary: Create a new family group
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateFamilyRequest"
+      responses:
+        "201":
+          description: Family group created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyGroup"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /families/{id}:
+    parameters:
+      - $ref: "#/components/parameters/FamilyIdPath"
+    get:
+      tags: [Family Groups]
+      operationId: getFamily
+      summary: Get family group details
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Family group details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyGroup"
+        "404":
+          description: Family not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      tags: [Family Groups]
+      operationId: updateFamily
+      summary: Update family settings (currency, alerts, name) - Admin only
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateFamilyRequest"
+      responses:
+        "200":
+          description: Family updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyGroup"
+        "404":
+          description: Family not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      tags: [Family Groups]
+      operationId: deleteFamily
+      summary: Delete or leave family group
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Family deleted/left
+        "404":
+          description: Family not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /families/{id}/invite:
+    parameters:
+      - $ref: "#/components/parameters/FamilyIdPath"
+    post:
+      tags: [Family Groups]
+      operationId: inviteToFamily
+      summary: Generate invite link or send email invite (Admin only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InviteRequest"
+      responses:
+        "200":
+          description: Invite created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InviteResponse"
+
+  /families/{id}/join:
+    parameters:
+      - $ref: "#/components/parameters/FamilyIdPath"
+    post:
+      tags: [Family Groups]
+      operationId: joinFamily
+      summary: Join family via invite code
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JoinFamilyRequest"
+      responses:
+        "200":
+          description: Joined family
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyMember"
+        "400":
+          description: Invalid invite code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /families/{id}/members:
+    parameters:
+      - $ref: "#/components/parameters/FamilyIdPath"
+    get:
+      tags: [Family Groups]
+      operationId: listFamilyMembers
+      summary: List family members
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Member list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FamilyMember"
+
+  /families/{id}/members/{memberId}:
+    parameters:
+      - $ref: "#/components/parameters/FamilyIdPath"
+      - name: memberId
+        in: path
+        required: true
+        schema:
+          type: string
+    put:
+      tags: [Family Groups]
+      operationId: updateMember
+      summary: Update member role/permissions
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMemberRequest"
+      responses:
+        "200":
+          description: Member updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyMember"
+    delete:
+      tags: [Family Groups]
+      operationId: removeMember
+      summary: Remove member from family
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Member removed
+
+  # ─────────────────────── CATEGORIES ────────────────────────
+  /families/{fid}/categories:
+    parameters:
+      - $ref: "#/components/parameters/FamilyFidPath"
+    get:
+      tags: [Categories]
+      operationId: listCategories
+      summary: List all categories for a family
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Category list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Category"
+    post:
+      tags: [Categories]
+      operationId: createCategory
+      summary: Create a category (Admin only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCategoryRequest"
+      responses:
+        "201":
+          description: Category created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Category"
+
+  /families/{fid}/categories/{id}:
+    parameters:
+      - $ref: "#/components/parameters/FamilyFidPath"
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    put:
+      tags: [Categories]
+      operationId: updateCategory
+      summary: Update category (name, icon, budget) (Admin only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCategoryRequest"
+      responses:
+        "200":
+          description: Category updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Category"
+    delete:
+      tags: [Categories]
+      operationId: deleteCategory
+      summary: Delete category (Admin only)
+      description: Deleting a category will reassign all associated transactions to "Uncategorized".
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Category deleted
+
+  # ─────────────────────── TRANSACTIONS ──────────────────────
+  /families/{fid}/transactions:
+    parameters:
+      - $ref: "#/components/parameters/FamilyFidPath"
+    get:
+      tags: [Transactions]
+      operationId: listTransactions
+      summary: List transactions (paginated, filterable)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: type
+          in: query
+          schema:
+            $ref: "#/components/schemas/TransactionType"
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: categoryId
+          in: query
+          schema:
+            type: string
+        - name: createdByUserId
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: size
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: sort
+          in: query
+          schema:
+            type: string
+            default: transactionDate,desc
+      responses:
+        "200":
+          description: Paginated transaction list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionPage"
+    post:
+      tags: [Transactions]
+      operationId: createTransaction
+      summary: Create a transaction
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTransactionRequest"
+      responses:
+        "201":
+          description: Transaction created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+
+  /families/{fid}/transactions/{id}:
+    parameters:
+      - $ref: "#/components/parameters/FamilyFidPath"
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags: [Transactions]
+      operationId: getTransaction
+      summary: Get transaction detail
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Transaction detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+        "404":
+          description: Transaction not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      tags: [Transactions]
+      operationId: updateTransaction
+      summary: Update transaction
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTransactionRequest"
+      responses:
+        "200":
+          description: Transaction updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+    delete:
+      tags: [Transactions]
+      operationId: deleteTransaction
+      summary: Delete transaction
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Transaction deleted
+
+  # ─────────────────────── MESSAGES (AI TRIAGE) ──────────────
+  /messages/pending:
+    get:
+      tags: [Messages]
+      operationId: getPendingMessages
+      summary: Get pending messages for triage
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Pending messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Message"
+
+  /messages/ignored:
+    get:
+      tags: [Messages]
+      operationId: getIgnoredMessages
+      summary: Get AI-skipped / deleted messages. Returns only the authenticated user's own ignored messages.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Ignored messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Message"
+
+  /messages:
+    post:
+      tags: [Messages]
+      operationId: submitMessage
+      summary: Submit raw SMS text for server-side AI parsing
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubmitMessageRequest"
+      responses:
+        "201":
+          description: Message submitted and parsed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+
+  /messages/{id}/confirm:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      tags: [Messages]
+      operationId: confirmMessage
+      summary: Confirm parsed transaction
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Message confirmed, transaction created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+
+  /messages/{id}/reject:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      tags: [Messages]
+      operationId: rejectMessage
+      summary: Reject / ignore message
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Message rejected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+
+  /messages/{id}/restore:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      tags: [Messages]
+      operationId: restoreMessage
+      summary: Restore an ignored message
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Message restored to pending
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+
+  # ─────────────────── DASHBOARD / BUDGET ────────────────────
+  /families/{fid}/dashboard:
+    parameters:
+      - $ref: "#/components/parameters/FamilyFidPath"
+    get:
+      tags: [Dashboard]
+      operationId: getDashboard
+      summary: Aggregated dashboard data
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: month
+          in: query
+          description: Month in YYYY-MM format (defaults to current month)
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Dashboard data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardData"
+
+  /families/{fid}/budget/summary:
+    parameters:
+      - $ref: "#/components/parameters/FamilyFidPath"
+    get:
+      tags: [Dashboard]
+      operationId: getBudgetSummary
+      summary: Monthly budget summary with per-category breakdowns
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: month
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Budget summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BudgetSummary"
+
+  /families/{fid}/budget:
+    parameters:
+      - $ref: "#/components/parameters/FamilyFidPath"
+    put:
+      tags: [Dashboard]
+      operationId: updateBudget
+      summary: Update overall monthly budget limit
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateBudgetRequest"
+      responses:
+        "200":
+          description: Budget updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyGroup"
+
+components:
+  # ─────────────────── SECURITY ──────────────────────────────
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  # ─────────────────── PARAMETERS ────────────────────────────
+  parameters:
+    FamilyIdPath:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Family group ID
+
+    FamilyFidPath:
+      name: fid
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Family group ID
+
+  # ─────────────────── SCHEMAS ───────────────────────────────
+  schemas:
+    # ── Auth ──
+    GoogleSignInRequest:
+      type: object
+      required: [idToken]
+      properties:
+        idToken:
+          type: string
+          description: Google ID token from client-side sign-in
+
+    RefreshTokenRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+
+    AuthResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        expiresIn:
+          type: integer
+          description: Token expiry in seconds
+        user:
+          $ref: "#/components/schemas/User"
+
+    # ── User ──
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        googleId:
+          type: string
+        displayName:
+          type: string
+        email:
+          type: string
+          format: email
+        avatarUrl:
+          type: string
+          format: uri
+        createdAt:
+          type: string
+          format: date-time
+
+    # ── Family Group ──
+    FamilyGroup:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        avatarInitial:
+          type: string
+        defaultCurrency:
+          type: string
+          default: INR
+        regionFormat:
+          type: string
+          default: IN
+        expenseAlertsEnabled:
+          type: boolean
+          default: true
+        monthlyBudgetLimit:
+          type: number
+          format: double
+        createdByUserId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    CreateFamilyRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        avatarInitial:
+          type: string
+        defaultCurrency:
+          type: string
+          default: INR
+        monthlyBudgetLimit:
+          type: number
+          format: double
+          default: 50000
+
+    UpdateFamilyRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        avatarInitial:
+          type: string
+        defaultCurrency:
+          type: string
+        regionFormat:
+          type: string
+        expenseAlertsEnabled:
+          type: boolean
+        monthlyBudgetLimit:
+          type: number
+          format: double
+
+    # ── Family Member ──
+    FamilyMember:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        familyGroupId:
+          type: string
+        user:
+          $ref: "#/components/schemas/User"
+        role:
+          $ref: "#/components/schemas/MemberRole"
+        status:
+          $ref: "#/components/schemas/MemberStatus"
+        joinedAt:
+          type: string
+          format: date-time
+
+    MemberRole:
+      type: string
+      enum: [ADMIN, MEMBER]
+
+    MemberStatus:
+      type: string
+      enum: [ACTIVE, INVITED, REMOVED]
+
+    UpdateMemberRequest:
+      type: object
+      properties:
+        role:
+          $ref: "#/components/schemas/MemberRole"
+
+    InviteRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        method:
+          type: string
+          enum: [EMAIL, LINK, QR]
+
+    InviteResponse:
+      type: object
+      properties:
+        inviteCode:
+          type: string
+        inviteLink:
+          type: string
+          format: uri
+        expiresAt:
+          type: string
+          format: date-time
+
+    JoinFamilyRequest:
+      type: object
+      required: [inviteCode]
+      properties:
+        inviteCode:
+          type: string
+
+    # ── Category ──
+    Category:
+      type: object
+      properties:
+        id:
+          type: string
+        familyGroupId:
+          type: string
+        name:
+          type: string
+        icon:
+          type: string
+        budgetLimit:
+          type: number
+          format: double
+        color:
+          type: string
+          description: Hex color code
+        sortOrder:
+          type: integer
+
+    CreateCategoryRequest:
+      type: object
+      required: [name, icon]
+      properties:
+        name:
+          type: string
+        icon:
+          type: string
+        budgetLimit:
+          type: number
+          format: double
+        color:
+          type: string
+        sortOrder:
+          type: integer
+
+    UpdateCategoryRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        icon:
+          type: string
+        budgetLimit:
+          type: number
+          format: double
+        color:
+          type: string
+        sortOrder:
+          type: integer
+
+    # ── Transaction ──
+    Transaction:
+      type: object
+      properties:
+        id:
+          type: string
+        familyGroupId:
+          type: string
+        createdByUserId:
+          type: string
+        createdByUser:
+          $ref: "#/components/schemas/User"
+        categoryId:
+          type: string
+        category:
+          $ref: "#/components/schemas/Category"
+        amount:
+          type: number
+          format: double
+        currency:
+          type: string
+          default: INR
+        merchant:
+          type: string
+        description:
+          type: string
+        type:
+          $ref: "#/components/schemas/TransactionType"
+        sourceType:
+          $ref: "#/components/schemas/SourceType"
+        sourceRawText:
+          type: string
+        aiVerified:
+          type: boolean
+        notes:
+          type: string
+        transactionDate:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+
+    TransactionType:
+      type: string
+      enum: [EXPENSE, INCOME, SUBSCRIPTION]
+
+    SplitMethod:
+      type: string
+      enum: [PERSONAL, PERCENT, SHARE]
+
+    SourceType:
+      type: string
+      enum: [MANUAL, SMS, AI_PARSED]
+
+    CreateTransactionRequest:
+      type: object
+      required: [amount, merchant, type, categoryId, transactionDate]
+      properties:
+        amount:
+          type: number
+          format: double
+        currency:
+          type: string
+          default: INR
+        merchant:
+          type: string
+        description:
+          type: string
+        type:
+          $ref: "#/components/schemas/TransactionType"
+        categoryId:
+          type: string
+        splitMethod:
+          $ref: "#/components/schemas/SplitMethod"
+        splitConfig:
+          type: object
+          additionalProperties:
+            type: number
+        notes:
+          type: string
+        transactionDate:
+          type: string
+          format: date-time
+
+    UpdateTransactionRequest:
+      type: object
+      properties:
+        amount:
+          type: number
+          format: double
+        merchant:
+          type: string
+        description:
+          type: string
+        type:
+          $ref: "#/components/schemas/TransactionType"
+        categoryId:
+          type: string
+        splitMethod:
+          $ref: "#/components/schemas/SplitMethod"
+        splitConfig:
+          type: object
+          additionalProperties:
+            type: number
+        notes:
+          type: string
+        transactionDate:
+          type: string
+          format: date-time
+
+    TransactionPage:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/Transaction"
+        page:
+          type: integer
+        size:
+          type: integer
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+        last:
+          type: boolean
+
+    # ── Message ──
+    Message:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        familyGroupId:
+          type: string
+        sender:
+          type: string
+        rawText:
+          type: string
+        status:
+          $ref: "#/components/schemas/MessageStatus"
+        triageResult:
+          $ref: "#/components/schemas/TriageResult"
+        parsedTransaction:
+          $ref: "#/components/schemas/CreateTransactionRequest"
+        linkedTransactionId:
+          type: string
+        receivedAt:
+          type: string
+          format: date-time
+
+    MessageStatus:
+      type: string
+      enum: [PENDING, CONFIRMED, REJECTED, IGNORED]
+
+    TriageResult:
+      type: string
+      enum: [TRANSACTION, OTP, PROMO, PERSONAL, UNKNOWN]
+
+    SubmitMessageRequest:
+      type: object
+      required: [sender, rawText]
+      properties:
+        sender:
+          type: string
+        rawText:
+          type: string
+        familyGroupId:
+          type: string
+
+    # ── Dashboard ──
+    DashboardData:
+      type: object
+      properties:
+        monthlyBudgetLimit:
+          type: number
+          format: double
+        totalSpent:
+          type: number
+          format: double
+        leftToSpend:
+          type: number
+          format: double
+        dailyAverage:
+          type: number
+          format: double
+        projectedSpend:
+          type: number
+          format: double
+        estimatedSavings:
+          type: number
+          format: double
+        recentTransactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Transaction"
+          maxItems: 5
+        pendingMessageCount:
+          type: integer
+
+    BudgetSummary:
+      type: object
+      properties:
+        month:
+          type: string
+          description: YYYY-MM format
+        overallLimit:
+          type: number
+          format: double
+        overallSpent:
+          type: number
+          format: double
+        categoryBreakdowns:
+          type: array
+          items:
+            $ref: "#/components/schemas/CategoryBudgetBreakdown"
+
+    CategoryBudgetBreakdown:
+      type: object
+      properties:
+        category:
+          $ref: "#/components/schemas/Category"
+        budgetLimit:
+          type: number
+          format: double
+        spent:
+          type: number
+          format: double
+        isOverBudget:
+          type: boolean
+
+    UpdateBudgetRequest:
+      type: object
+      required: [monthlyBudgetLimit]
+      properties:
+        monthlyBudgetLimit:
+          type: number
+          format: double
+
+    # ── Common ──
+    ErrorResponse:
+      type: object
+      properties:
+        status:
+          type: integer
+        error:
+          type: string
+        message:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        path:
+          type: string

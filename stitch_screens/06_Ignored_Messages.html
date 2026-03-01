@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Ignored Messages - Family Harmony Budget</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Ibm+Plex+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&amp;family=Space+Mono:wght@400;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "slate-850": "#1E293B",
+                        "slate-900": "#0F172A",
+                        "slate-800": "#1e293b",
+                        "slate-700": "#334155",
+                        "indigo-500": "#6366f1",
+                        "indigo-400": "#818cf8",
+                        "text-main": "#F8FAFC",
+                        "accent-mint": "#10b981",
+                        primary: "#6366f1"
+                    },
+                    fontFamily: {
+                        display: ["Ibm Plex Sans", "sans-serif"],
+                        body: ["Nunito", "sans-serif"],
+                        mono: ["Space Mono", "monospace"]
+                    },
+                    borderRadius: {
+                        DEFAULT: "0.5rem",
+                        card: "1.25rem",
+                        pill: "9999px"
+                    }
+                }
+            }
+        };
+    </script>
+<style type="text/tailwindcss">
+        body {
+            font-family: 'Nunito', sans-serif;
+            background-color: #0F172A;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        .pb-safe {
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+        .pt-safe {
+            padding-top: env(safe-area-inset-top);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-slate-900 text-slate-400 min-h-screen relative overflow-hidden flex flex-col">
+<header class="pt-12 pb-4 px-6 bg-slate-900/95 backdrop-blur-xl sticky top-0 z-20 border-b border-white/5">
+<div class="flex items-center justify-between mb-4">
+<div class="flex items-center gap-3">
+<button class="text-slate-400 hover:text-white transition-colors p-2 -ml-2 rounded-full hover:bg-white/5">
+<span class="material-symbols-outlined">arrow_back</span>
+</button>
+<h1 class="text-white text-xl font-bold font-display tracking-tight">Ignored Messages</h1>
+</div>
+<button class="text-slate-400 hover:text-white p-2 rounded-full hover:bg-white/5">
+<span class="material-symbols-outlined">filter_list</span>
+</button>
+</div>
+<div class="bg-slate-800/50 p-1 rounded-xl flex relative border border-white/5">
+<button class="flex-1 py-2 px-4 rounded-lg bg-indigo-500 text-white text-sm font-semibold font-display shadow-lg shadow-indigo-500/20 transition-all">
+                AI Skipped
+            </button>
+<button class="flex-1 py-2 px-4 rounded-lg text-slate-400 text-sm font-semibold font-display hover:text-white transition-all">
+                Deleted
+            </button>
+</div>
+<p class="text-xs text-slate-500 font-body leading-relaxed mt-4 px-1 flex items-center gap-2">
+<span class="material-symbols-outlined text-indigo-400 text-base">info</span>
+            Messages the AI auto-skipped. Tap undo to restore.
+        </p>
+</header>
+<main class="flex-1 overflow-y-auto hide-scrollbar px-4 pt-4 space-y-4 pb-32">
+<div class="group relative bg-slate-800/40 border border-white/5 rounded-card p-4 hover:bg-slate-800/60 transition-all active:scale-[0.98]">
+<div class="flex items-start justify-between gap-4">
+<div class="flex-1 min-w-0 space-y-2">
+<div class="flex items-center gap-2">
+<span class="text-[10px] font-mono font-bold text-indigo-400 uppercase tracking-wider bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">88291</span>
+<span class="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Today, 2:30 PM</span>
+</div>
+<p class="text-slate-200 text-[15px] leading-relaxed font-body line-clamp-2">
+                        Your verification code is 8292. Do not share this code with anyone.
+                    </p>
+</div>
+<button aria-label="Restore message" class="shrink-0 size-11 flex items-center justify-center rounded-2xl bg-slate-700/50 text-indigo-400 hover:bg-indigo-500 hover:text-white transition-all border border-white/5 shadow-sm">
+<span class="material-symbols-outlined text-[22px]">undo</span>
+</button>
+</div>
+</div>
+<div class="group relative bg-slate-800/40 border border-white/5 rounded-card p-4 hover:bg-slate-800/60 transition-all active:scale-[0.98]">
+<div class="flex items-start justify-between gap-4">
+<div class="flex-1 min-w-0 space-y-2">
+<div class="flex items-center gap-2">
+<span class="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider bg-slate-700/30 px-2 py-0.5 rounded border border-white/5">MOM</span>
+<span class="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Yesterday</span>
+</div>
+<p class="text-slate-200 text-[15px] leading-relaxed font-body line-clamp-2">
+                        Love you! See you at dinner Sunday. Dad is bringing the lasagna.
+                    </p>
+</div>
+<button aria-label="Restore message" class="shrink-0 size-11 flex items-center justify-center rounded-2xl bg-slate-700/50 text-indigo-400 hover:bg-indigo-500 hover:text-white transition-all border border-white/5 shadow-sm">
+<span class="material-symbols-outlined text-[22px]">undo</span>
+</button>
+</div>
+</div>
+<div class="group relative bg-slate-800/40 border border-white/5 rounded-card p-4 hover:bg-slate-800/60 transition-all active:scale-[0.98]">
+<div class="flex items-start justify-between gap-4">
+<div class="flex-1 min-w-0 space-y-2">
+<div class="flex items-center gap-2">
+<span class="text-[10px] font-mono font-bold text-indigo-400 uppercase tracking-wider bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">DELIVERY</span>
+<span class="text-[10px] text-slate-500 font-bold uppercase tracking-wider">2 days ago</span>
+</div>
+<p class="text-slate-200 text-[15px] leading-relaxed font-body line-clamp-2">
+                        Your order is being prepared. Track it in the app now!
+                    </p>
+</div>
+<button aria-label="Restore message" class="shrink-0 size-11 flex items-center justify-center rounded-2xl bg-slate-700/50 text-indigo-400 hover:bg-indigo-500 hover:text-white transition-all border border-white/5 shadow-sm">
+<span class="material-symbols-outlined text-[22px]">undo</span>
+</button>
+</div>
+</div>
+<div class="group relative bg-slate-800/40 border border-white/5 rounded-card p-4 hover:bg-slate-800/60 transition-all active:scale-[0.98]">
+<div class="flex items-start justify-between gap-4">
+<div class="flex-1 min-w-0 space-y-2">
+<div class="flex items-center gap-2">
+<span class="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider bg-slate-700/30 px-2 py-0.5 rounded border border-white/5">STREAMING</span>
+<span class="text-[10px] text-slate-500 font-bold uppercase tracking-wider">3 days ago</span>
+</div>
+<p class="text-slate-200 text-[15px] leading-relaxed font-body line-clamp-2">
+                        New season is now streaming. Watch now on your favorite device.
+                    </p>
+</div>
+<button aria-label="Restore message" class="shrink-0 size-11 flex items-center justify-center rounded-2xl bg-slate-700/50 text-indigo-400 hover:bg-indigo-500 hover:text-white transition-all border border-white/5 shadow-sm">
+<span class="material-symbols-outlined text-[22px]">undo</span>
+</button>
+</div>
+</div>
+<div class="group relative bg-slate-800/40 border border-white/5 rounded-card p-4 hover:bg-slate-800/60 transition-all active:scale-[0.98]">
+<div class="flex items-start justify-between gap-4">
+<div class="flex-1 min-w-0 space-y-2">
+<div class="flex items-center gap-2">
+<span class="text-[10px] font-mono font-bold text-indigo-400 uppercase tracking-wider bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">BANK-ALRT</span>
+<span class="text-[10px] text-slate-500 font-bold uppercase tracking-wider">4 days ago</span>
+</div>
+<p class="text-slate-200 text-[15px] leading-relaxed font-body line-clamp-2">
+                        Large purchase alert: Did you spend $400.00 at the electronics store?
+                    </p>
+</div>
+<button aria-label="Restore message" class="shrink-0 size-11 flex items-center justify-center rounded-2xl bg-slate-700/50 text-indigo-400 hover:bg-indigo-500 hover:text-white transition-all border border-white/5 shadow-sm">
+<span class="material-symbols-outlined text-[22px]">undo</span>
+</button>
+</div>
+</div>
+<div class="text-center py-8">
+<p class="text-[10px] text-slate-600 font-mono tracking-widest uppercase">End of History</p>
+</div>
+</main>
+<nav class="fixed bottom-0 w-full bg-slate-900/80 backdrop-blur-xl border-t border-white/5 z-30 pb-safe">
+<div class="flex items-center justify-around px-4 pt-3 pb-2">
+<a class="flex flex-col items-center gap-1 group min-w-[64px]" href="#">
+<span class="material-symbols-outlined text-slate-500 group-hover:text-indigo-400 transition-colors text-[26px]">home</span>
+<span class="text-[10px] font-bold text-slate-500 group-hover:text-indigo-400 transition-colors font-display tracking-wide">Home</span>
+</a>
+<a class="flex flex-col items-center gap-1 group min-w-[64px]" href="#">
+<span class="material-symbols-outlined text-indigo-400 transition-colors text-[26px] font-variation-fill">dynamic_feed</span>
+<span class="text-[10px] font-bold text-indigo-400 transition-colors font-display tracking-wide">Feed</span>
+</a>
+<a class="flex flex-col items-center gap-1 group min-w-[64px]" href="#">
+<span class="material-symbols-outlined text-slate-500 group-hover:text-indigo-400 transition-colors text-[26px]">account_balance_wallet</span>
+<span class="text-[10px] font-bold text-slate-500 group-hover:text-indigo-400 transition-colors font-display tracking-wide">Budget</span>
+</a>
+<a class="flex flex-col items-center gap-1 group min-w-[64px]" href="#">
+<span class="material-symbols-outlined text-slate-500 group-hover:text-indigo-400 transition-colors text-[26px]">settings</span>
+<span class="text-[10px] font-bold text-slate-500 group-hover:text-indigo-400 transition-colors font-display tracking-wide">Settings</span>
+</a>
+</div>
+</nav>
+<div class="fixed bottom-[74px] left-0 w-full h-12 bg-gradient-to-t from-slate-900 to-transparent pointer-events-none z-10"></div>
+<div class="fixed top-[180px] left-0 w-full h-8 bg-gradient-to-b from-slate-900 to-transparent pointer-events-none z-10"></div>
+
+</body></html>

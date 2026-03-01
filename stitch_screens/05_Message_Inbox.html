@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Family Harmony Budget - Unified Messages</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#6366f1", // Indigo 500
+                        "background-dark": "#0f172a", // Slate 900
+                        surface: "#1e293b", // Slate 800
+                        "surface-lighter": "#334155", // Slate 700
+                        "text-main": "#f8fafc", // Slate 50
+                        "text-muted": "#94a3b8", // Slate 400
+                        "accent-indigo": "#818cf8", // Indigo 400
+                        "accent-emerald": "#10b981", // Emerald 500
+                        "accent-rose": "#f43f5e", // Rose 500
+                    },
+                    fontFamily: {
+                        sans: ["Inter", "sans-serif"],
+                    },
+                    borderRadius: {
+                        'ios': '1.25rem',
+                    }
+                }
+            }
+        };
+    </script>
+<style type="text/tailwindcss">
+        body {
+            padding-bottom: env(safe-area-inset-bottom);
+            -webkit-tap-highlight-color: transparent;
+        }
+        .ios-blur {
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-dark text-text-main font-sans min-h-screen flex flex-col antialiased selection:bg-primary/30">
+<header class="sticky top-0 z-50 bg-background-dark/80 ios-blur border-b border-white/5 px-6 pt-12 pb-4">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-4">
+<button class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/5 active:scale-90 transition-all">
+<span class="material-symbols-outlined text-text-main text-2xl">arrow_back_ios_new</span>
+</button>
+<h1 class="text-xl font-bold tracking-tight">Messages</h1>
+</div>
+<div class="flex items-center gap-2 bg-indigo-500/10 px-3 py-1 rounded-full border border-indigo-500/20">
+<span class="w-2 h-2 rounded-full bg-accent-indigo animate-pulse"></span>
+<span class="text-accent-indigo font-semibold text-xs uppercase tracking-wider">3 Pending</span>
+</div>
+</div>
+</header>
+<main class="flex-1 flex flex-col max-w-md mx-auto w-full px-6 py-6">
+<div class="mb-8">
+<div class="flex justify-between items-center mb-2.5">
+<span class="text-xs font-bold text-text-muted uppercase tracking-widest">Reviewing 1 of 3</span>
+<span class="text-xs font-medium text-text-muted">Just now</span>
+</div>
+<div class="h-1.5 w-full bg-surface rounded-full overflow-hidden">
+<div class="h-full bg-primary w-1/3 rounded-full transition-all duration-500"></div>
+</div>
+</div>
+<div class="relative flex-1 flex flex-col items-center">
+<div class="absolute top-4 left-4 right-4 h-full bg-surface/40 rounded-ios -z-10 border border-white/5 translate-y-4 scale-95"></div>
+<div class="w-full bg-surface rounded-ios shadow-2xl border border-white/10 p-6 flex flex-col gap-6 relative">
+<div class="absolute -top-3 left-1/2 -translate-x-1/2 bg-slate-900 border border-indigo-500/30 px-4 py-1.5 rounded-full flex items-center gap-2 shadow-xl">
+<span class="material-symbols-outlined text-accent-indigo text-base font-variation-fill">verified</span>
+<span class="text-[10px] font-bold uppercase tracking-wider text-accent-indigo">AI Verified</span>
+</div>
+<div class="text-center pt-4">
+<div class="w-16 h-16 bg-gradient-to-br from-indigo-500/20 to-indigo-600/5 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-indigo-500/20 shadow-inner">
+<span class="material-symbols-outlined text-accent-indigo text-3xl">shopping_bag</span>
+</div>
+<h2 class="text-2xl font-bold text-text-main">Trader Joe's</h2>
+<p class="text-text-muted text-sm font-medium">Grocery &amp; Market</p>
+<div class="mt-6 inline-flex items-baseline gap-1">
+<span class="text-xl font-semibold text-text-muted">$</span>
+<span class="text-5xl font-bold tracking-tighter">45.00</span>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-3">
+<div class="bg-background-dark/50 rounded-2xl p-3 border border-white/5">
+<span class="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Date</span>
+<span class="text-sm font-semibold">Oct 24, 2023</span>
+</div>
+<div class="bg-background-dark/50 rounded-2xl p-3 border border-white/5">
+<span class="block text-[10px] font-bold text-text-muted uppercase tracking-wider mb-1">Budget</span>
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-accent-emerald"></span>
+<span class="text-sm font-semibold truncate">Groceries</span>
+</div>
+</div>
+</div>
+<div class="bg-slate-900/80 rounded-2xl p-4 border border-indigo-500/10">
+<div class="flex items-center gap-2 mb-2">
+<span class="material-symbols-outlined text-text-muted text-sm">sms</span>
+<span class="text-[10px] font-bold text-text-muted uppercase tracking-wider">SMS Alert</span>
+</div>
+<p class="text-xs text-slate-400 leading-relaxed font-mono">
+                        BANK ALERT: Purchase of <span class="text-text-main font-bold">$45.00</span> at TRADER JOES #992 on 10/24. 
+                    </p>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<button class="flex items-center justify-center gap-2 py-3.5 rounded-xl bg-surface-lighter hover:bg-slate-600 active:scale-95 transition-all font-semibold text-sm">
+<span class="material-symbols-outlined text-lg">edit</span>
+                        Edit
+                    </button>
+<button class="flex items-center justify-center gap-2 py-3.5 rounded-xl bg-accent-rose/10 text-accent-rose border border-accent-rose/20 hover:bg-accent-rose/20 active:scale-95 transition-all font-semibold text-sm">
+<span class="material-symbols-outlined text-lg">block</span>
+                        Reject
+                    </button>
+</div>
+</div>
+<div class="mt-10 flex flex-col items-center gap-3">
+<button class="w-20 h-20 bg-primary rounded-full flex items-center justify-center shadow-[0_0_30px_-5px_rgba(99,102,241,0.5)] active:scale-90 transition-transform">
+<span class="material-symbols-outlined text-white text-4xl font-bold">check</span>
+</button>
+<span class="text-[11px] font-bold uppercase tracking-[0.2em] text-text-muted">Confirm Transaction</span>
+</div>
+</div>
+</main>
+<div class="fixed bottom-0 left-0 right-0 z-50 px-6 pb-6 pt-2 pointer-events-none">
+<nav class="max-w-md mx-auto bg-surface/80 ios-blur border border-white/10 rounded-full flex items-center justify-around px-2 py-2 pointer-events-auto shadow-2xl">
+<a class="flex flex-col items-center justify-center w-16 h-12 rounded-full text-text-muted hover:text-text-main transition-colors" href="#">
+<span class="material-symbols-outlined text-[24px]">home</span>
+<span class="text-[10px] font-medium mt-0.5">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center w-16 h-12 rounded-full text-primary" href="#">
+<span class="material-symbols-outlined text-[24px] font-variation-fill">chat_bubble</span>
+<span class="text-[10px] font-medium mt-0.5">Feed</span>
+</a>
+<a class="flex flex-col items-center justify-center w-16 h-12 rounded-full text-text-muted hover:text-text-main transition-colors" href="#">
+<span class="material-symbols-outlined text-[24px]">account_balance_wallet</span>
+<span class="text-[10px] font-medium mt-0.5">Budget</span>
+</a>
+<a class="flex flex-col items-center justify-center w-16 h-12 rounded-full text-text-muted hover:text-text-main transition-colors" href="#">
+<span class="material-symbols-outlined text-[24px]">settings</span>
+<span class="text-[10px] font-medium mt-0.5">Settings</span>
+</a>
+</nav>
+</div>
+
+</body></html>

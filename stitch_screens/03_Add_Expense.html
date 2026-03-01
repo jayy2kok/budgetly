@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Add Expense - Family Harmony Budget</title>
+<link href="https://fonts.googleapis.com/css2?family=Ibm+Plex+Sans:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&amp;family=Quicksand:wght@700&amp;family=Space+Mono:wght@400;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "bg-app": "#0f172a", // Slate 950
+                        "bg-card": "#1e293b", // Slate 800
+                        "surface-highlight": "#334155", // Slate 700
+                        "text-main": "#f8fafc", // Slate 50
+                        "text-muted": "#94a3b8", // Slate 400
+                        primary: "#6366f1", // Indigo 500
+                        "primary-hover": "#4f46e5", // Indigo 600
+                        "accent-coral": "#FDA4AF",
+                        "accent-mint": "#6EE7B7"
+                    },
+                    fontFamily: {
+                        display: "Ibm+Plex+Sans",
+                        body: ["Nunito", "sans-serif"],
+                        mono: ["Space Mono", "monospace"]
+                    },
+                    borderRadius: {
+                        DEFAULT: "0.5rem",
+                        lg: "1rem",
+                        xl: "1.5rem",
+                        full: "9999px"
+                    }
+                }
+            }
+        };
+    </script>
+<style type="text/tailwindcss">
+        body {
+            min-height: -webkit-fill-available;
+            @apply bg-bg-app text-text-main font-body antialiased;
+        }
+        .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+        }
+        .scrollbar-hide {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="h-screen flex flex-col">
+<div class="flex items-center px-6 pt-14 pb-4 justify-between z-20 sticky top-0 bg-bg-app/80 backdrop-blur-md">
+<button class="text-text-muted flex size-10 items-center justify-center rounded-full hover:bg-slate-800 transition-colors">
+<span class="material-symbols-outlined text-[24px]">close</span>
+</button>
+<h2 class="text-text-main text-lg font-display font-bold">Add Expense</h2>
+<button class="text-primary text-sm font-bold px-4 py-2 hover:bg-primary/10 rounded-full transition-colors">
+            Save
+        </button>
+</div>
+<div class="flex-1 flex flex-col px-6 overflow-y-auto pb-32">
+<div class="flex flex-col items-center justify-center py-10">
+<div class="relative flex items-center justify-center">
+<span class="text-4xl text-primary font-mono font-bold mr-2">₹</span>
+<input autofocus="" class="bg-transparent border-none text-center text-6xl font-mono text-text-main p-0 w-56 focus:ring-0 placeholder-slate-700 caret-primary" inputmode="decimal" placeholder="0" type="number"/>
+</div>
+<p class="text-text-muted text-sm mt-3 font-medium flex items-center gap-1.5">
+<span class="material-symbols-outlined text-sm">label</span>
+                Categorized as <span class="text-text-main">Groceries</span>
+</p>
+</div>
+<div class="flex justify-center mb-8">
+<div class="flex p-1.5 bg-bg-card rounded-full w-full max-w-sm border border-slate-700/50">
+<label class="cursor-pointer flex-1">
+<input checked="" class="peer sr-only" name="payer" type="radio" value="husband"/>
+<div class="flex items-center justify-center py-2.5 rounded-full transition-all duration-300 peer-checked:bg-slate-700 peer-checked:text-text-main text-text-muted font-bold text-sm">
+<span class="material-symbols-outlined text-[20px] mr-2">person</span>
+                        Husband
+                    </div>
+</label>
+<label class="cursor-pointer flex-1">
+<input class="peer sr-only" name="payer" type="radio" value="wife"/>
+<div class="flex items-center justify-center py-2.5 rounded-full transition-all duration-300 peer-checked:bg-slate-700 peer-checked:text-text-main text-text-muted font-bold text-sm">
+<span class="material-symbols-outlined text-[20px] mr-2">person_3</span>
+                        Wife
+                    </div>
+</label>
+</div>
+</div>
+<div class="space-y-5">
+<div class="group">
+<label class="block text-text-muted text-[11px] font-bold uppercase tracking-[0.1em] mb-2 ml-1">Merchant / Description</label>
+<div class="flex items-center bg-bg-card rounded-xl px-4 py-4 focus-within:ring-2 focus-within:ring-primary/40 transition-all border border-slate-700/50">
+<span class="material-symbols-outlined text-slate-500 mr-3">store</span>
+<input class="bg-transparent border-none w-full text-text-main placeholder-slate-600 focus:ring-0 p-0 font-body text-base" placeholder="e.g. Starbucks, Amazon" type="text"/>
+</div>
+</div>
+<div>
+<label class="block text-text-muted text-[11px] font-bold uppercase tracking-[0.1em] mb-3 ml-1">Select Category</label>
+<div class="flex gap-4 overflow-x-auto pb-2 scrollbar-hide -mx-6 px-6 snap-x">
+<button class="snap-start flex flex-col items-center gap-2 min-w-[72px]">
+<div class="size-14 bg-primary text-white rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20 transition-transform active:scale-95">
+<span class="material-symbols-outlined text-[24px] fill-1">shopping_basket</span>
+</div>
+<span class="text-[11px] font-bold text-text-main">Groceries</span>
+</button>
+<button class="snap-start flex flex-col items-center gap-2 min-w-[72px] group">
+<div class="size-14 bg-bg-card text-slate-400 rounded-2xl flex items-center justify-center border border-slate-700 group-active:scale-95 transition-all">
+<span class="material-symbols-outlined text-[24px]">restaurant</span>
+</div>
+<span class="text-[11px] font-medium text-text-muted">Dining</span>
+</button>
+<button class="snap-start flex flex-col items-center gap-2 min-w-[72px] group">
+<div class="size-14 bg-bg-card text-slate-400 rounded-2xl flex items-center justify-center border border-slate-700 group-active:scale-95 transition-all">
+<span class="material-symbols-outlined text-[24px]">commute</span>
+</div>
+<span class="text-[11px] font-medium text-text-muted">Transport</span>
+</button>
+<button class="snap-start flex flex-col items-center gap-2 min-w-[72px] group">
+<div class="size-14 bg-bg-card text-slate-400 rounded-2xl flex items-center justify-center border border-slate-700 group-active:scale-95 transition-all">
+<span class="material-symbols-outlined text-[24px]">home</span>
+</div>
+<span class="text-[11px] font-medium text-text-muted">Housing</span>
+</button>
+<button class="snap-start flex flex-col items-center gap-2 min-w-[72px] group">
+<div class="size-14 bg-bg-card text-slate-400 rounded-2xl flex items-center justify-center border border-slate-700 group-active:scale-95 transition-all">
+<span class="material-symbols-outlined text-[24px]">payments</span>
+</div>
+<span class="text-[11px] font-medium text-text-muted">Bills</span>
+</button>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div>
+<label class="block text-text-muted text-[11px] font-bold uppercase tracking-[0.1em] mb-2 ml-1">Date</label>
+<button class="w-full flex items-center justify-between bg-bg-card rounded-xl px-4 py-3.5 text-text-main border border-slate-700/50 active:bg-slate-700 transition-colors">
+<span class="text-sm font-semibold">Today</span>
+<span class="material-symbols-outlined text-slate-500 text-[18px]">calendar_today</span>
+</button>
+</div>
+<div>
+<label class="block text-text-muted text-[11px] font-bold uppercase tracking-[0.1em] mb-2 ml-1">Split Method</label>
+<button class="w-full flex items-center justify-between bg-bg-card rounded-xl px-4 py-3.5 text-text-main border border-slate-700/50 active:bg-slate-700 transition-colors">
+<span class="text-sm font-semibold">50 / 50</span>
+<span class="material-symbols-outlined text-slate-500 text-[18px]">call_split</span>
+</button>
+</div>
+</div>
+<div class="pt-6 pb-10">
+<button class="w-full bg-primary hover:bg-primary-hover text-white font-display font-bold text-base h-14 rounded-xl shadow-lg shadow-primary/20 transition-all transform active:scale-[0.98] flex items-center justify-center gap-2">
+<span class="material-symbols-outlined">add_circle</span>
+                    Add Expense
+                </button>
+</div>
+</div>
+</div>
+<div class="fixed bottom-0 w-full bg-bg-app/95 backdrop-blur-xl border-t border-slate-800/80 pt-3 pb-8 px-6 z-30">
+<div class="flex justify-around items-center">
+<button class="flex flex-col items-center gap-1 w-16 group">
+<span class="material-symbols-outlined text-text-muted group-hover:text-primary transition-colors text-[24px]">home</span>
+<span class="text-[10px] font-bold text-text-muted group-hover:text-primary uppercase tracking-wider">Home</span>
+</button>
+<button class="flex flex-col items-center gap-1 w-16 group">
+<span class="material-symbols-outlined text-text-muted group-hover:text-primary transition-colors text-[24px]">list_alt</span>
+<span class="text-[10px] font-bold text-text-muted group-hover:text-primary uppercase tracking-wider">Feed</span>
+</button>
+<button class="flex flex-col items-center gap-1 w-16 group">
+<span class="material-symbols-outlined text-text-muted group-hover:text-primary transition-colors text-[24px]">account_balance_wallet</span>
+<span class="text-[10px] font-bold text-text-muted group-hover:text-primary uppercase tracking-wider">Budget</span>
+</button>
+<button class="flex flex-col items-center gap-1 w-16 group">
+<span class="material-symbols-outlined text-text-muted group-hover:text-primary transition-colors text-[24px]">settings</span>
+<span class="text-[10px] font-bold text-text-muted group-hover:text-primary uppercase tracking-wider">Settings</span>
+</button>
+</div>
+</div>
+
+</body></html>

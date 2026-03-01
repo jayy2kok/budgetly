@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Unified Feed - Family Harmony Budget</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Ibm+Plex+Sans:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "bg-app": "#0f172a", // Slate-900
+                        "bg-card": "#1e293b", // Slate-800
+                        "bg-surface-highlight": "#334155", // Slate-700
+                        "text-main": "#f8fafc",
+                        "text-muted": "#94a3b8",
+                        "primary": "#6366f1", // Indigo-500
+                        "accent-coral": "#fb7185",
+                        "accent-mint": "#34d399",
+                        "stroke-subtle": "rgba(255, 255, 255, 0.06)"
+                    },
+                    fontFamily: {
+                        sans: ["Inter", "sans-serif"],
+                        display: ["Ibm Plex Sans", "sans-serif"]
+                    },
+                    boxShadow: {
+                        soft: "0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2)",
+                        indigo: "0 0 15px rgba(99, 102, 241, 0.2)"
+                    }
+                }
+            }
+        };
+    </script>
+<style type="text/tailwindcss">
+        body {
+            @apply bg-bg-app text-text-main antialiased;
+            min-height: 100dvh;
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        .nav-active {
+            @apply text-primary font-semibold;
+        }
+        .nav-inactive {
+            @apply text-text-muted;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="h-screen overflow-hidden flex flex-col">
+<header class="flex-none pt-12 pb-4 z-30 bg-bg-app/80 backdrop-blur-xl border-b border-stroke-subtle sticky top-0">
+<div class="px-5 mb-5 flex items-center justify-between">
+<h1 class="text-2xl font-bold tracking-tight font-display">Feed</h1>
+<div class="flex gap-2">
+<button class="w-10 h-10 rounded-full bg-bg-card flex items-center justify-center transition-colors border border-stroke-subtle active:bg-bg-surface-highlight">
+<span class="material-symbols-outlined text-text-muted text-[22px]">search</span>
+</button>
+<button class="w-10 h-10 rounded-full bg-bg-card flex items-center justify-center transition-colors border border-stroke-subtle active:bg-bg-surface-highlight">
+<span class="material-symbols-outlined text-text-muted text-[22px]">tune</span>
+</button>
+</div>
+</div>
+<div class="flex gap-2 px-5 overflow-x-auto hide-scrollbar">
+<button class="shrink-0 h-9 px-5 rounded-full bg-primary text-white font-semibold text-sm shadow-indigo">All</button>
+<button class="shrink-0 h-9 px-5 rounded-full bg-bg-card border border-stroke-subtle text-text-muted font-medium text-sm active:bg-bg-surface-highlight">Expenses</button>
+<button class="shrink-0 h-9 px-5 rounded-full bg-bg-card border border-stroke-subtle text-text-muted font-medium text-sm active:bg-bg-surface-highlight">Income</button>
+<button class="shrink-0 h-9 px-5 rounded-full bg-bg-card border border-stroke-subtle text-text-muted font-medium text-sm active:bg-bg-surface-highlight">Subscriptions</button>
+</div>
+</header>
+<main class="flex-1 overflow-y-auto hide-scrollbar px-4 pb-32 pt-2">
+<section class="mb-6">
+<div class="sticky top-0 z-10 py-3 bg-bg-app/90 backdrop-blur-sm">
+<h3 class="text-text-muted font-bold uppercase tracking-widest text-[10px] px-1">Today, Oct 24</h3>
+</div>
+<div class="space-y-2">
+<div class="flex items-center bg-bg-card p-3.5 rounded-2xl border border-stroke-subtle active:scale-[0.98] transition-transform">
+<div class="relative shrink-0 mr-4">
+<div class="w-11 h-11 rounded-xl bg-bg-surface-highlight flex items-center justify-center text-primary">
+<span class="material-symbols-outlined">shopping_bag</span>
+</div>
+<div class="absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-bg-card overflow-hidden">
+<img alt="User" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDC8s8xBSGwF6_NPu2smAAm01GWnIzCH-8n1VtJLcwBk2vY7AXSBlVN8yFuwWFk5gKGql3z6DPJcoPj6IKBOeAclhYeDp_YXd9zEGG6AXcnAt9iCFRzHJ-vmCG_DYg6feZ4QsIMG2w1Uim7g2TXevk0l6Lu-KREqlFeFBgEc-LYmmtnpihOD09ApeZF1CshcR3NY72RfcbaYni4Wo1tihP8XqdCAn3YGdooySOE2sIRns2sTi0FZvsWlSAhUeIalx38mC5LmvR1p8w"/>
+</div>
+</div>
+<div class="flex-1 min-w-0">
+<h4 class="text-text-main font-semibold text-[15px] truncate">Organic Groceries</h4>
+<p class="text-text-muted text-[12px] mt-0.5">Sarah • Household</p>
+</div>
+<div class="shrink-0 text-right">
+<span class="block text-text-main font-bold text-[15px] font-sans">-₹12,420</span>
+</div>
+</div>
+<div class="flex items-center bg-bg-card p-3.5 rounded-2xl border border-stroke-subtle active:scale-[0.98] transition-transform">
+<div class="relative shrink-0 mr-4">
+<div class="w-11 h-11 rounded-xl bg-bg-surface-highlight flex items-center justify-center text-primary">
+<span class="material-symbols-outlined">sports_esports</span>
+</div>
+<div class="absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-bg-card overflow-hidden">
+<img alt="User" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA1O0xSwmIvtUBcwKhGJFwn-msvDQLCHk5XuoVAZqypehvF386Jil_eO6cCiMoFXyCFS9EIKrTvHqsTD6-6834NM5d9erBBqAtpuKiYnszfE3oJh8SYHDWLBo5PErz7Dwil0N7xYlVX-3bc2BMS8qjwMhvoGQYm_Pm1syfzBCi1JUAFrnyQQmHNAf8cpJxD_XnsIv89aM0Zk0vjFeLMWuVjiwywDPOJ0pxCtF_PInMt7zOtdtWf4XgTRmBg5K5mNYlhFVGtihAsFoU"/>
+</div>
+</div>
+<div class="flex-1 min-w-0">
+<h4 class="text-text-main font-semibold text-[15px] truncate">Digital Store</h4>
+<p class="text-text-muted text-[12px] mt-0.5">Mike • Leisure</p>
+</div>
+<div class="shrink-0 text-right">
+<span class="block text-text-main font-bold text-[15px] font-sans">-₹4,150</span>
+</div>
+</div>
+</div>
+</section>
+<section class="mb-6">
+<div class="sticky top-0 z-10 py-3 bg-bg-app/90 backdrop-blur-sm">
+<h3 class="text-text-muted font-bold uppercase tracking-widest text-[10px] px-1">Yesterday, Oct 23</h3>
+</div>
+<div class="space-y-2">
+<div class="flex items-center bg-bg-card p-3.5 rounded-2xl border border-indigo-500/20 active:scale-[0.98] transition-transform">
+<div class="relative shrink-0 mr-4">
+<div class="w-11 h-11 rounded-xl bg-accent-mint/10 flex items-center justify-center text-accent-mint">
+<span class="material-symbols-outlined">account_balance_wallet</span>
+</div>
+<div class="absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-bg-card bg-bg-surface-highlight flex items-center justify-center">
+<span class="material-symbols-outlined text-[10px] text-white">group</span>
+</div>
+</div>
+<div class="flex-1 min-w-0">
+<h4 class="text-text-main font-semibold text-[15px] truncate">Travel Refund</h4>
+<p class="text-text-muted text-[12px] mt-0.5">Joint Account • Travel</p>
+</div>
+<div class="shrink-0 text-right">
+<span class="block text-accent-mint font-bold text-[15px] font-sans">+₹18,500</span>
+</div>
+</div>
+<div class="flex items-center bg-bg-card p-3.5 rounded-2xl border border-stroke-subtle active:scale-[0.98] transition-transform">
+<div class="relative shrink-0 mr-4">
+<div class="w-11 h-11 rounded-xl bg-bg-surface-highlight flex items-center justify-center text-primary">
+<span class="material-symbols-outlined">coffee</span>
+</div>
+<div class="absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-bg-card overflow-hidden">
+<img alt="User" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDI9b-rHS2N8uFQ7I4npo_zp-lMp7QqlMqaxsjFD-wzuNKw0JeS40qJeRcQZRAHZI7E-AlmWj1nR0wI3FGo-WcxJYhbKBWutiZUBJUmn-v2mq6ltWhuA24FeU9s_iu8N3K2aSulFj1nkB25HU_B8hgSjc8XfaZuCH9YRZ118B6QyVEIr5n4KNl9SFZ2naV22qYfKJoAxld-2znU4_nuCltXsIInXD1ssb3Kvpkbsa6q0vGRuds8-yxfgwENZdpSPSDw2OHWNX8ZKis"/>
+</div>
+</div>
+<div class="flex-1 min-w-0">
+<h4 class="text-text-main font-semibold text-[15px] truncate">Coffee House</h4>
+<p class="text-text-muted text-[12px] mt-0.5">Sarah • Dining</p>
+</div>
+<div class="shrink-0 text-right">
+<span class="block text-text-main font-bold text-[15px] font-sans">-₹540</span>
+</div>
+</div>
+<div class="flex items-center bg-bg-card p-3.5 rounded-2xl border border-stroke-subtle active:scale-[0.98] transition-transform">
+<div class="relative shrink-0 mr-4">
+<div class="w-11 h-11 rounded-xl bg-bg-surface-highlight flex items-center justify-center text-primary">
+<span class="material-symbols-outlined">local_gas_station</span>
+</div>
+<div class="absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-bg-card overflow-hidden">
+<img alt="User" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAwd9NRoPei_AR7tHlI76vUV_Ou6oLs2q1JuwjewV1ZBLTrMWRHgqPIY8Rwget2C30xi-RM6sQoCQrjgMmkV8PbAQrjjZmOmGafhk2gJ9QNGe1rst6IrPeXVhCrUEJPaaYjcSwdX54RDFt5V-XKqU12_j3MvWYmRa6tFHD95__T9OF8-m0ot_1-qPqDK-csBecH0e3Aru8IjHG7mdnmz91Qxgu-RrzQCb1FTA3-ocRCnRAaUOr_hi5qjLOJT7JfgaYYQBgt6Os6hY0"/>
+</div>
+</div>
+<div class="flex-1 min-w-0">
+<h4 class="text-text-main font-semibold text-[15px] truncate">Fuel Refill</h4>
+<p class="text-text-muted text-[12px] mt-0.5">Mike • Transport</p>
+</div>
+<div class="shrink-0 text-right">
+<span class="block text-text-main font-bold text-[15px] font-sans">-₹3,520</span>
+</div>
+</div>
+</div>
+</section>
+<section class="mb-6">
+<div class="sticky top-0 z-10 py-3 bg-bg-app/90 backdrop-blur-sm">
+<h3 class="text-text-muted font-bold uppercase tracking-widest text-[10px] px-1">Sunday, Oct 21</h3>
+</div>
+<div class="space-y-2">
+<div class="flex items-center bg-bg-card p-3.5 rounded-2xl border border-stroke-subtle active:scale-[0.98] transition-transform">
+<div class="relative shrink-0 mr-4">
+<div class="w-11 h-11 rounded-xl bg-bg-surface-highlight flex items-center justify-center text-primary">
+<span class="material-symbols-outlined">tv</span>
+</div>
+<div class="absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-bg-card bg-bg-surface-highlight flex items-center justify-center">
+<span class="material-symbols-outlined text-[10px] text-white">group</span>
+</div>
+</div>
+<div class="flex-1 min-w-0">
+<h4 class="text-text-main font-semibold text-[15px] truncate">Streaming Service</h4>
+<p class="text-text-muted text-[12px] mt-0.5">Joint Account • Entertainment</p>
+</div>
+<div class="shrink-0 text-right">
+<span class="block text-text-main font-bold text-[15px] font-sans">-₹649</span>
+</div>
+</div>
+</div>
+</section>
+</main>
+<nav class="fixed bottom-0 left-0 w-full z-50 bg-bg-app/95 backdrop-blur-xl border-t border-stroke-subtle pb-8 pt-3 px-6">
+<div class="flex items-center justify-between max-w-sm mx-auto">
+<a class="flex flex-col items-center gap-1 nav-inactive" href="#">
+<span class="material-symbols-outlined text-[26px]">home</span>
+<span class="text-[10px] font-medium uppercase tracking-tight">Home</span>
+</a>
+<a class="flex flex-col items-center gap-1 nav-active" href="#">
+<span class="material-symbols-outlined text-[26px]" style="font-variation-settings: 'FILL' 1;">receipt_long</span>
+<span class="text-[10px] font-bold uppercase tracking-tight">Feed</span>
+</a>
+<a class="flex flex-col items-center gap-1 nav-inactive" href="#">
+<span class="material-symbols-outlined text-[26px]">analytics</span>
+<span class="text-[10px] font-medium uppercase tracking-tight">Budget</span>
+</a>
+<a class="flex flex-col items-center gap-1 nav-inactive" href="#">
+<span class="material-symbols-outlined text-[26px]">settings</span>
+<span class="text-[10px] font-medium uppercase tracking-tight">Settings</span>
+</a>
+</div>
+</nav>
+
+</body></html>
