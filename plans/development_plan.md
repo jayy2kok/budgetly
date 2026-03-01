@@ -141,6 +141,25 @@ graph LR
 
 ---
 
+### CI/CD — GitHub Actions
+
+| # | Task | Layer |
+|---|------|-------|
+| CI.1 | `ci.yml` — Analyze + Test + Debug build on every push/PR to `main` | Infra |
+| CI.2 | `release.yml` — Build debug APK + GitHub Release on tag push (`v*`) or manual trigger | Infra |
+
+### Future — APK Signing (Release Builds)
+
+| # | Task | Layer |
+|---|------|-------|
+| SIGN.1 | Generate a release keystore: `keytool -genkey -v -keystore budgetly-release.jks -keyalg RSA -keysize 2048 -validity 10000 -alias budgetly` | Infra |
+| SIGN.2 | Create `app/android/key.properties` with keystore path, password, alias (gitignored) | Flutter |
+| SIGN.3 | Update `app/android/app/build.gradle.kts` to read `key.properties` and configure `signingConfigs.release` | Flutter |
+| SIGN.4 | Store keystore + passwords as GitHub Secrets (`KEYSTORE_BASE64`, `KEY_ALIAS`, `KEY_PASSWORD`, `STORE_PASSWORD`) | Infra |
+| SIGN.5 | Update `release.yml` to decode keystore, write `key.properties`, and run `flutter build apk --release` | Infra |
+
+---
+
 ## 4. App Features (Derived from Stitch Screens)
 
 ### 4.1 Authentication
