@@ -16,10 +16,10 @@ enum TransactionType {
 enum SourceType {
   @JsonValue('MANUAL')
   manual,
-  @JsonValue('SMS')
-  sms,
-  @JsonValue('AI_PARSED')
-  aiParsed,
+  @JsonValue('REGEX_LOCAL')
+  regexLocal,
+  @JsonValue('LLM_SERVER')
+  llmServer,
 }
 
 /// A financial transaction within a family group.
@@ -36,7 +36,7 @@ class Transaction {
   final TransactionType type;
   final SourceType sourceType;
   final String? sourceRawText;
-  final bool aiVerified;
+  final String? matchedPatternId;
   final String? notes;
   final DateTime transactionDate;
   final DateTime createdAt;
@@ -53,7 +53,7 @@ class Transaction {
     required this.type,
     this.sourceType = SourceType.manual,
     this.sourceRawText,
-    this.aiVerified = false,
+    this.matchedPatternId,
     this.notes,
     required this.transactionDate,
     required this.createdAt,
@@ -69,4 +69,9 @@ class Transaction {
 
   /// Whether this is an expense.
   bool get isExpense => type == TransactionType.expense;
+
+  /// Whether this was auto-parsed from an SMS.
+  bool get isSmsParsed =>
+      sourceType == SourceType.regexLocal ||
+      sourceType == SourceType.llmServer;
 }

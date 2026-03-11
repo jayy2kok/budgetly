@@ -20,7 +20,7 @@ Transaction _$TransactionFromJson(Map<String, dynamic> json) => Transaction(
       $enumDecodeNullable(_$SourceTypeEnumMap, json['sourceType']) ??
       SourceType.manual,
   sourceRawText: json['sourceRawText'] as String?,
-  aiVerified: json['aiVerified'] as bool? ?? false,
+  matchedPatternId: json['matchedPatternId'] as String?,
   notes: json['notes'] as String?,
   transactionDate: DateTime.parse(json['transactionDate'] as String),
   createdAt: DateTime.parse(json['createdAt'] as String),
@@ -39,7 +39,7 @@ Map<String, dynamic> _$TransactionToJson(Transaction instance) =>
       'type': _$TransactionTypeEnumMap[instance.type]!,
       'sourceType': _$SourceTypeEnumMap[instance.sourceType]!,
       'sourceRawText': instance.sourceRawText,
-      'aiVerified': instance.aiVerified,
+      'matchedPatternId': instance.matchedPatternId,
       'notes': instance.notes,
       'transactionDate': instance.transactionDate.toIso8601String(),
       'createdAt': instance.createdAt.toIso8601String(),
@@ -53,6 +53,6 @@ const _$TransactionTypeEnumMap = {
 
 const _$SourceTypeEnumMap = {
   SourceType.manual: 'MANUAL',
-  SourceType.sms: 'SMS',
-  SourceType.aiParsed: 'AI_PARSED',
+  SourceType.regexLocal: 'REGEX_LOCAL',
+  SourceType.llmServer: 'LLM_SERVER',
 };

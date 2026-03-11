@@ -8,8 +8,9 @@ import '../../config/routes.dart';
 import '../../providers/auth_provider.dart';
 import '../../data/mock/sample_data.dart';
 import '../../providers/theme_provider.dart';
+import '../../providers/sms_provider.dart';
 
-/// Settings screen — Profile card, grouped settings, sign out.
+/// Settings screen — Profile card, grouped settings, SMS & Parsing, sign out.
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
@@ -67,6 +68,7 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authProvider);
     final user = authState.user;
+    final smsState = ref.watch(smsProvider);
 
     final currentMember = SampleData.members.firstWhere(
       (m) => m.userId == user?.id,
@@ -226,6 +228,87 @@ class SettingsScreen extends ConsumerWidget {
             ],
           ),
 
+          // ── SMS & Parsing ──
+          _SectionHeader('SMS & PARSING'),
+          _SettingsGroup(
+            children: [
+              _SettingsRow(
+                icon: Icons.sms_outlined,
+                label: 'SMS Permission',
+                trailing: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: smsState.smsPermissionGranted
+                        ? context.colors.accentMint.withValues(alpha: 0.15)
+                        : context.colors.accentCoral.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    smsState.smsPermissionGranted ? 'Granted' : 'Denied',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: smsState.smsPermissionGranted
+                          ? context.colors.accentMint
+                          : context.colors.accentCoral,
+                    ),
+                  ),
+                ),
+                onTap: smsState.smsPermissionGranted
+                    ? null
+                    : () =>
+                        ref.read(smsProvider.notifier).requestPermission(),
+              ),
+              _SettingsToggle(
+                icon: Icons.play_circle_outline,
+                label: 'Background Service',
+                value: smsState.backgroundServiceEnabled,
+                onChanged: (_) =>
+                    ref.read(smsProvider.notifier).toggleBackgroundService(),
+              ),
+              _SettingsRow(
+                icon: Icons.pattern,
+                label: 'Cached Patterns',
+                trailing: Text(
+                  '${smsState.cachedPatternCount} patterns',
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    color: context.colors.textDim,
+                  ),
+                ),
+              ),
+              _SettingsRow(
+                icon: Icons.schedule,
+                label: 'Last Synced',
+                trailing: Text(
+                  smsState.lastSyncLabel,
+                  style: GoogleFonts.inter(
+                    fontSize: 14,
+                    color: context.colors.textDim,
+                  ),
+                ),
+              ),
+              _SettingsRow(
+                icon: Icons.refresh,
+                label: 'Refresh Patterns',
+                trailing: smsState.isRefreshing
+                    ? SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: context.colors.primary,
+                        ),
+                      )
+                    : null,
+                onTap: smsState.isRefreshing
+                    ? null
+                    : () =>
+                        ref.read(smsProvider.notifier).refreshPatterns(),
+              ),
+            ],
+          ),
+
           // ── Family ──
           _SectionHeader('FAMILY'),
           _SettingsGroup(
@@ -286,7 +369,7 @@ class SettingsScreen extends ConsumerWidget {
                 icon: Icons.info_outline,
                 label: 'Version',
                 trailing: Text(
-                  '1.0.0 (Phase 2)',
+                  '1.0.0 (Phase 3)',
                   style: GoogleFonts.inter(
                     fontSize: 14,
                     color: context.colors.textDim,
@@ -326,7 +409,8 @@ class SettingsScreen extends ConsumerWidget {
                   style: OutlinedButton.styleFrom(
                     foregroundColor: context.colors.accentCoral,
                     side: BorderSide(
-                      color: context.colors.accentCoral.withValues(alpha: 0.3),
+                      color:
+                          context.colors.accentCoral.withValues(alpha: 0.3),
                     ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(
@@ -394,7 +478,8 @@ class _SettingsGroup extends StatelessWidget {
                   Divider(
                     height: 1,
                     indent: 52,
-                    color: context.colors.borderSubtle.withValues(alpha: 0.5),
+                    color:
+                        context.colors.borderSubtle.withValues(alpha: 0.5),
                   ),
               ],
             ],
@@ -456,11 +541,13 @@ class _SettingsToggle extends StatefulWidget {
   final IconData icon;
   final String label;
   final bool value;
+  final ValueChanged<bool>? onChanged;
 
   const _SettingsToggle({
     required this.icon,
     required this.label,
     required this.value,
+    this.onChanged,
   });
 
   @override
@@ -474,6 +561,14 @@ class _SettingsToggleState extends State<_SettingsToggle> {
   void initState() {
     super.initState();
     _value = widget.value;
+  }
+
+  @override
+  void didUpdateWidget(covariant _SettingsToggle oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.value != widget.value) {
+      _value = widget.value;
+    }
   }
 
   @override
@@ -496,9 +591,13 @@ class _SettingsToggleState extends State<_SettingsToggle> {
           ),
           Switch(
             value: _value,
-            onChanged: (v) => setState(() => _value = v),
+            onChanged: (v) {
+              setState(() => _value = v);
+              widget.onChanged?.call(v);
+            },
             activeThumbColor: context.colors.primary,
-            activeTrackColor: context.colors.primary.withValues(alpha: 0.3),
+            activeTrackColor:
+                context.colors.primary.withValues(alpha: 0.3),
             inactiveTrackColor: context.colors.surfaceHighlight,
             inactiveThumbColor: context.colors.textDim,
           ),

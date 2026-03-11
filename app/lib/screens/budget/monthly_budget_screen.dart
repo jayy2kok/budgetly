@@ -655,7 +655,7 @@ class MonthlyBudgetScreen extends ConsumerWidget {
                     type: SampleData.transactions[i].type,
                     sourceType: SampleData.transactions[i].sourceType,
                     sourceRawText: SampleData.transactions[i].sourceRawText,
-                    aiVerified: SampleData.transactions[i].aiVerified,
+                    matchedPatternId: SampleData.transactions[i].matchedPatternId,
                     notes: SampleData.transactions[i].notes,
                     transactionDate: SampleData.transactions[i].transactionDate,
                     createdAt: SampleData.transactions[i].createdAt,

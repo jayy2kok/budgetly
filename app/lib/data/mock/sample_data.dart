@@ -164,10 +164,10 @@ class SampleData {
       amount: 8942,
       merchant: 'Grocery Mart',
       type: TransactionType.expense,
-      sourceType: SourceType.aiParsed,
+      sourceType: SourceType.regexLocal,
       sourceRawText:
           'Rs.8,942.00 debited from a/c **1234 for Grocery Mart on 28-02-26',
-      aiVerified: true,
+      matchedPatternId: 'pat_001',
       transactionDate: DateTime.now().subtract(const Duration(hours: 2)),
       createdAt: DateTime.now().subtract(const Duration(hours: 2)),
     ),
@@ -179,10 +179,10 @@ class SampleData {
       amount: 45000,
       merchant: 'Monthly Rent',
       type: TransactionType.expense,
-      sourceType: SourceType.aiParsed,
+      sourceType: SourceType.regexLocal,
       sourceRawText:
           'Rs.45,000.00 debited from a/c **9876 towards Monthly Rent on 27-02-26',
-      aiVerified: true,
+      matchedPatternId: 'pat_003',
       transactionDate: DateTime.now().subtract(const Duration(days: 1)),
       createdAt: DateTime.now().subtract(const Duration(days: 1)),
     ),
@@ -264,66 +264,135 @@ class SampleData {
       amount: 12420,
       merchant: 'Organic Groceries',
       type: TransactionType.expense,
-      sourceType: SourceType.aiParsed,
+      sourceType: SourceType.regexLocal,
       sourceRawText:
           'Rs.12,420.00 spent at Organic Groceries via ICICI CC **5678 on 28-02-26',
-      aiVerified: true,
+      matchedPatternId: 'pat_002',
       transactionDate: DateTime.now().subtract(const Duration(hours: 4)),
       createdAt: DateTime.now().subtract(const Duration(hours: 4)),
     ),
   ];
 
-  // ─── Messages ───
+  // ─── Messages (new: covers incomplete, unprocessed, non-financial) ───
   static final messages = [
+    // ── Incomplete: regex matched but missing 'timestamp' ──
     Message(
       id: 'msg_001',
       userId: 'user_001',
       familyGroupId: 'family_001',
       sender: 'HDFCBK',
-      rawText:
-          'Rs.8,942.00 debited from a/c **1234 for Grocery Mart on 28-02-26',
+      rawText: 'Rs.2,340 debited for BigBasket from HDFC a/c',
       status: MessageStatus.pending,
-      triageResult: TriageResult.transaction,
-      receivedAt: DateTime.now().subtract(const Duration(hours: 1)),
+      parseSource: ParseSource.regexLocal,
+      matchedPatternId: 'pat_001',
+      extractedData: {'amount': '2,340', 'merchant': 'BigBasket'},
+      receivedAt: DateTime.now().subtract(const Duration(minutes: 30)),
     ),
+
+    // ── Incomplete: regex matched but missing 'merchant' ──
     Message(
       id: 'msg_002',
       userId: 'user_001',
+      familyGroupId: 'family_001',
       sender: 'SBIBNK',
-      rawText: 'Your OTP is 482910. Valid for 5 mins.',
-      status: MessageStatus.ignored,
-      triageResult: TriageResult.otp,
-      receivedAt: DateTime.now().subtract(const Duration(hours: 3)),
+      rawText: 'Rs.5,200 debited from SBI a/c **4321 on 01/03/26',
+      status: MessageStatus.pending,
+      parseSource: ParseSource.regexLocal,
+      matchedPatternId: 'pat_004',
+      extractedData: {'amount': '5,200', 'timestamp': '01/03/26'},
+      receivedAt: DateTime.now().subtract(const Duration(hours: 1)),
     ),
+
+    // ── Unprocessed: no regex match (unknown sender) ──
     Message(
       id: 'msg_003',
       userId: 'user_001',
       familyGroupId: 'family_001',
-      sender: 'ICICIB',
+      sender: 'KOTAKB',
       rawText:
-          'Rs.12,420.00 spent at Organic Groceries via ICICI CC **5678 on 28-02-26',
+          'INR 1,850 spent on your Kotak card ending 7890 at Swiggy on 02-Mar-26. Avl bal: INR 45,230.',
       status: MessageStatus.pending,
-      triageResult: TriageResult.transaction,
-      receivedAt: DateTime.now().subtract(const Duration(hours: 4)),
+      receivedAt: DateTime.now().subtract(const Duration(hours: 2)),
     ),
+
+    // ── Unprocessed: no regex match (unknown format) ──
     Message(
       id: 'msg_004',
       userId: 'user_001',
-      sender: 'AMAZON',
-      rawText: 'Your order #123-456 has been delivered. Rate your experience.',
-      status: MessageStatus.ignored,
-      triageResult: TriageResult.promo,
-      receivedAt: DateTime.now().subtract(const Duration(hours: 6)),
+      familyGroupId: 'family_001',
+      sender: 'YESBNK',
+      rawText:
+          'You have done a UPI txn of Rs 750.00 to IRCTC on 03-03-26. UPI Ref: 406312345678.',
+      status: MessageStatus.pending,
+      receivedAt: DateTime.now().subtract(const Duration(hours: 3)),
     ),
+
+    // ── Unprocessed: another unknown ──
     Message(
       id: 'msg_005',
       userId: 'user_001',
-      familyGroupId: 'family_001',
-      sender: 'AXISBK',
+      sender: 'PAYTMB',
       rawText:
-          'Rs.45,000.00 debited from a/c **9876 towards Monthly Rent on 27-02-26',
+          'Payment of Rs.320 to Uber via Paytm Payments Bank. Ref No 987654321.',
       status: MessageStatus.pending,
-      triageResult: TriageResult.transaction,
+      receivedAt: DateTime.now().subtract(const Duration(hours: 4)),
+    ),
+
+    // ── Non-financial: OTP ──
+    Message(
+      id: 'msg_006',
+      userId: 'user_001',
+      sender: 'SBIBNK',
+      rawText: 'Your OTP is 482910. Valid for 5 mins. Do not share.',
+      status: MessageStatus.ignored,
+      nonFinancialCategory: NonFinancialCategory.otp,
+      receivedAt: DateTime.now().subtract(const Duration(hours: 3)),
+    ),
+
+    // ── Non-financial: Promo ──
+    Message(
+      id: 'msg_007',
+      userId: 'user_001',
+      sender: 'AMAZON',
+      rawText:
+          'Flash Sale! Up to 80% off on electronics. Shop now at amazon.in. T&C apply.',
+      status: MessageStatus.ignored,
+      nonFinancialCategory: NonFinancialCategory.promo,
+      receivedAt: DateTime.now().subtract(const Duration(hours: 5)),
+    ),
+
+    // ── Non-financial: Delivery ──
+    Message(
+      id: 'msg_008',
+      userId: 'user_001',
+      sender: 'AMAZON',
+      rawText:
+          'Your order #123-456 has been delivered. Rate your experience at amazon.in/feedback',
+      status: MessageStatus.ignored,
+      nonFinancialCategory: NonFinancialCategory.delivery,
+      receivedAt: DateTime.now().subtract(const Duration(hours: 6)),
+    ),
+
+    // ── Non-financial: Personal ──
+    Message(
+      id: 'msg_009',
+      userId: 'user_001',
+      sender: 'HDFCBK',
+      rawText:
+          'Dear Customer, your FD of Rs. 1,00,000 has matured. Please visit your nearest branch.',
+      status: MessageStatus.ignored,
+      nonFinancialCategory: NonFinancialCategory.personal,
+      receivedAt: DateTime.now().subtract(const Duration(hours: 8)),
+    ),
+
+    // ── Deleted by user ──
+    Message(
+      id: 'msg_010',
+      userId: 'user_001',
+      sender: 'TMBANK',
+      rawText: 'Pre-approved personal loan up to 5L. Apply now!',
+      status: MessageStatus.rejected,
+      nonFinancialCategory: NonFinancialCategory.promo,
       receivedAt: DateTime.now().subtract(const Duration(days: 1)),
     ),
   ];

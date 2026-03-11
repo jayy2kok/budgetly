@@ -7,7 +7,7 @@ import '../../config/theme.dart';
 import '../../models/message.dart';
 import '../../providers/message_provider.dart';
 
-/// Ignored Messages — Two tabs for AI Skipped and Deleted messages.
+/// Ignored Messages — Two tabs: Non-Financial and Deleted.
 class IgnoredMessagesScreen extends ConsumerStatefulWidget {
   const IgnoredMessagesScreen({super.key});
 
@@ -94,7 +94,8 @@ class _IgnoredMessagesScreenState extends ConsumerState<IgnoredMessagesScreen>
                 controller: _tabController,
                 indicator: BoxDecoration(
                   color: context.colors.surfaceHighlight,
-                  borderRadius: BorderRadius.circular(BudgetlyTheme.radiusPill),
+                  borderRadius:
+                      BorderRadius.circular(BudgetlyTheme.radiusPill),
                 ),
                 indicatorSize: TabBarIndicatorSize.tab,
                 dividerHeight: 0,
@@ -109,8 +110,10 @@ class _IgnoredMessagesScreenState extends ConsumerState<IgnoredMessagesScreen>
                 labelColor: context.colors.textMain,
                 unselectedLabelColor: context.colors.textMuted,
                 tabs: [
-                  Tab(text: 'AI Skipped (${msgState.ignoredMessages.length})'),
-                  Tab(text: 'Deleted (${msgState.deletedMessages.length})'),
+                  Tab(
+                      text:
+                          'Non-Financial (${msgState.totalNonFinancial})'),
+                  Tab(text: 'Deleted (${msgState.totalDeleted})'),
                 ],
               ),
             ),
@@ -123,9 +126,10 @@ class _IgnoredMessagesScreenState extends ConsumerState<IgnoredMessagesScreen>
                 controller: _tabController,
                 children: [
                   _MessageList(
-                    messages: msgState.ignoredMessages,
-                    emptyLabel: 'No AI-skipped messages',
+                    messages: msgState.nonFinancialMessages,
+                    emptyLabel: 'No non-financial messages',
                     emptyIcon: Icons.smart_toy_outlined,
+                    showCategory: true,
                     onRestore: (id) =>
                         ref.read(messageProvider.notifier).restoreMessage(id),
                   ),
@@ -133,6 +137,7 @@ class _IgnoredMessagesScreenState extends ConsumerState<IgnoredMessagesScreen>
                     messages: msgState.deletedMessages,
                     emptyLabel: 'No deleted messages',
                     emptyIcon: Icons.delete_outline,
+                    showCategory: false,
                     onRestore: (id) =>
                         ref.read(messageProvider.notifier).restoreMessage(id),
                   ),
@@ -150,12 +155,14 @@ class _MessageList extends StatelessWidget {
   final List<Message> messages;
   final String emptyLabel;
   final IconData emptyIcon;
+  final bool showCategory;
   final void Function(String id) onRestore;
 
   const _MessageList({
     required this.messages,
     required this.emptyLabel,
     required this.emptyIcon,
+    required this.showCategory,
     required this.onRestore,
   });
 
@@ -187,11 +194,12 @@ class _MessageList extends StatelessWidget {
     return ListView.separated(
       padding: EdgeInsets.all(16),
       itemCount: messages.length,
-      separatorBuilder: (_, _) => SizedBox(height: 8),
+      separatorBuilder: (_, __) => SizedBox(height: 8),
       itemBuilder: (context, index) {
         final msg = messages[index];
         return _IgnoredMessageRow(
           message: msg,
+          showCategory: showCategory,
           onRestore: () => onRestore(msg.id),
         );
       },
@@ -201,27 +209,35 @@ class _MessageList extends StatelessWidget {
 
 class _IgnoredMessageRow extends StatelessWidget {
   final Message message;
+  final bool showCategory;
   final VoidCallback onRestore;
 
-  const _IgnoredMessageRow({required this.message, required this.onRestore});
+  const _IgnoredMessageRow({
+    required this.message,
+    required this.showCategory,
+    required this.onRestore,
+  });
 
-  String get _reasonLabel {
-    switch (message.triageResult) {
-      case TriageResult.otp:
-        return 'OTP detected';
-      case TriageResult.promo:
-        return 'Promotional';
-      case TriageResult.transaction:
-        return 'User deleted';
-      case TriageResult.personal:
-        return 'Personal message';
-      case TriageResult.unknown:
-        return 'Unknown';
+  Color _categoryColor(NonFinancialCategory? cat) {
+    switch (cat) {
+      case NonFinancialCategory.otp:
+        return const Color(0xFFFB7185); // Rose
+      case NonFinancialCategory.promo:
+        return const Color(0xFFFBBF24); // Amber
+      case NonFinancialCategory.personal:
+        return const Color(0xFF60A5FA); // Blue
+      case NonFinancialCategory.delivery:
+        return const Color(0xFF22D3EE); // Cyan
+      case NonFinancialCategory.unknown:
+      case null:
+        return const Color(0xFF94A3B8); // Slate
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final catColor = _categoryColor(message.nonFinancialCategory);
+
     return Container(
       padding: EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -229,68 +245,118 @@ class _IgnoredMessageRow extends StatelessWidget {
         borderRadius: BorderRadius.circular(BudgetlyTheme.radiusCard),
         border: Border.all(color: context.colors.borderSubtle),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Sender
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: context.colors.surfaceHighlight,
-              borderRadius: BorderRadius.circular(BudgetlyTheme.radiusMedium),
-            ),
-            child: Center(
-              child: Text(
-                message.sender[0],
-                style: GoogleFonts.jetBrainsMono(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: context.colors.textMuted,
+          Row(
+            children: [
+              // Sender avatar
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: context.colors.surfaceHighlight,
+                  borderRadius:
+                      BorderRadius.circular(BudgetlyTheme.radiusMedium),
+                ),
+                child: Center(
+                  child: Text(
+                    message.sender[0],
+                    style: GoogleFonts.jetBrainsMono(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: context.colors.textMuted,
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ),
-          SizedBox(width: 12),
+              SizedBox(width: 12),
 
-          // Text
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  message.sender,
-                  style: GoogleFonts.inter(
-                    fontSize: 14,
+              // Sender name + category tag
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          message.sender,
+                          style: GoogleFonts.inter(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: context.colors.textMain,
+                          ),
+                        ),
+                        if (showCategory &&
+                            message.nonFinancialCategory != null) ...[
+                          SizedBox(width: 8),
+                          Container(
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 7, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: catColor.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              message.categoryLabel,
+                              style: GoogleFonts.inter(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: catColor,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      _timeAgo(message.receivedAt),
+                      style: GoogleFonts.inter(
+                        fontSize: 11,
+                        color: context.colors.textDim,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Undo button
+              TextButton(
+                onPressed: onRestore,
+                style: TextButton.styleFrom(
+                  foregroundColor: context.colors.primary,
+                  textStyle: GoogleFonts.inter(
+                    fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: context.colors.textMain,
                   ),
                 ),
-                SizedBox(height: 2),
-                Text(
-                  _reasonLabel,
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    color: context.colors.textDim,
-                  ),
-                ),
-              ],
-            ),
+                child: Text('Undo'),
+              ),
+            ],
           ),
 
-          // Restore
-          TextButton(
-            onPressed: onRestore,
-            style: TextButton.styleFrom(
-              foregroundColor: context.colors.primary,
-              textStyle: GoogleFonts.inter(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-              ),
+          // Preview text
+          SizedBox(height: 8),
+          Text(
+            message.rawText,
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              color: context.colors.textDim,
+              height: 1.4,
             ),
-            child: Text('Restore'),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
     );
+  }
+
+  String _timeAgo(DateTime dt) {
+    final diff = DateTime.now().difference(dt);
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    return '${diff.inDays}d ago';
   }
 }

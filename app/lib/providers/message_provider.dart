@@ -3,45 +3,54 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/message.dart';
 import '../data/mock/mock_message_service.dart';
 
-/// State for message triage.
+/// State for the SMS message processing pipeline.
 class MessageState {
-  final List<Message> pendingMessages;
-  final List<Message> ignoredMessages;
+  /// Regex-matched but missing mandatory fields (amount/merchant/timestamp).
+  final List<Message> incompleteMessages;
+
+  /// No regex pattern matched — needs server-side LLM analysis.
+  final List<Message> unprocessedMessages;
+
+  /// LLM-classified non-financial messages (OTP, promo, delivery, personal).
+  final List<Message> nonFinancialMessages;
+
+  /// User-deleted / rejected messages.
   final List<Message> deletedMessages;
+
+  /// Message IDs currently being submitted to server.
+  final Set<String> processingIds;
+
   final bool isLoading;
-  final int currentIndex;
 
   const MessageState({
-    this.pendingMessages = const [],
-    this.ignoredMessages = const [],
+    this.incompleteMessages = const [],
+    this.unprocessedMessages = const [],
+    this.nonFinancialMessages = const [],
     this.deletedMessages = const [],
+    this.processingIds = const {},
     this.isLoading = false,
-    this.currentIndex = 0,
   });
 
-  /// The message currently being reviewed.
-  Message? get currentMessage =>
-      pendingMessages.isNotEmpty && currentIndex < pendingMessages.length
-      ? pendingMessages[currentIndex]
-      : null;
-
-  int get totalPending => pendingMessages.length;
-
-  bool get hasMore => currentIndex < pendingMessages.length;
+  int get totalIncomplete => incompleteMessages.length;
+  int get totalUnprocessed => unprocessedMessages.length;
+  int get totalNonFinancial => nonFinancialMessages.length;
+  int get totalDeleted => deletedMessages.length;
 
   MessageState copyWith({
-    List<Message>? pendingMessages,
-    List<Message>? ignoredMessages,
+    List<Message>? incompleteMessages,
+    List<Message>? unprocessedMessages,
+    List<Message>? nonFinancialMessages,
     List<Message>? deletedMessages,
+    Set<String>? processingIds,
     bool? isLoading,
-    int? currentIndex,
   }) {
     return MessageState(
-      pendingMessages: pendingMessages ?? this.pendingMessages,
-      ignoredMessages: ignoredMessages ?? this.ignoredMessages,
+      incompleteMessages: incompleteMessages ?? this.incompleteMessages,
+      unprocessedMessages: unprocessedMessages ?? this.unprocessedMessages,
+      nonFinancialMessages: nonFinancialMessages ?? this.nonFinancialMessages,
       deletedMessages: deletedMessages ?? this.deletedMessages,
+      processingIds: processingIds ?? this.processingIds,
       isLoading: isLoading ?? this.isLoading,
-      currentIndex: currentIndex ?? this.currentIndex,
     );
   }
 }
@@ -58,90 +67,126 @@ class MessageNotifier extends Notifier<MessageState> {
   Future<void> loadMessages() async {
     state = state.copyWith(isLoading: true);
     try {
-      // Scoped to current user (hardcoded 'user_001' for mock)
       final result = await _service.getMessages('user_001');
+
       state = MessageState(
-        pendingMessages: result
-            .where((m) => m.status == MessageStatus.pending)
-            .toList(),
-        ignoredMessages: result
-            .where(
-              (m) =>
-                  m.status == MessageStatus.ignored &&
-                  m.triageResult == TriageResult.otp,
-            )
-            .toList(),
-        deletedMessages: result
-            .where(
-              (m) =>
-                  m.status == MessageStatus.ignored &&
-                  m.triageResult == TriageResult.promo,
-            )
-            .toList(),
+        // Incomplete: regex matched (parseSource == regexLocal) but missing fields
+        incompleteMessages: result.where((m) {
+          return m.status == MessageStatus.pending &&
+              m.parseSource == ParseSource.regexLocal &&
+              m.isIncomplete;
+        }).toList(),
+
+        // Unprocessed: no regex match (parseSource == null, status == pending)
+        unprocessedMessages: result.where((m) {
+          return m.status == MessageStatus.pending && m.parseSource == null;
+        }).toList(),
+
+        // Non-financial: classified by LLM (status == ignored, has category)
+        nonFinancialMessages: result.where((m) {
+          return m.status == MessageStatus.ignored &&
+              m.nonFinancialCategory != null;
+        }).toList(),
+
+        // Deleted: user-rejected
+        deletedMessages: result.where((m) {
+          return m.status == MessageStatus.rejected;
+        }).toList(),
+
         isLoading: false,
-        currentIndex: 0,
       );
     } catch (_) {
       state = state.copyWith(isLoading: false);
     }
   }
 
+  /// Confirm an incomplete message with user-supplied data.
   void confirmMessage(String messageId) {
-    final pending = [...state.pendingMessages];
-    pending.removeWhere((m) => m.id == messageId);
-    final newIndex = state.currentIndex < pending.length
-        ? state.currentIndex
-        : (pending.isEmpty ? 0 : pending.length - 1);
-    state = state.copyWith(pendingMessages: pending, currentIndex: newIndex);
+    final incomplete = [...state.incompleteMessages];
+    incomplete.removeWhere((m) => m.id == messageId);
+    state = state.copyWith(incompleteMessages: incomplete);
   }
 
+  /// Reject a message — move from incomplete/unprocessed to deleted.
   void rejectMessage(String messageId) {
-    final pending = [...state.pendingMessages];
-    final msg = pending.firstWhere((m) => m.id == messageId);
-    pending.removeWhere((m) => m.id == messageId);
-    final newIndex = state.currentIndex < pending.length
-        ? state.currentIndex
-        : (pending.isEmpty ? 0 : pending.length - 1);
+    final incomplete = [...state.incompleteMessages];
+    final unprocessed = [...state.unprocessedMessages];
+    Message? msg;
+
+    final fromIncomplete =
+        incomplete.where((m) => m.id == messageId).toList();
+    if (fromIncomplete.isNotEmpty) {
+      msg = fromIncomplete.first;
+      incomplete.removeWhere((m) => m.id == messageId);
+    } else {
+      final fromUnprocessed =
+          unprocessed.where((m) => m.id == messageId).toList();
+      if (fromUnprocessed.isNotEmpty) {
+        msg = fromUnprocessed.first;
+        unprocessed.removeWhere((m) => m.id == messageId);
+      }
+    }
+
     state = state.copyWith(
-      pendingMessages: pending,
-      deletedMessages: [...state.deletedMessages, msg],
-      currentIndex: newIndex,
+      incompleteMessages: incomplete,
+      unprocessedMessages: unprocessed,
+      deletedMessages:
+          msg != null ? [...state.deletedMessages, msg] : state.deletedMessages,
     );
   }
 
-  void restoreMessage(String messageId) {
-    // Try from ignored
-    final ignored = [...state.ignoredMessages];
-    final fromIgnored = ignored.where((m) => m.id == messageId).toList();
-    if (fromIgnored.isNotEmpty) {
-      ignored.removeWhere((m) => m.id == messageId);
+  /// Submit an unprocessed message to the server for LLM analysis.
+  Future<void> submitToServer(String messageId) async {
+    // Add to processing set
+    state = state.copyWith(
+      processingIds: {...state.processingIds, messageId},
+    );
+
+    try {
+      final msg = state.unprocessedMessages.firstWhere(
+        (m) => m.id == messageId,
+      );
+      await _service.submitToServer(msg);
+
+      // Remove from unprocessed
+      final unprocessed = [...state.unprocessedMessages];
+      unprocessed.removeWhere((m) => m.id == messageId);
+
+      final ids = {...state.processingIds};
+      ids.remove(messageId);
+
       state = state.copyWith(
-        ignoredMessages: ignored,
-        pendingMessages: [...state.pendingMessages, fromIgnored.first],
+        unprocessedMessages: unprocessed,
+        processingIds: ids,
+      );
+    } catch (_) {
+      final ids = {...state.processingIds};
+      ids.remove(messageId);
+      state = state.copyWith(processingIds: ids);
+    }
+  }
+
+  /// Restore a message from non-financial or deleted back to unprocessed.
+  void restoreMessage(String messageId) {
+    final nonFinancial = [...state.nonFinancialMessages];
+    final fromNF = nonFinancial.where((m) => m.id == messageId).toList();
+    if (fromNF.isNotEmpty) {
+      nonFinancial.removeWhere((m) => m.id == messageId);
+      state = state.copyWith(
+        nonFinancialMessages: nonFinancial,
+        unprocessedMessages: [...state.unprocessedMessages, fromNF.first],
       );
       return;
     }
-    // Try from deleted
+
     final deleted = [...state.deletedMessages];
-    final fromDeleted = deleted.where((m) => m.id == messageId).toList();
-    if (fromDeleted.isNotEmpty) {
+    final fromDel = deleted.where((m) => m.id == messageId).toList();
+    if (fromDel.isNotEmpty) {
       deleted.removeWhere((m) => m.id == messageId);
       state = state.copyWith(
         deletedMessages: deleted,
-        pendingMessages: [...state.pendingMessages, fromDeleted.first],
+        unprocessedMessages: [...state.unprocessedMessages, fromDel.first],
       );
-    }
-  }
-
-  void nextMessage() {
-    if (state.currentIndex < state.pendingMessages.length - 1) {
-      state = state.copyWith(currentIndex: state.currentIndex + 1);
-    }
-  }
-
-  void previousMessage() {
-    if (state.currentIndex > 0) {
-      state = state.copyWith(currentIndex: state.currentIndex - 1);
     }
   }
 }

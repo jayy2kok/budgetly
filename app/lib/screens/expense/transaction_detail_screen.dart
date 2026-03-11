@@ -207,9 +207,9 @@ class TransactionDetailScreen extends ConsumerWidget {
                             ),
                             SizedBox(width: 6),
                             Text(
-                              txn.aiVerified
-                                  ? 'AI verified ✓'
-                                  : 'AI parsed — unverified',
+                              txn.sourceType == SourceType.regexLocal
+                                  ? 'Regex parsed ✓'
+                                  : 'LLM parsed ✓',
                               style: GoogleFonts.inter(
                                 fontSize: 11,
                                 color: context.colors.textDim,

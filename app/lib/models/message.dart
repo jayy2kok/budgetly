@@ -2,7 +2,7 @@ import 'package:json_annotation/json_annotation.dart';
 
 part 'message.g.dart';
 
-/// Status of a message in the AI triage pipeline.
+/// Status of a message in the SMS processing pipeline.
 enum MessageStatus {
   @JsonValue('PENDING')
   pending,
@@ -14,21 +14,31 @@ enum MessageStatus {
   ignored,
 }
 
-/// Result of AI triage classification.
-enum TriageResult {
-  @JsonValue('TRANSACTION')
-  transaction,
+/// How the message was parsed / classified.
+enum ParseSource {
+  @JsonValue('REGEX_LOCAL')
+  regexLocal,
+  @JsonValue('LLM_SERVER')
+  llmServer,
+  @JsonValue('MANUAL')
+  manual,
+}
+
+/// Classification for non-financial messages.
+enum NonFinancialCategory {
   @JsonValue('OTP')
   otp,
   @JsonValue('PROMO')
   promo,
   @JsonValue('PERSONAL')
   personal,
+  @JsonValue('DELIVERY')
+  delivery,
   @JsonValue('UNKNOWN')
   unknown,
 }
 
-/// An SMS message submitted for AI-powered parsing and triage.
+/// An SMS message in the processing pipeline.
 @JsonSerializable()
 class Message {
   final String id;
@@ -37,7 +47,16 @@ class Message {
   final String sender;
   final String rawText;
   final MessageStatus status;
-  final TriageResult triageResult;
+  final ParseSource? parseSource;
+  final String? matchedPatternId;
+
+  /// Category for non-financial messages (OTP, promo, etc.).
+  final NonFinancialCategory? nonFinancialCategory;
+
+  /// Fields extracted by regex (e.g. {'amount': '8942', 'merchant': 'Grocery Mart'}).
+  /// Null if unprocessed.
+  final Map<String, String>? extractedData;
+
   final String? linkedTransactionId;
   final DateTime receivedAt;
 
@@ -48,7 +67,10 @@ class Message {
     required this.sender,
     required this.rawText,
     required this.status,
-    required this.triageResult,
+    this.parseSource,
+    this.matchedPatternId,
+    this.nonFinancialCategory,
+    this.extractedData,
     this.linkedTransactionId,
     required this.receivedAt,
   });
@@ -61,27 +83,47 @@ class Message {
   /// Whether this message is pending user review.
   bool get isPending => status == MessageStatus.pending;
 
-  /// Whether this message was classified as a financial transaction.
-  bool get isTransaction => triageResult == TriageResult.transaction;
+  /// Regex matched but one or more mandatory fields (amount, merchant, timestamp) are missing.
+  bool get isIncomplete {
+    if (parseSource != ParseSource.regexLocal) return false;
+    if (extractedData == null) return true;
+    final data = extractedData!;
+    return !data.containsKey('amount') ||
+        !data.containsKey('merchant') ||
+        !data.containsKey('timestamp');
+  }
 
-  /// Whether this message was auto-skipped by AI.
-  bool get isSkipped =>
-      status == MessageStatus.ignored &&
-      triageResult != TriageResult.transaction;
+  /// No regex pattern matched — needs server-side LLM analysis.
+  bool get isUnprocessed =>
+      status == MessageStatus.pending && parseSource == null;
 
-  /// Human-friendly triage label.
-  String get triageLabel {
-    switch (triageResult) {
-      case TriageResult.transaction:
-        return 'Transaction';
-      case TriageResult.otp:
+  /// Message was classified as non-financial.
+  bool get isNonFinancial => nonFinancialCategory != null;
+
+  /// Whether this message was fully parsed (all mandatory fields present).
+  bool get isFullyParsed {
+    if (extractedData == null) return false;
+    final data = extractedData!;
+    return data.containsKey('amount') &&
+        data.containsKey('merchant') &&
+        data.containsKey('timestamp');
+  }
+
+  /// Human-friendly label for the non-financial category.
+  String get categoryLabel {
+    switch (nonFinancialCategory) {
+      case NonFinancialCategory.otp:
         return 'OTP Code';
-      case TriageResult.promo:
+      case NonFinancialCategory.promo:
         return 'Promotional';
-      case TriageResult.personal:
+      case NonFinancialCategory.personal:
         return 'Personal';
-      case TriageResult.unknown:
+      case NonFinancialCategory.delivery:
+        return 'Delivery';
+      case NonFinancialCategory.unknown:
         return 'Unknown';
+      case null:
+        return '';
     }
   }
 }
