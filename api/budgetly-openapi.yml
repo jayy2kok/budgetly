@@ -22,7 +22,9 @@ tags:
   - name: Transactions
     description: Expense/income transaction CRUD with filtering and pagination
   - name: Messages
-    description: AI triage of SMS-parsed transactions
+    description: SMS processing — submit unprocessed messages for LLM analysis, confirm/reject parsed transactions
+  - name: Pattern Registry
+    description: Global regex pattern library — fetch, report, and sync SMS parsing patterns
   - name: Dashboard
     description: Aggregated dashboard and budget summary
 
@@ -508,12 +510,43 @@ paths:
         "204":
           description: Transaction deleted
 
-  # ─────────────────────── MESSAGES (AI TRIAGE) ──────────────
+  # ─────────────────────── MESSAGES (SMS PROCESSING) ─────────
+  /messages/process:
+    post:
+      tags: [Messages]
+      operationId: processMessage
+      summary: Submit unprocessed SMS for LLM analysis
+      description: >
+        Sends raw SMS text to the server for Gemini LLM analysis.
+        If the message is financial, validates & posts the transaction first.
+        Only if transaction validation passes, the LLM-generated regex is saved to the pattern registry.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProcessMessageRequest"
+      responses:
+        "200":
+          description: Message analyzed by LLM
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProcessMessageResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /messages/pending:
     get:
       tags: [Messages]
       operationId: getPendingMessages
-      summary: Get pending messages for triage
+      summary: Get pending messages for triage (incomplete or unprocessed)
       security:
         - bearerAuth: []
       responses:
@@ -530,7 +563,7 @@ paths:
     get:
       tags: [Messages]
       operationId: getIgnoredMessages
-      summary: Get AI-skipped / deleted messages. Returns only the authenticated user's own ignored messages.
+      summary: Get non-financial / deleted messages
       security:
         - bearerAuth: []
       responses:
@@ -542,27 +575,6 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Message"
-
-  /messages:
-    post:
-      tags: [Messages]
-      operationId: submitMessage
-      summary: Submit raw SMS text for server-side AI parsing
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/SubmitMessageRequest"
-      responses:
-        "201":
-          description: Message submitted and parsed
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Message"
 
   /messages/{id}/confirm:
     parameters:
@@ -626,6 +638,110 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Message"
+
+  # ─────────────────── PATTERN REGISTRY ───────────────────────
+  /patterns:
+    get:
+      tags: [Pattern Registry]
+      operationId: getPatterns
+      summary: Get all active regex patterns (full or delta sync)
+      description: >
+        Returns all active patterns from the global pattern registry.
+        Supports delta sync via the `since` query parameter — returns only patterns
+        created or updated after the given timestamp.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: since
+          in: query
+          description: ISO 8601 timestamp for delta sync (returns patterns created/updated after this time)
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: List of active patterns
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SmsPattern"
+
+  /patterns/senders:
+    get:
+      tags: [Pattern Registry]
+      operationId: getPatternSenders
+      summary: Get list of known senders with pattern counts
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Sender list with counts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    sender:
+                      type: string
+                    patternCount:
+                      type: integer
+
+  /patterns/{id}/report:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      tags: [Pattern Registry]
+      operationId: reportPattern
+      summary: Report an incorrect pattern
+      description: >
+        Flags a pattern as incorrect. If report count exceeds threshold,
+        the pattern is auto-removed from the registry and moved to rejected_patterns.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PatternReportRequest"
+      responses:
+        "200":
+          description: Pattern reported
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  patternId:
+                    type: string
+                  reportCount:
+                    type: integer
+                  removed:
+                    type: boolean
+                    description: True if pattern was auto-removed due to exceeding report threshold
+
+  /patterns/stats:
+    get:
+      tags: [Pattern Registry]
+      operationId: getPatternStats
+      summary: Pattern library statistics
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Pattern statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PatternStatsResponse"
 
   # ─────────────────── DASHBOARD / BUDGET ────────────────────
   /families/{fid}/dashboard:
@@ -981,8 +1097,9 @@ components:
           $ref: "#/components/schemas/SourceType"
         sourceRawText:
           type: string
-        aiVerified:
-          type: boolean
+        matchedPatternId:
+          type: string
+          description: ID of the regex pattern that parsed this transaction (if sourceType is REGEX_LOCAL)
         notes:
           type: string
         transactionDate:
@@ -1002,7 +1119,7 @@ components:
 
     SourceType:
       type: string
-      enum: [MANUAL, SMS, AI_PARSED]
+      enum: [MANUAL, REGEX_LOCAL, LLM_SERVER]
 
     CreateTransactionRequest:
       type: object
@@ -1095,8 +1212,11 @@ components:
           type: string
         status:
           $ref: "#/components/schemas/MessageStatus"
-        triageResult:
-          $ref: "#/components/schemas/TriageResult"
+        parseSource:
+          $ref: "#/components/schemas/ParseSource"
+        matchedPatternId:
+          type: string
+          description: ID of the regex pattern that matched (if parseSource is REGEX_LOCAL)
         parsedTransaction:
           $ref: "#/components/schemas/CreateTransactionRequest"
         linkedTransactionId:
@@ -1109,20 +1229,141 @@ components:
       type: string
       enum: [PENDING, CONFIRMED, REJECTED, IGNORED]
 
-    TriageResult:
+    ParseSource:
       type: string
-      enum: [TRANSACTION, OTP, PROMO, PERSONAL, UNKNOWN]
+      enum: [REGEX_LOCAL, LLM_SERVER, MANUAL]
 
-    SubmitMessageRequest:
+    ProcessMessageRequest:
       type: object
-      required: [sender, rawText]
+      required: [sender, rawText, familyGroupId]
       properties:
         sender:
           type: string
+          description: SMS sender ID (e.g. "HDFCBK", "SBIUPI")
         rawText:
           type: string
+          description: Full raw SMS text
         familyGroupId:
           type: string
+
+    ProcessMessageResponse:
+      type: object
+      properties:
+        isFinancial:
+          type: boolean
+          description: Whether the LLM classified this message as financial
+        parsedData:
+          $ref: "#/components/schemas/CreateTransactionRequest"
+        generatedPattern:
+          $ref: "#/components/schemas/SmsPattern"
+        transactionId:
+          type: string
+          description: ID of the created transaction (if financial and validation passed)
+        message:
+          $ref: "#/components/schemas/Message"
+
+    # ── SMS Pattern Registry ──
+    SmsPattern:
+      type: object
+      properties:
+        id:
+          type: string
+        sender:
+          type: string
+          description: SMS sender ID (e.g. "HDFCBK", "SBIUPI", "ICICIB")
+        regex:
+          type: string
+          description: Java/Dart-compatible regex pattern with named capture groups
+        extractionMap:
+          $ref: "#/components/schemas/ExtractionMap"
+        sampleMessage:
+          type: string
+          description: The original SMS that generated this pattern
+        usageCount:
+          type: integer
+          format: int64
+          description: Global counter of successful matches across all users
+        createdAt:
+          type: string
+          format: date-time
+
+    ExtractionMap:
+      type: object
+      description: Maps regex capture groups to transaction fields. amount, merchant, and timestamp are mandatory.
+      required: [amount, merchant, timestamp]
+      properties:
+        amount:
+          type: string
+          description: Capture group name for amount
+        merchant:
+          type: string
+          description: Capture group name for merchant
+        timestamp:
+          type: string
+          description: Capture group name for timestamp
+        accountLast4:
+          type: string
+          description: Capture group name for last 4 digits of account (optional)
+        type:
+          type: string
+          description: Capture group name for debit/credit type (optional)
+
+    RejectedPattern:
+      type: object
+      properties:
+        id:
+          type: string
+        patternId:
+          type: string
+        regex:
+          type: string
+          description: Snapshot of the rejected regex
+        sampleMessage:
+          type: string
+        reportedByUserIds:
+          type: array
+          items:
+            type: string
+        reportCount:
+          type: integer
+        rejectedAt:
+          type: string
+          format: date-time
+
+    PatternReportRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          description: Why the pattern is incorrect (e.g. "Extracted wrong amount", "Wrong merchant")
+        sampleMessage:
+          type: string
+          description: The SMS text that was incorrectly parsed
+
+    PatternStatsResponse:
+      type: object
+      properties:
+        totalPatterns:
+          type: integer
+        totalSenders:
+          type: integer
+        totalUsage:
+          type: integer
+          format: int64
+          description: Sum of all pattern usage counts
+        topSenders:
+          type: array
+          items:
+            type: object
+            properties:
+              sender:
+                type: string
+              patternCount:
+                type: integer
+              totalUsage:
+                type: integer
+                format: int64
 
     # ── Dashboard ──
     DashboardData:

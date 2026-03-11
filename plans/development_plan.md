@@ -1,6 +1,6 @@
 # Budgetly — Family Harmony Budget App: Development Plan
 
-> **App Concept:** A family-oriented mobile budgeting app that lets household members collaboratively track shared finances, parse bank SMS alerts via AI (server-side), plan monthly budgets by category, and manage family group settings — all backed by Gmail-based authentication.
+> **App Concept:** A family-oriented mobile budgeting app that lets household members collaboratively track shared finances, **auto-read and parse bank SMS** (Android, regex-first with server-side LLM fallback), plan monthly budgets by category, and manage family group settings — all backed by Gmail-based authentication.
 
 ---
 
@@ -10,17 +10,22 @@
 graph TB
     subgraph "Presentation Layer — Flutter Mobile App"
         A[Flutter App<br/>Dark-theme, Indigo/Slate UI<br/>Riverpod State Mgmt]
+        S[SMS Background Service<br/>Auto-read + Regex Parser<br/>Pattern Cache]
     end
 
     subgraph "Business Logic Layer — Spring Boot (Docker)"
         B[Spring Boot REST API<br/>Java 17+ / Swagger-Bootstrapped<br/>Raw Google OAuth 2.0 + JWT]
+        L[LLM Provider<br/>Gemini API — Interface-based]
     end
 
     subgraph "Data Layer — MongoDB (Docker)"
-        C[(MongoDB<br/>Document Store)]
+        C[(MongoDB<br/>Document Store<br/>+ Pattern Registry)]
     end
 
+    S -- "Read SMS (Android)" --> A
     A -- "REST API (JSON / HTTP)" --> B
+    A -- "Sync patterns" --> B
+    B -- "Unprocessed SMS" --> L
     B -- "Spring Data MongoDB" --> C
 ```
 
@@ -38,7 +43,8 @@ graph TB
 |----------|--------|-----------|
 | **State Management** | **Riverpod** | Type-safe, testable, and makes swapping mock → real API trivial. Acts as "smart containers" that hold app data (logged-in user, transactions, budget) and automatically update all screens when data changes. |
 | **Authentication** | **Raw Google OAuth 2.0** → custom JWT | Full control over token lifecycle; no Firebase dependency. Spring Boot validates Google ID token, issues app-specific JWT. |
-| **SMS/AI Parsing** | **Server-side** (Spring Boot) | Centralized logic, easier to update parsing rules, no on-device model needed. Flutter sends raw SMS text → API returns parsed transaction. |
+| **SMS/AI Parsing** | **Hybrid: Client-local regex + Server LLM fallback** | Android reads SMS in background. Regex patterns cached locally (keyed by sender, synced from MongoDB). If regex extracts all mandatory fields (amount, merchant, timestamp), transaction auto-posts — no approval needed. Unrecognized SMS submitted to server → Gemini LLM classifies & generates regex → validated transaction saved → pattern added to global `pattern_registry`. Minimizes AI cost, builds shared library over time. |
+| **LLM Provider** | **Gemini API (interface-based)** | Start with Google Gemini; `LlmProvider` interface allows swapping to other providers in future. |
 | **Family Model** | **Flexible N members** | Supports any household: couples, parents+kids, roommates. Each member has a role (Admin, Member). |
 | **Split Methods** | **Percent or share-based ratio** | Split among N family members by percentage (e.g., 60/40) or share ratio (e.g., 2:1:1). |
 | **Currency** | **Single currency (INR) first** | Default: INR (₹), Locale: India. Multi-currency support planned for a later release. |
@@ -84,12 +90,14 @@ graph LR
 | 2.4 | Transaction Feed — date-grouped list, filter chips, search | Transaction Feed |
 | 2.5 | Add Expense — amount input, N-member payer selector, category picker, split config | Add Expense |
 | 2.6 | Transaction Detail — source analysis, split policy, category, notes | Transaction Detail |
-| 2.7 | Message Inbox — swipeable triage cards, confirm/edit/reject | Message Inbox |
-| 2.8 | Ignored Messages — tabs (AI Skipped / Deleted), undo restore | Ignored Messages |
+| 2.7 | Message Inbox — two-tab layout: Incomplete (regex partial match) / Unprocessed (no match, submit to server) | Message Inbox |
+| 2.8 | Ignored Messages — tabs: Non-Financial / Deleted, undo restore | Ignored Messages |
 | 2.9 | Monthly Budget Planning — overall progress, per-category bars, add category | Monthly Budget |
-| 2.10 | Settings & Data — profile banner, budget slider, preferences | Settings |
+| 2.10 | Settings & Data — profile banner, budget slider, preferences, **SMS & Parsing section** | Settings |
 | 2.11 | Link Family Members — Google linking, member list, invite (email/link/QR) | Link Family |
 | 2.12 | Family Group Settings — currency, region, alerts, permissions | Family Settings |
+| 2.13 | **SMS background service** + regex parser with mock patterns (Android) | SMS |
+| 2.14 | **Pattern cache service** with mock data + 24hr refresh logic | SMS |
 | **2.T** | **Widget tests for every screen (2.1–2.12)** | **All** |
 | **2.T2** | **Unit tests for all Riverpod providers** | **All** |
 | **2.T3** | **Unit tests for all mock services** | **All** |
@@ -109,17 +117,21 @@ graph LR
 | 3.5 | Implement Family Group CRUD APIs | Backend |
 | 3.6 | Implement Category CRUD APIs | Backend |
 | 3.7 | Implement Transaction CRUD APIs (pagination, filters) | Backend |
-| 3.8 | Implement Message triage APIs (submit, confirm, reject, restore) | Backend |
-| 3.9 | Implement SMS text parsing service (server-side, regex → structured transaction) | Backend |
+| 3.8 | Implement Message APIs (submit unprocessed for LLM, confirm, reject, restore) | Backend |
+| 3.9 | Implement **Pattern Registry** API + service + repository (`pattern_registry` collection) | Backend |
 | 3.10 | Implement Dashboard aggregation + Budget summary APIs | Backend |
 | 3.11 | Implement Family invite system (email, link) | Backend |
 | 3.12 | Data export API (CSV/JSON) | Backend |
+| 3.13 | Implement **LLM integration** — `LlmProvider` interface + `GeminiLlmProvider` implementation | Backend |
+| 3.14 | Implement **SmsProcessingService** — LLM analysis → validate transaction → save pattern to registry | Backend |
+| 3.15 | Implement **Pattern report/rejection pipeline** — `rejected_patterns` collection, auto-disable threshold | Backend |
 | **3.T** | Unit tests for controllers (MockMvc) | Backend |
 | **3.T2** | Unit tests for services (Mockito) | Backend |
 | ~~3.T3~~ | ~~Integration tests for repositories (Testcontainers)~~ | ~~Backend~~ |
-| **3.T4** | SMS parsing service tests (bank SMS formats) | Backend |
+| **3.T4** | SMS processing service tests (LLM mock, pattern generation) | Backend |
 | **3.T5** | Security tests (JWT validation, tampered tokens) | Backend |
-| **3.T6** | **Run `mvn test` — should pass before proceeding to Phase 4** | **Gate** |
+| **3.T6** | Pattern registry service tests (CRUD, report threshold, delta sync) | Backend |
+| **3.T7** | **Run `mvn test` — should pass before proceeding to Phase 4** | **Gate** |
 
 ### Phase 4 — Integration & Polish (Week 8–9)
 
@@ -133,6 +145,8 @@ graph LR
 | 4.4 | Push notifications for expense alerts | Both |
 | 4.5 | API security hardening: rate limiting, input validation | Backend |
 | 4.6 | Docker production build optimization | Infra |
+| 4.7 | **SMS background service integration** — Android permissions, real SMS reading | Flutter |
+| 4.8 | **Pattern cache sync** — real API → local cache, startup + 24hr delta refresh | Flutter |
 | **4.E2E** | **🔴 E2E smoke tests (MANDATORY)**: Login → Create Family → Add Expense → Dashboard | **Both** |
 | **4.E2E2** | **🔴 E2E API tests**: Swagger UI walkthrough — every endpoint returns expected status | **Backend** |
 | **4.T** | Flutter widget tests (recommended, not gating) | Flutter |
@@ -191,26 +205,36 @@ graph LR
 
 ### 4.5 Transaction Detail & Source View (Screen 04)
 - Full detail view of a single transaction
-- **Source Analysis** section showing raw SMS text parsed by server-side AI
+- **Source Analysis** section showing raw SMS text and **matched regex pattern** (or "LLM-processed" label)
+- `sourceType`: `MANUAL` | `REGEX_LOCAL` | `LLM_SERVER`
 - Splitting policy toggle (Personal vs Shared with configurable ratios)
 - Category selector, Date field, Merchant field, Notes textarea
 - Confirm & Update button, Delete/Share actions
+- **Report Pattern** option (if source is regex-parsed) — flags pattern for review
 
-### 4.6 Message Inbox — AI Triage (Screen 05)
-- Swipeable card-based review of SMS-parsed transactions
-- Progress bar ("Reviewing 1 of 3")
-- Each card: merchant icon, name, amount, date, budget category, raw SMS text
-- Actions per card: **Confirm** (large check button), **Edit**, **Reject**
+### 4.6 Message Inbox — Incomplete & Unprocessed (Screen 05)
+- **Two-tab layout**:
+  - **Incomplete** tab: Regex matched but missing mandatory fields — user fills in gaps (amount, merchant, or timestamp), then confirms
+  - **Unprocessed** tab: No regex match found — raw SMS cards with **"Submit to Server"** button
+- **Note**: Fully-parsed SMS (all mandatory fields: amount, merchant, timestamp extracted) are **auto-posted** as transactions and skip this screen entirely
+- Progress indicator for server-side LLM processing
+- Each unprocessed card shows: sender, raw text, timestamp
+- Each incomplete card shows: sender, partially extracted data (with missing fields highlighted), raw SMS text
 
 ### 4.7 Ignored Messages (Screen 06)
-- Lists messages the AI auto-skipped (OTP codes, personal messages, delivery notifications)
-- Two tabs: **AI Skipped** | **Deleted**
+- Two tabs: **Non-Financial** (LLM-classified as OTP, promo, personal) | **Deleted** (user-deleted)
 - Each item shows sender, timestamp, preview text, **Undo** button
 
 ### 4.8 Settings & Data (Screen 07)
 - Family profile banner (all member avatars, plan type)
 - Joint Budget monthly limit **slider** (₹10K → ₹2L)
 - Preferences: Notifications, Shared Accounts, Currency (INR default)
+- **SMS & Parsing** section:
+  - SMS permission status (granted/denied) with enable button
+  - Background service toggle (on/off)
+  - Cached patterns count (e.g., "142 patterns cached")
+  - Last refresh time (e.g., "Last synced: 2 hours ago")
+  - Manual refresh button
 - Data & Privacy: Export Data (CSV/JSON), Security & Privacy
 - Log Out button, version info
 
@@ -292,9 +316,9 @@ erDiagram
         string type "EXPENSE | INCOME | SUBSCRIPTION"
         string splitMethod "PERSONAL | PERCENT | SHARE"
         object splitConfig "map of memberId to percent or share"
-        string sourceType "MANUAL | SMS | AI_PARSED"
+        string sourceType "MANUAL | REGEX_LOCAL | LLM_SERVER"
         string sourceRawText
-        boolean aiVerified
+        string matchedPatternId FK
         string notes
         datetime transactionDate
         datetime createdAt
@@ -307,9 +331,30 @@ erDiagram
         string sender
         string rawText
         string status "PENDING | CONFIRMED | REJECTED | IGNORED"
-        string triageResult "TRANSACTION | OTP | PROMO | PERSONAL | UNKNOWN"
+        string parseSource "REGEX_LOCAL | LLM_SERVER | MANUAL"
+        string matchedPatternId FK
         string linkedTransactionId FK
         datetime receivedAt
+    }
+
+    SMS_PATTERN {
+        string id PK
+        string sender "indexed - e.g. HDFCBK"
+        string regex "named capture groups"
+        object extractionMap "amount merchant timestamp required - accountLast4 type optional"
+        string sampleMessage
+        long usageCount
+        datetime createdAt
+    }
+
+    REJECTED_PATTERN {
+        string id PK
+        string patternId FK
+        string regex "snapshot of rejected regex"
+        string sampleMessage
+        array reportedByUserIds
+        int reportCount
+        datetime rejectedAt
     }
 
     USER ||--o{ FAMILY_MEMBER : "belongs to"
@@ -320,6 +365,9 @@ erDiagram
     CATEGORY ||--o{ TRANSACTION : "categorizes"
     USER ||--o{ MESSAGE : "receives"
     MESSAGE |o--o| TRANSACTION : "links to"
+    SMS_PATTERN ||--o{ MESSAGE : "matches"
+    SMS_PATTERN ||--o{ TRANSACTION : "sourced from"
+    SMS_PATTERN |o--o| REJECTED_PATTERN : "rejected as"
 ```
 
 ### Role Permissions
@@ -407,13 +455,13 @@ All APIs documented and testable via Swagger UI (`/swagger-ui.html`). Domain mod
 
 **Query Parameters:** `type`, `startDate`, `endDate`, `categoryId`, `createdByUserId`, `page`, `size`, `sort`
 
-### 6.5 Message (AI Triage) API
+### 6.5 Message (SMS Processing) API
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
+| `POST` | `/api/v1/messages/process` | **Submit unprocessed SMS for LLM analysis.** Returns: `{isFinancial, parsedData, generatedPattern}`. If financial: validates & posts transaction first, then saves regex to `pattern_registry` only if transaction passes validation. |
 | `GET` | `/api/v1/messages/pending` | Get pending messages for triage |
-| `GET` | `/api/v1/messages/ignored` | Get AI-skipped / deleted messages |
-| `POST` | `/api/v1/messages` | Submit raw SMS text for server-side AI parsing |
+| `GET` | `/api/v1/messages/ignored` | Get non-financial / deleted messages |
 | `POST` | `/api/v1/messages/{id}/confirm` | Confirm parsed transaction |
 | `POST` | `/api/v1/messages/{id}/reject` | Reject / ignore message |
 | `POST` | `/api/v1/messages/{id}/restore` | Restore an ignored message |
@@ -425,6 +473,15 @@ All APIs documented and testable via Swagger UI (`/swagger-ui.html`). Domain mod
 | `GET` | `/api/v1/families/{fid}/dashboard` | Aggregated dashboard data |
 | `GET` | `/api/v1/families/{fid}/budget/summary` | Monthly budget summary with per-category breakdowns |
 | `PUT` | `/api/v1/families/{fid}/budget` | Update overall monthly budget limit |
+
+### 6.7 Pattern Registry API (New)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/patterns` | Get all active patterns (full cache sync). Supports `?since={ISO timestamp}` for delta sync. |
+| `GET` | `/api/v1/patterns/senders` | Get list of known senders with pattern counts |
+| `POST` | `/api/v1/patterns/{id}/report` | Report incorrect pattern. Auto-removes from registry if report threshold reached; moves to `rejected_patterns`. |
+| `GET` | `/api/v1/patterns/stats` | Pattern library stats (total patterns, total senders, total usage) |
 
 ---
 
@@ -448,7 +505,13 @@ budgetly_app/
 │   │   ├── transaction.dart
 │   │   ├── category.dart
 │   │   ├── message.dart
-│   │   └── split_config.dart
+│   │   ├── split_config.dart
+│   │   └── sms_pattern.dart               # ★ NEW: SMS pattern model (mirrors pattern_registry)
+│   ├── services/                          # ★ NEW: SMS parsing services
+│   │   ├── sms_service.dart               # Android SMS reader (telephony/flutter_sms_inbox)
+│   │   ├── sms_background_service.dart     # Background isolate (flutter_background_service)
+│   │   ├── regex_pattern_cache.dart        # Local cache: Map<sender, List<Pattern>>, 24hr refresh
+│   │   └── sms_parser.dart                # Regex matching engine: raw SMS → ParsedTransaction
 │   ├── data/
 │   │   ├── mock/                          # ★ Phase 2: Mock data layer
 │   │   │   ├── mock_auth_service.dart
@@ -457,7 +520,8 @@ budgetly_app/
 │   │   │   ├── mock_category_service.dart
 │   │   │   ├── mock_message_service.dart
 │   │   │   ├── mock_budget_service.dart
-│   │   │   └── sample_data.dart           # Seed data matching Stitch screens
+│   │   │   ├── mock_pattern_service.dart      # ★ NEW: Mock SMS patterns
+│   │   │   └── sample_data.dart               # Seed data matching Stitch screens
 │   │   └── remote/                        # ★ Phase 4: Real API layer (swap in)
 │   │       ├── api_client.dart            # Dio setup, JWT interceptor
 │   │       ├── auth_service.dart
@@ -465,13 +529,15 @@ budgetly_app/
 │   │       ├── transaction_service.dart
 │   │       ├── category_service.dart
 │   │       ├── message_service.dart
-│   │       └── budget_service.dart
+│   │       ├── budget_service.dart
+│   │       └── pattern_service.dart           # ★ NEW: Pattern registry API client
 │   ├── providers/                         # Riverpod providers
 │   │   ├── auth_provider.dart
 │   │   ├── family_provider.dart
 │   │   ├── transaction_provider.dart
 │   │   ├── budget_provider.dart
-│   │   └── message_provider.dart
+│   │   ├── message_provider.dart
+│   │   └── sms_provider.dart                  # ★ NEW: SMS service state, pattern cache, unprocessed queue
 │   ├── screens/
 │   │   ├── auth/
 │   │   │   └── login_screen.dart
@@ -483,12 +549,12 @@ budgetly_app/
 │   │   │   ├── add_expense_screen.dart
 │   │   │   └── transaction_detail_screen.dart
 │   │   ├── messages/
-│   │   │   ├── message_inbox_screen.dart
-│   │   │   └── ignored_messages_screen.dart
+│   │   │   ├── message_inbox_screen.dart      # ★ UPDATED: Two-tab (Incomplete / Unprocessed)
+│   │   │   └── ignored_messages_screen.dart    # ★ UPDATED: Two-tab (Non-Financial / Deleted)
 │   │   ├── budget/
 │   │   │   └── monthly_budget_screen.dart
 │   │   ├── settings/
-│   │   │   ├── settings_screen.dart
+│   │   │   ├── settings_screen.dart           # ★ UPDATED: Added SMS & Parsing section
 │   │   │   ├── link_family_screen.dart
 │   │   │   └── family_group_settings_screen.dart
 │   │   └── shell/
@@ -508,6 +574,11 @@ budgetly_app/
 │   │   ├── user_test.dart
 │   │   ├── transaction_test.dart
 │   │   ├── split_config_test.dart
+│   │   ├── sms_pattern_test.dart              # ★ NEW
+│   │   └── ...
+│   ├── services/                              # ★ NEW
+│   │   ├── sms_parser_test.dart
+│   │   ├── regex_pattern_cache_test.dart
 │   │   └── ...
 │   ├── data/
 │   │   └── mock/
@@ -518,6 +589,7 @@ budgetly_app/
 │   │   ├── auth_provider_test.dart
 │   │   ├── transaction_provider_test.dart
 │   │   ├── budget_provider_test.dart
+│   │   ├── sms_provider_test.dart                 # ★ NEW
 │   │   └── ...
 │   ├── screens/
 │   │   ├── dashboard/
@@ -544,7 +616,8 @@ budgetly_app/
 └── integration_test/                     # ★ Phase 4: Full user-flow tests
     ├── app_test.dart
     ├── auth_flow_test.dart
-    └── expense_flow_test.dart
+    ├── expense_flow_test.dart
+    └── sms_flow_test.dart                     # ★ NEW: SMS → regex parse → auto-post
 ```
 
 ### 7.2 Spring Boot Backend (`/budgetly_api/`)
@@ -567,7 +640,8 @@ budgetly_api/
 │   │   │   │   ├── CategoryController.java
 │   │   │   │   ├── TransactionController.java
 │   │   │   │   ├── MessageController.java
-│   │   │   │   └── DashboardController.java
+│   │   │   │   ├── DashboardController.java
+│   │   │   │   └── PatternRegistryController.java # ★ NEW: Pattern Registry endpoints
 │   │   │   ├── service/
 │   │   │   │   ├── AuthService.java
 │   │   │   │   ├── FamilyGroupService.java
@@ -575,13 +649,20 @@ budgetly_api/
 │   │   │   │   ├── TransactionService.java
 │   │   │   │   ├── MessageService.java
 │   │   │   │   ├── DashboardService.java
-│   │   │   │   └── SmsParsingService.java     # Server-side SMS → transaction parser
+│   │   │   │   ├── SmsProcessingService.java      # ★ RENAMED: LLM analysis → validate txn → save pattern
+│   │   │   │   └── PatternRegistryService.java    # ★ NEW: Pattern CRUD, delta sync, report handling
 │   │   │   ├── repository/
 │   │   │   │   ├── UserRepository.java
 │   │   │   │   ├── FamilyGroupRepository.java
 │   │   │   │   ├── CategoryRepository.java
 │   │   │   │   ├── TransactionRepository.java
-│   │   │   │   └── MessageRepository.java
+│   │   │   │   ├── MessageRepository.java
+│   │   │   │   ├── PatternRegistryRepository.java # ★ NEW: pattern_registry collection
+│   │   │   │   └── RejectedPatternRepository.java # ★ NEW: rejected_patterns collection
+│   │   │   ├── llm/                               # ★ NEW: LLM integration layer
+│   │   │   │   ├── LlmProvider.java               # Interface: analyzeMessage(), generateRegex()
+│   │   │   │   ├── GeminiLlmProvider.java         # Gemini API implementation
+│   │   │   │   └── LlmAnalysisResult.java         # DTO: isFinancial, parsedData, regex, extractionMap
 │   │   │   ├── security/
 │   │   │   │   ├── JwtTokenProvider.java
 │   │   │   │   ├── JwtAuthFilter.java
@@ -604,17 +685,21 @@ budgetly_api/
 │           │   ├── CategoryControllerTest.java
 │           │   ├── TransactionControllerTest.java
 │           │   ├── MessageControllerTest.java
-│           │   └── DashboardControllerTest.java
+│           │   ├── DashboardControllerTest.java
+│           │   └── PatternRegistryControllerTest.java  # ★ NEW
 │           ├── service/
 │           │   ├── AuthServiceTest.java
 │           │   ├── FamilyGroupServiceTest.java
 │           │   ├── TransactionServiceTest.java
-│           │   ├── SmsParsingServiceTest.java
+│           │   ├── SmsProcessingServiceTest.java      # ★ RENAMED
+│           │   ├── PatternRegistryServiceTest.java    # ★ NEW
 │           │   └── DashboardServiceTest.java
 │           ├── repository/
 │           │   ├── UserRepositoryIT.java       # Integration tests (Testcontainers)
 │           │   ├── TransactionRepositoryIT.java
 │           │   └── FamilyGroupRepositoryIT.java
+│           ├── llm/                               # ★ NEW
+│           │   └── GeminiLlmProviderTest.java
 │           └── security/
 │               ├── JwtTokenProviderTest.java
 │               └── GoogleTokenVerifierTest.java
