@@ -106,7 +106,7 @@ graph LR
 
 ### Phase 3 — Spring Boot Backend + MongoDB (Week 5–7)
 
-> 💡 **Guideline: `mvn test` (unit tests) should pass. Repository integration tests (Testcontainers) are optional and run only when Docker is available. E2E smoke tests in Phase 4 are the true quality gate.**
+> 💡 **Guideline: API E2E tests using RestAssured are the mandatory quality gate for the backend. Repository integration tests (Testcontainers) are optional and run only when Docker is available.**
 
 | # | Task | Layer |
 |---|------|-------|
@@ -125,17 +125,17 @@ graph LR
 | 3.13 | Implement **LLM integration** — `LlmProvider` interface + `GeminiLlmProvider` implementation | Backend |
 | 3.14 | Implement **SmsProcessingService** — LLM analysis → validate transaction → save pattern to registry | Backend |
 | 3.15 | Implement **Pattern report/rejection pipeline** — `rejected_patterns` collection, auto-disable threshold | Backend |
-| **3.T** | Unit tests for controllers (MockMvc) | Backend |
-| **3.T2** | Unit tests for services (Mockito) | Backend |
+| **3.T** | E2E API tests using RestAssured for Auth & Google OAuth | Backend |
+| **3.T2** | E2E API tests for Family Group & Category CRUD | Backend |
 | ~~3.T3~~ | ~~Integration tests for repositories (Testcontainers)~~ | ~~Backend~~ |
-| **3.T4** | SMS processing service tests (LLM mock, pattern generation) | Backend |
-| **3.T5** | Security tests (JWT validation, tampered tokens) | Backend |
-| **3.T6** | Pattern registry service tests (CRUD, report threshold, delta sync) | Backend |
-| **3.T7** | **Run `mvn test` — should pass before proceeding to Phase 4** | **Gate** |
+| **3.T4** | E2E API tests for Transaction & Budget endpoints | Backend |
+| **3.T5** | E2E API tests for Message Triage & SMS processing | Backend |
+| **3.T6** | E2E API tests for Pattern registry & security validation | Backend |
+| **3.T7** | **Run RestAssured E2E test suite — should pass before proceeding to Phase 4** | **Gate** |
 
 ### Phase 4 — Integration & Polish (Week 8–9)
 
-> ⚠️ **Rule: E2E smoke tests are the MANDATORY quality gate. Unit tests (`flutter test`, `mvn test`) should also pass but are secondary.**
+> ⚠️ **Rule: E2E smoke tests are the MANDATORY quality gate. RestAssured API E2E tests and `flutter test` should also pass.**
 
 | # | Task | Layer |
 |---|------|-------|
@@ -150,7 +150,7 @@ graph LR
 | **4.E2E** | **🔴 E2E smoke tests (MANDATORY)**: Login → Create Family → Add Expense → Dashboard | **Both** |
 | **4.E2E2** | **🔴 E2E API tests**: Swagger UI walkthrough — every endpoint returns expected status | **Backend** |
 | **4.T** | Flutter widget tests (recommended, not gating) | Flutter |
-| **4.T2** | **Final gate: E2E smoke tests pass, `mvn test` + `flutter test` also pass** | **Gate** |
+| **4.T2** | **Final gate: E2E smoke tests pass, RestAssured tests + `flutter test` also pass** | **Gate** |
 
 ---
 
@@ -677,32 +677,21 @@ budgetly_api/
 │   │       ├── application-docker.yml
 │   │       └── api/
 │   │           └── budgetly-openapi.yml       # OpenAPI 3.0 spec (shared source of truth)
-│   └── test/                              # ★ MANDATORY — mirrors main/ structure
+│   └── test/                              # ★ MANDATORY — RestAssured E2E Tests
 │       └── java/com/budgetly/api/
-│           ├── controller/
-│           │   ├── AuthControllerTest.java
-│           │   ├── FamilyGroupControllerTest.java
-│           │   ├── CategoryControllerTest.java
-│           │   ├── TransactionControllerTest.java
-│           │   ├── MessageControllerTest.java
-│           │   ├── DashboardControllerTest.java
-│           │   └── PatternRegistryControllerTest.java  # ★ NEW
-│           ├── service/
-│           │   ├── AuthServiceTest.java
-│           │   ├── FamilyGroupServiceTest.java
-│           │   ├── TransactionServiceTest.java
-│           │   ├── SmsProcessingServiceTest.java      # ★ RENAMED
-│           │   ├── PatternRegistryServiceTest.java    # ★ NEW
-│           │   └── DashboardServiceTest.java
-│           ├── repository/
-│           │   ├── UserRepositoryIT.java       # Integration tests (Testcontainers)
-│           │   ├── TransactionRepositoryIT.java
-│           │   └── FamilyGroupRepositoryIT.java
-│           ├── llm/                               # ★ NEW
-│           │   └── GeminiLlmProviderTest.java
-│           └── security/
-│               ├── JwtTokenProviderTest.java
-│               └── GoogleTokenVerifierTest.java
+│           ├── e2e/
+│           │   ├── AuthE2ETest.java
+│           │   ├── FamilyGroupE2ETest.java
+│           │   ├── CategoryE2ETest.java
+│           │   ├── TransactionE2ETest.java
+│           │   ├── MessageE2ETest.java
+│           │   ├── DashboardE2ETest.java
+│           │   ├── PatternRegistryE2ETest.java
+│           │   └── SmsParsingE2ETest.java
+│           └── repository/
+│               ├── UserRepositoryIT.java       # Integration tests (Testcontainers)
+│               ├── TransactionRepositoryIT.java
+│               └── FamilyGroupRepositoryIT.java
 ├── Dockerfile
 └── .dockerignore
 ```
@@ -806,7 +795,7 @@ Based on the Stitch screen designs:
 ### 10.1 Testing Philosophy
 
 - **E2E tests prove the app works**: The full user flow (Login → Create Family → Add Expense → Dashboard) must pass before any release.
-- **Unit tests are a safety net**: They catch regressions early during development. 90 backend unit tests and Flutter widget tests run via `mvn test` / `flutter test`.
+- **API E2E Tests are mandatory**: Backend quality is guarded by RestAssured E2E tests instead of JUnit unit tests.
 - **Testcontainers (repository IT tests) are optional**: They require Docker Desktop to be fully configured. Skip if Docker environment is unavailable.
 - **Manual E2E via Swagger UI**: Every API endpoint should be exercised through Swagger UI as part of the verification process.
 
@@ -815,13 +804,13 @@ Based on the Stitch screen designs:
 ```
   🔴  ┌──────────────────────────────┐
   M   │  E2E Smoke Tests (MANDATORY) │  Login → Expense → Dashboard
-  A   │  Swagger UI API walkthrough   │  Every endpoint returns expected status
+  A   │  RestAssured API E2E Tests    │  Automated backend endpoint verification
   N   ├──────────────────────────────┤
-  D   │  Docker Health Check          │  docker-compose up → /actuator/health → UP
+  D   │  Swagger UI API walkthrough   │  Every endpoint returns expected status
   A   ├──────────────────────────────┤
-  T   │  Unit Tests (Safety Net)      │  mvn test (90 tests), flutter test
-  O   │  Controllers, Services,       │  JUnit 5 + Mockito + MockMvc
-  R   │  Security, SMS Parsing        │
+  T   │  Docker Health Check          │  docker-compose up → /actuator/health → UP
+  O   ├──────────────────────────────┤
+  R   │  Flutter Tests (Safety Net)   │  flutter test
   Y   ├──────────────────────────────┤
       │  Repo IT Tests (OPTIONAL)     │  Testcontainers — run when Docker available
       └──────────────────────────────┘
@@ -854,28 +843,22 @@ cd budgetly_app
 flutter test integration_test/
 ```
 
-### 10.4 Unit Tests (Safety Net)
+### 10.4 API E2E Tests (RestAssured) & Flutter Tests
 
-Unit tests catch regressions during development. They are fast and run without Docker.
+Backend logic is verified end-to-end via RestAssured rather than isolated unit tests.
 
-**Spring Boot (90 tests — `mvn test`):**
+**Spring Boot RestAssured E2E Tests:**
 
-| Area | Test File | What It Verifies |
-|------|-----------|-------------------|
-| Auth | `AuthControllerTest.java` | Token exchange, JWT issuance |
-| Auth | `JwtTokenProviderTest.java` | Token generation, validation, expiry, tampered tokens |
-| Auth | `GoogleTokenVerifierTest.java` | Skip-verification mode, null on invalid |
-| Family | `FamilyGroupControllerTest.java` | All 9 endpoints return correct status codes |
-| Family | `FamilyGroupServiceTest.java` | Business rules, permissions |
-| Category | `CategoryControllerTest.java` | CRUD endpoints |
-| Category | `CategoryServiceTest.java` | List, create, update, delete (Uncategorized fallback) |
-| Transaction | `TransactionControllerTest.java` | CRUD + query params |
-| Transaction | `TransactionServiceTest.java` | Filters, pagination, defaults |
-| Message | `MessageControllerTest.java` | Submit, confirm, reject, restore |
-| Message | `MessageServiceTest.java` | Triage logic, status transitions |
-| SMS | `SmsParsingServiceTest.java` | HDFC/SBI/ICICI formats, null handling |
-| Dashboard | `DashboardControllerTest.java` | Dashboard + budget summary endpoints |
-| Dashboard | `DashboardServiceTest.java` | Projections, category breakdowns |
+| Area | Test Suite | What It Verifies |
+|------|------------|-------------------|
+| Auth | `AuthE2ETest.java` | Token exchange, JWT issuance, validation |
+| Family | `FamilyGroupE2ETest.java` | All family endpoints, business rules, permissions |
+| Category | `CategoryE2ETest.java` | CRUD endpoints |
+| Transaction | `TransactionE2ETest.java` | CRUD + query params, pagination |
+| Message | `MessageE2ETest.java` | Submit, confirm, reject, restore |
+| SMS | `SmsParsingE2ETest.java` | HDFC/SBI/ICICI formats via API, LLM fallback |
+| Dashboard | `DashboardE2ETest.java` | Dashboard + budget summary endpoints |
+| Pattern | `PatternRegistryE2ETest.java` | Pattern sync, report threshold, stats |
 
 **Flutter (`flutter test`):** Widget tests for each screen, provider unit tests, model serialization tests.
 
@@ -897,9 +880,9 @@ mvn verify  # Runs unit tests + IT tests via failsafe plugin
 ### 10.6 Build Pipeline (CI)
 
 ```bash
-# ── Step 1: Unit tests (safety net) ──
+# ── Step 1: E2E API & App tests ──
 cd budgetly_api
-mvn test                           # 90 unit tests — should pass
+mvn test                           # RestAssured E2E tests — should pass
 
 cd budgetly_app
 flutter test                       # Widget + provider tests — should pass
@@ -919,7 +902,7 @@ flutter test integration_test/
 | Layer | Target | Enforcement |
 |-------|--------|-------------|
 | **E2E Smoke Tests** | 100% of E1–E6 scenarios | Manual or scripted — **mandatory before release** |
-| **Spring Boot Unit Tests** | 90 tests pass | `mvn test` — recommended on every build |
+| **Spring Boot RestAssured Tests** | API E2E tests pass | `mvn test` — recommended on every build |
 | **Flutter Widget Tests** | Key screens covered | `flutter test` — recommended on every build |
 | **Repository IT Tests** | Optional | `mvn verify` — only when Docker is available |
 
@@ -938,7 +921,12 @@ dev_dependencies:
 
 **Spring Boot (`pom.xml` test dependencies):**
 ```xml
-<!-- JUnit 5 (included with spring-boot-starter-test) -->
+<!-- RestAssured for E2E Testing -->
+<dependency>
+    <groupId>io.rest-assured</groupId>
+    <artifactId>rest-assured</artifactId>
+    <scope>test</scope>
+</dependency>
 <dependency>
     <groupId>org.springframework.boot</groupId>
     <artifactId>spring-boot-starter-test</artifactId>
