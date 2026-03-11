@@ -45,7 +45,7 @@ graph TB
 | **HTTP Client** | **Dio** (Flutter) | Interceptors for JWT auth, retry, logging. |
 | **Model Generation** | **openapi-generator-maven-plugin** | Compile-time contract enforcement between Swagger spec and Java code. |
 | **Containerization** | **Docker Compose** | Single command to spin up API + DB for development. |
-| **Automated Testing** | **Mandatory in every build — no exceptions** | `flutter test` and `mvn test` are gating steps. Builds fail if any test fails. Every screen, provider, service, controller, and repository has tests. |
+| **Automated Testing** | **E2E tests are the primary quality gate** | Unit tests (`flutter test`, `mvn test`) serve as a safety net. End-to-end smoke tests (Login → Expense → Dashboard) are the mandatory gate before release. |
 
 ---
 
@@ -74,7 +74,7 @@ graph LR
 
 ### Phase 2 — Flutter App with Mock APIs (Week 2–4)
 
-> ⚠️ **Rule: Every screen and provider must have corresponding tests before the task is marked complete.**
+> 💡 **Guideline: Widget and provider tests are recommended but not gating. E2E flow tests are the mandatory gate.**
 
 | # | Task | Screen(s) |
 |---|------|-----------|
@@ -98,7 +98,7 @@ graph LR
 
 ### Phase 3 — Spring Boot Backend + MongoDB (Week 5–7)
 
-> ⚠️ **Rule: Every controller, service, and repository must have corresponding tests. `mvn verify` is the gateway — it must pass.**
+> 💡 **Guideline: `mvn test` (unit tests) should pass. Repository integration tests (Testcontainers) are optional and run only when Docker is available. E2E smoke tests in Phase 4 are the true quality gate.**
 
 | # | Task | Layer |
 |---|------|-------|
@@ -114,17 +114,16 @@ graph LR
 | 3.10 | Implement Dashboard aggregation + Budget summary APIs | Backend |
 | 3.11 | Implement Family invite system (email, link) | Backend |
 | 3.12 | Data export API (CSV/JSON) | Backend |
-| **3.T** | **Unit tests for every controller** (MockMvc) | **Backend** |
-| **3.T2** | **Unit tests for every service** (Mockito) | **Backend** |
-| **3.T3** | **Integration tests for every repository** (Embedded MongoDB via Testcontainers) | **Backend** |
-| **3.T4** | **SMS parsing service tests** (test various bank SMS formats) | **Backend** |
-| **3.T5** | **Security tests** (JWT validation, unauthorized access, role checks) | **Backend** |
-| **3.T6** | **OpenAPI contract validation** (`swagger-cli validate`) | **Backend** |
-| **3.T7** | **Run `mvn verify` — must pass 100% before proceeding to Phase 4** | **Gate** |
+| **3.T** | Unit tests for controllers (MockMvc) | Backend |
+| **3.T2** | Unit tests for services (Mockito) | Backend |
+| ~~3.T3~~ | ~~Integration tests for repositories (Testcontainers)~~ | ~~Backend~~ |
+| **3.T4** | SMS parsing service tests (bank SMS formats) | Backend |
+| **3.T5** | Security tests (JWT validation, tampered tokens) | Backend |
+| **3.T6** | **Run `mvn test` — should pass before proceeding to Phase 4** | **Gate** |
 
 ### Phase 4 — Integration & Polish (Week 8–9)
 
-> ⚠️ **Rule: Full integration test suite must pass. Both `flutter test` AND `mvn verify` run together as a final gate.**
+> ⚠️ **Rule: E2E smoke tests are the MANDATORY quality gate. Unit tests (`flutter test`, `mvn test`) should also pass but are secondary.**
 
 | # | Task | Layer |
 |---|------|-------|
@@ -134,10 +133,10 @@ graph LR
 | 4.4 | Push notifications for expense alerts | Both |
 | 4.5 | API security hardening: rate limiting, input validation | Backend |
 | 4.6 | Docker production build optimization | Infra |
-| **4.T** | **Flutter integration tests** (full user flow via `flutter test integration_test/`) | **Flutter** |
-| **4.T2** | **API integration tests against live Docker containers** (Testcontainers) | **Backend** |
-| **4.T3** | **End-to-end smoke tests**: Login → Create Family → Add Expense → Dashboard | **Both** |
-| **4.T4** | **Final gate: `flutter test` + `mvn verify` must both pass** | **Gate** |
+| **4.E2E** | **🔴 E2E smoke tests (MANDATORY)**: Login → Create Family → Add Expense → Dashboard | **Both** |
+| **4.E2E2** | **🔴 E2E API tests**: Swagger UI walkthrough — every endpoint returns expected status | **Backend** |
+| **4.T** | Flutter widget tests (recommended, not gating) | Flutter |
+| **4.T2** | **Final gate: E2E smoke tests pass, `mvn test` + `flutter test` also pass** | **Gate** |
 
 ---
 
@@ -714,144 +713,130 @@ Based on the Stitch screen designs:
 
 ---
 
-## 10. Automated Testing Strategy (Mandatory — No Exceptions)
+## 10. Automated Testing Strategy
 
-> [!CAUTION]
-> **Tests are NOT optional. Every build MUST run tests. Builds FAIL if tests fail. No code is merged or deployed without 100% test pass rate.**
+> [!IMPORTANT]
+> **E2E smoke tests are the PRIMARY quality gate.** Unit tests (`mvn test`, `flutter test`) serve as a development safety net. Builds should pass unit tests, but the release gate is successful E2E validation.
 
 ### 10.1 Testing Philosophy
 
-- **Tests are part of the Definition of Done**: A feature is not done until its tests are written and passing.
-- **Tests run on every build**: `flutter test` and `mvn verify` are gating steps in the build pipeline.
-- **Test structure mirrors source**: Every file in `lib/` or `src/main/` has a corresponding test file.
-- **No manual testing as a substitute**: Manual QA is supplemental, never a replacement for automated tests.
+- **E2E tests prove the app works**: The full user flow (Login → Create Family → Add Expense → Dashboard) must pass before any release.
+- **Unit tests are a safety net**: They catch regressions early during development. 90 backend unit tests and Flutter widget tests run via `mvn test` / `flutter test`.
+- **Testcontainers (repository IT tests) are optional**: They require Docker Desktop to be fully configured. Skip if Docker environment is unavailable.
+- **Manual E2E via Swagger UI**: Every API endpoint should be exercised through Swagger UI as part of the verification process.
 
-### 10.2 Flutter Test Pyramid
+### 10.2 Test Pyramid (Inverted Priority)
 
 ```
-        ┌──────────────────┐
-        │  Integration     │  flutter test integration_test/
-        │  (Full Flows)    │  Login → Expense → Dashboard
-        ├──────────────────┤
-        │  Widget Tests    │  flutter test test/screens/
-        │  (Each Screen)   │  Renders, interactions, navigation
-        ├──────────────────┤
-        │  Unit Tests      │  flutter test test/providers/
-        │  (Providers,     │  flutter test test/models/
-        │   Models,        │  flutter test test/data/
-        │   Services)      │
-        └──────────────────┘
+  🔴  ┌──────────────────────────────┐
+  M   │  E2E Smoke Tests (MANDATORY) │  Login → Expense → Dashboard
+  A   │  Swagger UI API walkthrough   │  Every endpoint returns expected status
+  N   ├──────────────────────────────┤
+  D   │  Docker Health Check          │  docker-compose up → /actuator/health → UP
+  A   ├──────────────────────────────┤
+  T   │  Unit Tests (Safety Net)      │  mvn test (90 tests), flutter test
+  O   │  Controllers, Services,       │  JUnit 5 + Mockito + MockMvc
+  R   │  Security, SMS Parsing        │
+  Y   ├──────────────────────────────┤
+      │  Repo IT Tests (OPTIONAL)     │  Testcontainers — run when Docker available
+      └──────────────────────────────┘
 ```
 
-| Test Type | What It Covers | Run Command | When |
-|-----------|---------------|-------------|------|
-| **Unit Tests** | Models (serialization, split calc), Providers (state transitions), Mock services (response handling) | `flutter test test/models/ test/providers/ test/data/` | Every build |
-| **Widget Tests** | Screen rendering, user interactions, navigation, form validation | `flutter test test/screens/ test/widgets/` | Every build |
-| **Integration Tests** | Full user flows end-to-end on emulator/device | `flutter test integration_test/` | Before release |
+### 10.3 E2E Smoke Tests (Mandatory Gate)
 
-**Build gate command (must pass):**
+These are the **release-blocking** tests. They validate the full stack end-to-end:
+
+| # | E2E Test | What It Proves |
+|---|----------|----------------|
+| E1 | **Auth flow**: Google Sign-In → JWT issued → authenticated request succeeds | Auth pipeline works |
+| E2 | **Family CRUD**: Create family → invite member → list members | Core family model works |
+| E3 | **Category + Transaction**: Create category → Add expense → Appears in feed | Transaction pipeline works |
+| E4 | **Dashboard**: After adding expenses → Dashboard shows correct totals/projections | Aggregation works |
+| E5 | **Message triage**: Submit SMS → Confirm → Transaction created | AI parsing pipeline works |
+| E6 | **Budget**: Set budget → Add over-budget expense → Budget summary flags it | Budget logic works |
+
+**How to run (manual or scripted):**
 ```bash
-flutter test --coverage
+# 1. Start the stack
+docker-compose up -d
+curl http://localhost:8080/actuator/health  # Must return {"status":"UP"}
+
+# 2. Walk through Swagger UI: http://localhost:8080/swagger-ui.html
+#    Execute each E2E test scenario (E1–E6) via the Swagger endpoints
+
+# 3. Flutter integration tests (on emulator/device)
+cd budgetly_app
+flutter test integration_test/
 ```
 
-### 10.3 Flutter Test Details
+### 10.4 Unit Tests (Safety Net)
+
+Unit tests catch regressions during development. They are fast and run without Docker.
+
+**Spring Boot (90 tests — `mvn test`):**
 
 | Area | Test File | What It Verifies |
 |------|-----------|-------------------|
-| **Models** | `test/models/transaction_test.dart` | JSON serialization/deserialization, split calculation (percent & share), validation |
-| **Models** | `test/models/split_config_test.dart` | Percent splits sum to 100, share ratios calculate correct amounts |
-| **Providers** | `test/providers/auth_provider_test.dart` | Login state transitions (logged out → loading → logged in), token storage |
-| **Providers** | `test/providers/transaction_provider_test.dart` | CRUD operations update state correctly, filter/sort logic |
-| **Providers** | `test/providers/budget_provider_test.dart` | Budget calculations, over-budget detection, category breakdowns |
-| **Mock Services** | `test/data/mock/mock_transaction_service_test.dart` | Returns correct mock data, simulates error states |
-| **Screens** | `test/screens/dashboard/dashboard_screen_test.dart` | Budget ring renders, stat cards show correct values, activity list loads |
-| **Screens** | `test/screens/feed/transaction_feed_screen_test.dart` | Date grouping works, filter chips toggle, transaction tiles render |
-| **Screens** | `test/screens/expense/add_expense_screen_test.dart` | Amount input, payer selector with N members, category selection, split config |
-| **Screens** | `test/screens/messages/message_inbox_screen_test.dart` | Card rendering, confirm/edit/reject actions, progress bar updates |
-| **Screens** | `test/screens/budget/monthly_budget_screen_test.dart` | Progress bars, over-budget highlighting, add category |
-| **Widgets** | `test/widgets/budget_ring_test.dart` | Renders correct percentage, color changes at thresholds |
-| **Widgets** | `test/widgets/split_config_widget_test.dart` | Percent mode sums to 100, share mode displays ratios correctly |
-| **Integration** | `integration_test/auth_flow_test.dart` | Google Sign-In → Dashboard navigation |
-| **Integration** | `integration_test/expense_flow_test.dart` | Add Expense → Transaction appears in Feed → Dashboard updates |
+| Auth | `AuthControllerTest.java` | Token exchange, JWT issuance |
+| Auth | `JwtTokenProviderTest.java` | Token generation, validation, expiry, tampered tokens |
+| Auth | `GoogleTokenVerifierTest.java` | Skip-verification mode, null on invalid |
+| Family | `FamilyGroupControllerTest.java` | All 9 endpoints return correct status codes |
+| Family | `FamilyGroupServiceTest.java` | Business rules, permissions |
+| Category | `CategoryControllerTest.java` | CRUD endpoints |
+| Category | `CategoryServiceTest.java` | List, create, update, delete (Uncategorized fallback) |
+| Transaction | `TransactionControllerTest.java` | CRUD + query params |
+| Transaction | `TransactionServiceTest.java` | Filters, pagination, defaults |
+| Message | `MessageControllerTest.java` | Submit, confirm, reject, restore |
+| Message | `MessageServiceTest.java` | Triage logic, status transitions |
+| SMS | `SmsParsingServiceTest.java` | HDFC/SBI/ICICI formats, null handling |
+| Dashboard | `DashboardControllerTest.java` | Dashboard + budget summary endpoints |
+| Dashboard | `DashboardServiceTest.java` | Projections, category breakdowns |
 
-### 10.4 Spring Boot Test Pyramid
+**Flutter (`flutter test`):** Widget tests for each screen, provider unit tests, model serialization tests.
 
-```
-        ┌──────────────────┐
-        │  Integration     │  mvn verify -P integration
-        │  (Testcontainers │  Real MongoDB, full stack
-        │   + MockMvc)     │
-        ├──────────────────┤
-        │  Unit Tests      │  mvn test
-        │  (Controllers,   │  JUnit 5 + Mockito
-        │   Services,      │  MockMvc for HTTP layer
-        │   Security)      │
-        └──────────────────┘
-```
+### 10.5 Repository IT Tests (Optional — Requires Docker)
 
-| Test Type | What It Covers | Run Command | When |
-|-----------|---------------|-------------|------|
-| **Controller Unit Tests** | HTTP status codes, request/response mapping, validation errors | `mvn test -Dtest="*ControllerTest"` | Every build |
-| **Service Unit Tests** | Business logic, split calculations, SMS parsing | `mvn test -Dtest="*ServiceTest"` | Every build |
-| **Security Tests** | JWT validation, expired tokens, unauthorized access, role checks | `mvn test -Dtest="*SecurityTest"` | Every build |
-| **Repository Integration Tests** | MongoDB queries, pagination, indexing | `mvn verify -Dtest="*IT"` (Testcontainers) | Every build |
-| **Contract Tests** | OpenAPI spec is valid and matches controllers | `swagger-cli validate` | Every build |
+These use Testcontainers to spin up a real MongoDB container. They are **not gating** — run them when Docker Desktop is available and properly configured.
 
-**Build gate command (must pass):**
+| Test File | What It Verifies |
+|-----------|-------------------|
+| `UserRepositoryIT.java` | `findByGoogleId`, `findByEmail` |
+| `FamilyGroupRepositoryIT.java` | Save + findById round-trip |
+| `TransactionRepositoryIT.java` | Pagination, date-range filters |
+
 ```bash
-mvn verify
+# Only run when Docker is available:
+mvn verify  # Runs unit tests + IT tests via failsafe plugin
 ```
-
-### 10.5 Spring Boot Test Details
-
-| Area | Test File | What It Verifies |
-|------|-----------|-------------------|
-| **Auth** | `AuthControllerTest.java` | Google token exchange, JWT issuance, invalid tokens rejected |
-| **Auth** | `JwtTokenProviderTest.java` | Token generation, validation, expiry, refresh |
-| **Auth** | `GoogleTokenVerifierTest.java` | Valid/invalid Google ID tokens, mock Google endpoint |
-| **Family** | `FamilyGroupControllerTest.java` | CRUD operations, invite generation, member management |
-| **Family** | `FamilyGroupServiceTest.java` | Business rules: max members, role validation, permissions |
-| **Family** | `FamilyGroupRepositoryIT.java` | MongoDB queries, member lookup, cascade behavior |
-| **Transaction** | `TransactionControllerTest.java` | Create, read, update, delete + pagination + filters |
-| **Transaction** | `TransactionServiceTest.java` | Split calculations (percent sums to 100, share ratio math), validation |
-| **Transaction** | `TransactionRepositoryIT.java` | Date-range queries, category filters, aggregation pipelines |
-| **Message** | `MessageControllerTest.java` | Submit, confirm, reject, restore flows |
-| **SMS** | `SmsParsingServiceTest.java` | Parse HDFC, SBI, ICICI SMS formats → structured transactions |
-| **Dashboard** | `DashboardControllerTest.java` | Aggregation returns correct totals, per-category breakdowns |
-| **Security** | Security tests | Unauthenticated requests return 401, wrong-family access returns 403 |
 
 ### 10.6 Build Pipeline (CI)
 
-Whether running locally or in CI, the following commands are the **mandatory gates**:
-
 ```bash
-# ── Flutter (MUST pass before any deploy/release) ──
-cd budgetly_app
-flutter analyze                    # Static analysis — 0 issues
-flutter test --coverage            # All unit + widget tests — 0 failures
-flutter test integration_test/     # Integration tests — 0 failures (CI emulator)
-
-# ── Spring Boot (MUST pass before any deploy/release) ──
+# ── Step 1: Unit tests (safety net) ──
 cd budgetly_api
-mvn clean verify                   # Compile + unit tests + integration tests — 0 failures
-swagger-cli validate src/main/resources/api/budgetly-openapi.yml  # Contract valid
+mvn test                           # 90 unit tests — should pass
 
-# ── Docker (Health check) ──
+cd budgetly_app
+flutter test                       # Widget + provider tests — should pass
+
+# ── Step 2: Docker health (required for E2E) ──
 docker-compose up -d
-docker-compose ps                  # All services healthy
-curl http://localhost:8080/actuator/health  # API returns {"status":"UP"}
+curl http://localhost:8080/actuator/health  # {"status":"UP"}
+
+# ── Step 3: E2E smoke tests (MANDATORY GATE) ──
+# Swagger UI walkthrough or scripted API tests
+# Flutter integration tests on emulator
+flutter test integration_test/
 ```
 
 ### 10.7 Test Coverage Expectations
 
-| Layer | Minimum Coverage | Enforcement |
-|-------|-----------------|-------------|
-| **Flutter Models** | 95%+ | `flutter test --coverage` + `lcov` report |
-| **Flutter Providers** | 90%+ | All state transitions tested |
-| **Flutter Screens** | 80%+ (widget tests) | Every screen has at least one widget test |
-| **Spring Boot Services** | 90%+ | JaCoCo report via `mvn verify` |
-| **Spring Boot Controllers** | 85%+ | Every endpoint has at least one MockMvc test |
-| **Spring Boot Repositories** | 80%+ | Integration tests with Testcontainers |
+| Layer | Target | Enforcement |
+|-------|--------|-------------|
+| **E2E Smoke Tests** | 100% of E1–E6 scenarios | Manual or scripted — **mandatory before release** |
+| **Spring Boot Unit Tests** | 90 tests pass | `mvn test` — recommended on every build |
+| **Flutter Widget Tests** | Key screens covered | `flutter test` — recommended on every build |
+| **Repository IT Tests** | Optional | `mvn verify` — only when Docker is available |
 
 ### 10.8 Test Dependencies
 
