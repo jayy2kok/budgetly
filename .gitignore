@@ -39,3 +39,6 @@ desktop.ini
 # Misc
 *.log
 .env
+
+# Maven
+budgetly_api/target/

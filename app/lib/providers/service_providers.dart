@@ -26,7 +26,7 @@ import '../data/remote/remote_transaction_service.dart';
 ///
 /// Set to `true` to use the real Spring Boot API (requires `docker-compose up`).
 /// Set to `false` to use in-memory mock data (Phase 2 mode).
-const bool useRealApi = false;
+const bool useRealApi = true;
 
 // ── API client initialisation ─────────────────────────────────
 

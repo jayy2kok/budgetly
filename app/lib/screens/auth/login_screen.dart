@@ -2,17 +2,73 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 import '../../config/theme.dart';
 import '../../config/routes.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/service_providers.dart';
 
 /// Login screen — Google OAuth 2.0 sign-in with premium dark branding.
-class LoginScreen extends ConsumerWidget {
+class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends ConsumerState<LoginScreen> {
+  /// Server / Web Client ID from Google Cloud Console.
+  /// Used by google_sign_in v7 to obtain an ID token that the Spring Boot
+  /// backend can verify with Google's tokeninfo endpoint.
+  static const _serverClientId =
+      '855687685081-5pfm3c76mlekvd15hvuoscbc6itao147.apps.googleusercontent.com';
+
+  bool _isSigningIn = false;
+
+  /// Runs the Google Sign-In flow and passes the ID token to [AuthNotifier].
+  Future<void> _handleSignIn() async {
+    if (_isSigningIn) return;
+    setState(() => _isSigningIn = true);
+
+    try {
+      if (useRealApi) {
+        // ── Real API mode: google_sign_in v7 interactive flow ────────────
+        final signIn = GoogleSignIn.instance;
+
+        // Initialize with the Web Client ID so the backend can verify the token.
+        await signIn.initialize(serverClientId: _serverClientId);
+
+        // Show the Google account picker.
+        // TODO: add attemptLightweightAuthentication() for silent sign-in
+        //       once the base interactive flow is confirmed working.
+        final account = await signIn.authenticate(
+          scopeHint: ['email', 'profile'],
+        );
+        final auth = account.authentication;
+        final idToken = auth.idToken;
+        if (idToken == null || idToken.isEmpty) {
+          throw Exception(
+            'Google did not return an ID token. '
+            'Ensure the serverClientId matches the Web Client ID in '
+            'Google Cloud Console → APIs & Services → Credentials.',
+          );
+        }
+
+        await ref
+            .read(authProvider.notifier)
+            .signInWithGoogle(overrideIdToken: idToken);
+      } else {
+        // ── Mock mode: skip Google and use mock credentials ───────────────
+        await ref.read(authProvider.notifier).signInWithGoogle();
+      }
+    } finally {
+      if (mounted) setState(() => _isSigningIn = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
 
     // Navigate to dashboard when authenticated
@@ -21,6 +77,9 @@ class LoginScreen extends ConsumerWidget {
         context.go(AppRoutes.dashboard);
       }
     });
+
+    final bool showLoading =
+        _isSigningIn || authState.status == AuthStatus.loading;
 
     return Scaffold(
       body: Container(
@@ -117,11 +176,7 @@ class LoginScreen extends ConsumerWidget {
                   width: double.infinity,
                   height: 56,
                   child: ElevatedButton(
-                    onPressed: authState.status == AuthStatus.loading
-                        ? null
-                        : () => ref
-                              .read(authProvider.notifier)
-                              .signInWithGoogle(),
+                    onPressed: showLoading ? null : _handleSignIn,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.white,
                       foregroundColor: const Color(0xFF1F1F1F),
@@ -132,7 +187,7 @@ class LoginScreen extends ConsumerWidget {
                       ),
                       elevation: 0,
                     ),
-                    child: authState.status == AuthStatus.loading
+                    child: showLoading
                         ? SizedBox(
                             width: 24,
                             height: 24,

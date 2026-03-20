@@ -6,7 +6,10 @@ class ApiConfig {
   ///
   /// For local development, the Spring Boot server runs on port 8080.
   /// For Android emulators, use `10.0.2.2` instead of `localhost`.
-  static const String baseUrl = 'http://10.0.2.2:8080/api/v1';
+  /// For Android Emulator:      http://10.0.2.2:8080/api/v1
+  /// For iOS Simulator:         http://127.0.0.1:8080/api/v1
+  /// For real physical device:  `http://LAN_IP:8080/api/v1`
+  static const String baseUrl = 'http://192.168.31.50:8080/api/v1';
 
   /// Request timeout in milliseconds.
   static const int connectTimeout = 10000;
