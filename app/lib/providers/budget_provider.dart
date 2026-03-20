@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../data/mock/mock_budget_service.dart';
+import '../data/budget_service.dart';
+import 'service_providers.dart';
 
 /// Dashboard budget data.
 class BudgetState {
@@ -10,6 +11,7 @@ class BudgetState {
   final double projectedSpend;
   final double estimatedSavings;
   final bool isLoading;
+  final String? error;
 
   const BudgetState({
     this.monthlyLimit = 0,
@@ -18,6 +20,7 @@ class BudgetState {
     this.projectedSpend = 0,
     this.estimatedSavings = 0,
     this.isLoading = false,
+    this.error,
   });
 
   double get leftToSpend => monthlyLimit - totalSpent;
@@ -32,6 +35,7 @@ class BudgetState {
     double? projectedSpend,
     double? estimatedSavings,
     bool? isLoading,
+    String? error,
   }) {
     return BudgetState(
       monthlyLimit: monthlyLimit ?? this.monthlyLimit,
@@ -40,16 +44,17 @@ class BudgetState {
       projectedSpend: projectedSpend ?? this.projectedSpend,
       estimatedSavings: estimatedSavings ?? this.estimatedSavings,
       isLoading: isLoading ?? this.isLoading,
+      error: error,
     );
   }
 }
 
 class BudgetNotifier extends Notifier<BudgetState> {
-  late final MockBudgetService _service;
+  late final BudgetService _service;
 
   @override
   BudgetState build() {
-    _service = MockBudgetService();
+    _service = ref.watch(budgetServiceProvider);
     return const BudgetState();
   }
 
@@ -58,22 +63,26 @@ class BudgetNotifier extends Notifier<BudgetState> {
     try {
       final data = await _service.getDashboardData(familyGroupId);
       state = BudgetState(
-        monthlyLimit: data['monthlyBudgetLimit'] ?? 0,
-        totalSpent: data['totalSpent'] ?? 0,
-        dailyAverage: data['dailyAverage'] ?? 0,
-        projectedSpend: data['projectedSpend'] ?? 0,
-        estimatedSavings: data['estimatedSavings'] ?? 0,
+        monthlyLimit: (data['monthlyBudgetLimit'] as num?)?.toDouble() ?? 0,
+        totalSpent: (data['totalSpent'] as num?)?.toDouble() ?? 0,
+        dailyAverage: (data['dailyAverage'] as num?)?.toDouble() ?? 0,
+        projectedSpend: (data['projectedSpend'] as num?)?.toDouble() ?? 0,
+        estimatedSavings: (data['estimatedSavings'] as num?)?.toDouble() ?? 0,
         isLoading: false,
       );
-    } catch (_) {
-      state = state.copyWith(isLoading: false);
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
     }
   }
 
-  Future<void> updateBudgetLimit(double newLimit) async {
+  Future<void> updateBudgetLimit(String familyGroupId, double newLimit) async {
     state = state.copyWith(isLoading: true);
-    await _service.updateBudgetLimit('family_001', newLimit);
-    state = state.copyWith(monthlyLimit: newLimit, isLoading: false);
+    try {
+      await _service.updateBudgetLimit(familyGroupId, newLimit);
+      state = state.copyWith(monthlyLimit: newLimit, isLoading: false);
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+    }
   }
 }
 

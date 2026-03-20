@@ -1,7 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../data/message_service.dart';
 import '../models/message.dart';
-import '../data/mock/mock_message_service.dart';
+import 'service_providers.dart';
 
 /// State for the SMS message processing pipeline.
 class MessageState {
@@ -21,6 +22,7 @@ class MessageState {
   final Set<String> processingIds;
 
   final bool isLoading;
+  final String? error;
 
   const MessageState({
     this.incompleteMessages = const [],
@@ -29,6 +31,7 @@ class MessageState {
     this.deletedMessages = const [],
     this.processingIds = const {},
     this.isLoading = false,
+    this.error,
   });
 
   int get totalIncomplete => incompleteMessages.length;
@@ -43,6 +46,7 @@ class MessageState {
     List<Message>? deletedMessages,
     Set<String>? processingIds,
     bool? isLoading,
+    String? error,
   }) {
     return MessageState(
       incompleteMessages: incompleteMessages ?? this.incompleteMessages,
@@ -51,64 +55,72 @@ class MessageState {
       deletedMessages: deletedMessages ?? this.deletedMessages,
       processingIds: processingIds ?? this.processingIds,
       isLoading: isLoading ?? this.isLoading,
+      error: error,
     );
   }
 }
 
 class MessageNotifier extends Notifier<MessageState> {
-  late final MockMessageService _service;
+  late final MessageService _service;
 
   @override
   MessageState build() {
-    _service = MockMessageService();
+    _service = ref.watch(messageServiceProvider);
     return const MessageState();
   }
 
   Future<void> loadMessages() async {
     state = state.copyWith(isLoading: true);
     try {
-      final result = await _service.getMessages('user_001');
+      final pending = await _service.getPendingMessages();
+      final ignored = await _service.getIgnoredMessages();
 
       state = MessageState(
         // Incomplete: regex matched (parseSource == regexLocal) but missing fields
-        incompleteMessages: result.where((m) {
-          return m.status == MessageStatus.pending &&
-              m.parseSource == ParseSource.regexLocal &&
-              m.isIncomplete;
+        incompleteMessages: pending.where((m) {
+          return m.parseSource == ParseSource.regexLocal && m.isIncomplete;
         }).toList(),
 
         // Unprocessed: no regex match (parseSource == null, status == pending)
-        unprocessedMessages: result.where((m) {
-          return m.status == MessageStatus.pending && m.parseSource == null;
+        unprocessedMessages: pending.where((m) {
+          return m.parseSource == null;
         }).toList(),
 
-        // Non-financial: classified by LLM (status == ignored, has category)
-        nonFinancialMessages: result.where((m) {
+        // Non-financial: classified by LLM with non-financial category
+        nonFinancialMessages: ignored.where((m) {
           return m.status == MessageStatus.ignored &&
               m.nonFinancialCategory != null;
         }).toList(),
 
         // Deleted: user-rejected
-        deletedMessages: result.where((m) {
+        deletedMessages: ignored.where((m) {
           return m.status == MessageStatus.rejected;
         }).toList(),
 
         isLoading: false,
       );
-    } catch (_) {
-      state = state.copyWith(isLoading: false);
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
     }
   }
 
   /// Confirm an incomplete message with user-supplied data.
-  void confirmMessage(String messageId) {
-    final incomplete = [...state.incompleteMessages];
-    incomplete.removeWhere((m) => m.id == messageId);
-    state = state.copyWith(incompleteMessages: incomplete);
+  Future<void> confirmMessage(String messageId) async {
+    try {
+      await _service.confirmMessage(messageId);
+      final incomplete = [...state.incompleteMessages]
+        ..removeWhere((m) => m.id == messageId);
+      state = state.copyWith(incompleteMessages: incomplete);
+    } catch (_) {
+      // Optimistic: remove from UI regardless
+      final incomplete = [...state.incompleteMessages]
+        ..removeWhere((m) => m.id == messageId);
+      state = state.copyWith(incompleteMessages: incomplete);
+    }
   }
 
   /// Reject a message — move from incomplete/unprocessed to deleted.
-  void rejectMessage(String messageId) {
+  Future<void> rejectMessage(String messageId) async {
     final incomplete = [...state.incompleteMessages];
     final unprocessed = [...state.unprocessedMessages];
     Message? msg;
@@ -127,6 +139,12 @@ class MessageNotifier extends Notifier<MessageState> {
       }
     }
 
+    try {
+      await _service.rejectMessage(messageId);
+    } catch (_) {
+      // Best-effort
+    }
+
     state = state.copyWith(
       incompleteMessages: incomplete,
       unprocessedMessages: unprocessed,
@@ -136,8 +154,8 @@ class MessageNotifier extends Notifier<MessageState> {
   }
 
   /// Submit an unprocessed message to the server for LLM analysis.
-  Future<void> submitToServer(String messageId) async {
-    // Add to processing set
+  Future<void> submitToServer(
+      String messageId, String familyGroupId) async {
     state = state.copyWith(
       processingIds: {...state.processingIds, messageId},
     );
@@ -146,28 +164,35 @@ class MessageNotifier extends Notifier<MessageState> {
       final msg = state.unprocessedMessages.firstWhere(
         (m) => m.id == messageId,
       );
-      await _service.submitToServer(msg);
 
-      // Remove from unprocessed
-      final unprocessed = [...state.unprocessedMessages];
-      unprocessed.removeWhere((m) => m.id == messageId);
+      await _service.processMessage({
+        'sender': msg.sender,
+        'rawText': msg.rawText,
+        'familyGroupId': familyGroupId,
+      });
 
-      final ids = {...state.processingIds};
-      ids.remove(messageId);
-
+      // Remove from unprocessed on success
+      final unprocessed = [...state.unprocessedMessages]
+        ..removeWhere((m) => m.id == messageId);
+      final ids = {...state.processingIds}..remove(messageId);
       state = state.copyWith(
         unprocessedMessages: unprocessed,
         processingIds: ids,
       );
-    } catch (_) {
-      final ids = {...state.processingIds};
-      ids.remove(messageId);
-      state = state.copyWith(processingIds: ids);
+    } catch (e) {
+      final ids = {...state.processingIds}..remove(messageId);
+      state = state.copyWith(processingIds: ids, error: e.toString());
     }
   }
 
   /// Restore a message from non-financial or deleted back to unprocessed.
-  void restoreMessage(String messageId) {
+  Future<void> restoreMessage(String messageId) async {
+    try {
+      await _service.restoreMessage(messageId);
+    } catch (_) {
+      // Best-effort
+    }
+
     final nonFinancial = [...state.nonFinancialMessages];
     final fromNF = nonFinancial.where((m) => m.id == messageId).toList();
     if (fromNF.isNotEmpty) {

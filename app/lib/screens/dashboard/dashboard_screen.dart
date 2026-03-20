@@ -27,7 +27,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     // Load data on first frame
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(budgetProvider.notifier).loadDashboard('family_001');
-      ref.read(transactionProvider.notifier).loadTransactions('family_001');
+      ref.read(transactionProvider.notifier).loadTransactions();
     });
   }
 

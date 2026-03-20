@@ -1,0 +1,8 @@
+spring:
+  data:
+    mongodb:
+      uri: mongodb://budgetly:budgetly_secret@mongodb:27017/budgetly?authSource=admin
+
+logging:
+  level:
+    com.budgetly: INFO

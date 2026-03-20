@@ -194,7 +194,7 @@ class _MessageList extends StatelessWidget {
     return ListView.separated(
       padding: EdgeInsets.all(16),
       itemCount: messages.length,
-      separatorBuilder: (_, __) => SizedBox(height: 8),
+      separatorBuilder: (context, index) => SizedBox(height: 8),
       itemBuilder: (context, index) {
         final msg = messages[index];
         return _IgnoredMessageRow(

@@ -1,0 +1,42 @@
+version: "3.9"
+
+services:
+  mongodb:
+    image: mongo:7
+    container_name: budgetly-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: budgetly
+      MONGO_INITDB_ROOT_PASSWORD: budgetly_secret
+      MONGO_INITDB_DATABASE: budgetly
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  budgetly-api:
+    build: ./budgetly_api
+    container_name: budgetly-api
+    ports:
+      - "8080:8080"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    environment:
+      SPRING_DATA_MONGODB_URI: mongodb://budgetly:budgetly_secret@mongodb:27017/budgetly?authSource=admin
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-placeholder-client-id}
+      JWT_SECRET: ${JWT_SECRET:-budgetly-super-secret-key-for-development-min-256-bits-long}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-placeholder-api-key}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8080/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  mongo_data:

@@ -1,46 +1,77 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../data/family_service.dart';
 import '../models/family_group.dart';
 import '../models/family_member.dart';
+import 'service_providers.dart';
 
 /// State for the current family group and its members.
 class FamilyState {
   final FamilyGroup? currentFamily;
   final List<FamilyMember> members;
   final bool isLoading;
+  final String? error;
 
   const FamilyState({
     this.currentFamily,
     this.members = const [],
     this.isLoading = false,
+    this.error,
   });
 
   FamilyState copyWith({
     FamilyGroup? currentFamily,
     List<FamilyMember>? members,
     bool? isLoading,
+    String? error,
   }) {
     return FamilyState(
       currentFamily: currentFamily ?? this.currentFamily,
       members: members ?? this.members,
       isLoading: isLoading ?? this.isLoading,
+      error: error,
     );
   }
 }
 
 class FamilyNotifier extends Notifier<FamilyState> {
+  late final FamilyService _service;
+
   @override
-  FamilyState build() => const FamilyState();
+  FamilyState build() {
+    _service = ref.watch(familyServiceProvider);
+    return const FamilyState();
+  }
 
   Future<void> loadFamily(String familyId) async {
     state = state.copyWith(isLoading: true);
-    // Phase 2: load from mock service
+    try {
+      final family = await _service.getFamily(familyId);
+      final members = await _service.getMembers(familyId);
+      state = FamilyState(
+        currentFamily: family,
+        members: members,
+        isLoading: false,
+      );
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+    }
+  }
+
+  Future<void> updateSettings(Map<String, dynamic> updates) async {
+    final familyId = state.currentFamily?.id;
+    if (familyId == null) return;
+    state = state.copyWith(isLoading: true);
+    try {
+      final updated = await _service.updateFamily(familyId, updates);
+      state = state.copyWith(currentFamily: updated, isLoading: false);
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+    }
   }
 
   Future<void> updateBudgetLimit(double limit) async {
-    if (state.currentFamily != null) {
-      // Phase 2: update via mock service
-    }
+    await updateSettings({'monthlyBudgetLimit': limit});
   }
 }
 

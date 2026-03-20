@@ -1,48 +1,94 @@
 import '../../models/message.dart';
+import '../message_service.dart';
 import 'sample_data.dart';
 
-/// Mock message service for Phase 2.
-class MockMessageService {
-  Future<List<Message>> getMessages(String userId) async {
-    await Future.delayed(const Duration(milliseconds: 400));
-    return SampleData.messages.where((m) => m.userId == userId).toList();
-  }
-
-  Future<List<Message>> getPendingMessages(String userId) async {
+/// Mock message service for Phase 2 / offline development.
+class MockMessageService implements MessageService {
+  @override
+  Future<List<Message>> getPendingMessages() async {
     await Future.delayed(const Duration(milliseconds: 300));
     return SampleData.messages
-        .where((m) => m.status == MessageStatus.pending && m.userId == userId)
+        .where((m) => m.status == MessageStatus.pending)
         .toList();
   }
 
-  Future<List<Message>> getIgnoredMessages(String userId) async {
+  @override
+  Future<List<Message>> getIgnoredMessages() async {
     await Future.delayed(const Duration(milliseconds: 300));
     return SampleData.messages
-        .where((m) => m.status == MessageStatus.ignored && m.userId == userId)
+        .where((m) =>
+            m.status == MessageStatus.ignored ||
+            m.status == MessageStatus.rejected)
         .toList();
   }
 
-  /// Simulate sending an unprocessed message to the server for LLM analysis.
-  Future<Message> submitToServer(Message message) async {
-    // Simulate network + LLM processing time
+  @override
+  Future<Map<String, dynamic>> processMessage(
+      Map<String, dynamic> data) async {
+    // Simulate LLM processing time
     await Future.delayed(const Duration(seconds: 2));
-
-    // Simulate LLM result: mark as a financial message with extracted data
-    return Message(
-      id: message.id,
-      userId: message.userId,
-      familyGroupId: message.familyGroupId,
-      sender: message.sender,
-      rawText: message.rawText,
-      status: MessageStatus.confirmed,
-      parseSource: ParseSource.llmServer,
-      extractedData: {
-        'amount': '1,850',
-        'merchant': 'Swiggy',
-        'timestamp': '02-Mar-26',
+    return {
+      'isFinancial': true,
+      'transactionId': 'txn_mock_auto',
+      'message': {
+        'id': 'msg_mock',
+        'status': 'CONFIRMED',
+        'sender': data['sender'],
+        'rawText': data['rawText'],
       },
-      linkedTransactionId: 'txn_auto_${message.id}',
-      receivedAt: message.receivedAt,
+      'parsedData': {
+        'amount': 1850.0,
+        'merchant': 'Swiggy',
+        'type': 'EXPENSE',
+      },
+    };
+  }
+
+  @override
+  Future<Message> confirmMessage(String messageId) async {
+    await Future.delayed(const Duration(milliseconds: 300));
+    final msg = SampleData.messages.firstWhere((m) => m.id == messageId);
+    return Message(
+      id: msg.id,
+      userId: msg.userId,
+      familyGroupId: msg.familyGroupId,
+      sender: msg.sender,
+      rawText: msg.rawText,
+      status: MessageStatus.confirmed,
+      parseSource: msg.parseSource,
+      receivedAt: msg.receivedAt,
+    );
+  }
+
+  @override
+  Future<Message> rejectMessage(String messageId) async {
+    await Future.delayed(const Duration(milliseconds: 300));
+    final msg = SampleData.messages.firstWhere((m) => m.id == messageId);
+    return Message(
+      id: msg.id,
+      userId: msg.userId,
+      familyGroupId: msg.familyGroupId,
+      sender: msg.sender,
+      rawText: msg.rawText,
+      status: MessageStatus.rejected,
+      parseSource: msg.parseSource,
+      receivedAt: msg.receivedAt,
+    );
+  }
+
+  @override
+  Future<Message> restoreMessage(String messageId) async {
+    await Future.delayed(const Duration(milliseconds: 300));
+    final msg = SampleData.messages.firstWhere((m) => m.id == messageId);
+    return Message(
+      id: msg.id,
+      userId: msg.userId,
+      familyGroupId: msg.familyGroupId,
+      sender: msg.sender,
+      rawText: msg.rawText,
+      status: MessageStatus.pending,
+      parseSource: msg.parseSource,
+      receivedAt: msg.receivedAt,
     );
   }
 }

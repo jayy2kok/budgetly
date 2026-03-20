@@ -29,7 +29,7 @@ class _TransactionFeedScreenState extends ConsumerState<TransactionFeedScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(transactionProvider.notifier).loadTransactions('family_001');
+      ref.read(transactionProvider.notifier).loadTransactions();
     });
   }
 

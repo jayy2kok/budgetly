@@ -1,0 +1,34 @@
+spring:
+  data:
+    mongodb:
+      uri: mongodb://localhost/budgetly_test
+
+de:
+  flapdoodle:
+    mongodb:
+      embedded:
+        version: 7.0.9
+
+server:
+  port: 0  # Random port for tests
+
+jwt:
+  secret: test-secret-key-for-unit-tests-minimum-256-bits-long-enough
+  expiration: 3600000
+  refresh-expiration: 7200000
+
+google:
+  client-id: test-google-client-id
+
+gemini:
+  api-key: test-api-key
+  api-url: http://localhost:8089/gemini-mock
+
+pattern:
+  report-threshold: 3
+
+logging:
+  level:
+    com.budgetly: WARN
+    org.springframework.security: WARN
+    de.flapdoodle: WARN

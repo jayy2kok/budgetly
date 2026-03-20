@@ -6,7 +6,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 
 import '../../config/theme.dart';
-import '../../models/transaction.dart';
 
 import '../../providers/transaction_provider.dart';
 import '../../data/mock/sample_data.dart';
@@ -48,22 +47,18 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
 
     setState(() => _isSaving = true);
 
-    final txn = Transaction(
-      id: 'txn_new_${DateTime.now().millisecondsSinceEpoch}',
-      familyGroupId: 'family_001',
-      createdByUserId: _selectedPayerId,
-      categoryId: _selectedCategoryId,
-      amount: amount,
-      merchant: _merchantController.text.isNotEmpty
+    final payload = {
+      'categoryId': _selectedCategoryId,
+      'amount': amount,
+      'currency': 'INR',
+      'merchant': _merchantController.text.isNotEmpty
           ? _merchantController.text
           : 'Unknown',
-      type: TransactionType.expense,
+      'type': 'EXPENSE',
+      'transactionDate': _selectedDate.toIso8601String(),
+    };
 
-      transactionDate: _selectedDate,
-      createdAt: DateTime.now(),
-    );
-
-    await ref.read(transactionProvider.notifier).addTransaction(txn);
+    await ref.read(transactionProvider.notifier).addTransaction(payload);
     if (mounted) context.pop();
   }
 

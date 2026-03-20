@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../config/theme.dart';
 import '../../config/routes.dart';
 import '../../models/message.dart';
+import '../../providers/family_provider.dart';
 import '../../providers/message_provider.dart';
 
 /// Message Inbox — Two-tab layout: Incomplete + Unprocessed.
@@ -179,7 +180,7 @@ class _MessageInboxScreenState extends ConsumerState<MessageInboxScreen>
                       messages: msgState.unprocessedMessages,
                       processingIds: msgState.processingIds,
                       onSubmit: (id) =>
-                          ref.read(messageProvider.notifier).submitToServer(id),
+                          ref.read(messageProvider.notifier).submitToServer(id, ref.read(familyProvider).currentFamily?.id ?? ''),
                       onReject: (id) =>
                           ref.read(messageProvider.notifier).rejectMessage(id),
                     ),
@@ -218,7 +219,7 @@ class _IncompleteTab extends StatelessWidget {
     return ListView.separated(
       padding: EdgeInsets.all(16),
       itemCount: messages.length,
-      separatorBuilder: (_, __) => SizedBox(height: 10),
+      separatorBuilder: (context, index) => SizedBox(height: 10),
       itemBuilder: (context, index) {
         final msg = messages[index];
         return _IncompleteCard(
@@ -452,7 +453,7 @@ class _UnprocessedTab extends StatelessWidget {
     return ListView.separated(
       padding: EdgeInsets.all(16),
       itemCount: messages.length,
-      separatorBuilder: (_, __) => SizedBox(height: 10),
+      separatorBuilder: (context, index) => SizedBox(height: 10),
       itemBuilder: (context, index) {
         final msg = messages[index];
         final isProcessing = processingIds.contains(msg.id);

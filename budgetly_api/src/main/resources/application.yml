@@ -1,0 +1,53 @@
+spring:
+  application:
+    name: budgetly-api
+  data:
+    mongodb:
+      uri: ${SPRING_DATA_MONGODB_URI:mongodb://localhost:27017/budgetly}
+      database: budgetly
+
+server:
+  port: 8080
+
+# JWT Configuration
+jwt:
+  secret: ${JWT_SECRET:budgetly-super-secret-key-for-development-min-256-bits-long}
+  expiration: 86400000      # 24 hours in ms
+  refresh-expiration: 604800000  # 7 days in ms
+
+# Google OAuth
+google:
+  client-id: ${GOOGLE_CLIENT_ID:your-google-client-id}
+
+# Gemini LLM
+gemini:
+  api-key: ${GEMINI_API_KEY:your-gemini-api-key}
+  api-url: https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent
+
+# Pattern registry
+pattern:
+  report-threshold: 5   # Auto-disable pattern after this many reports
+
+# SpringDoc / Swagger UI
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: alpha
+    tags-sorter: alpha
+
+# Management / Actuator
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    com.budgetly: DEBUG
+    org.springframework.security: INFO

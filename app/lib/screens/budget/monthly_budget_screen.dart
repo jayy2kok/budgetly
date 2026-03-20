@@ -120,7 +120,7 @@ class MonthlyBudgetScreen extends ConsumerWidget {
                 onPressed: () {
                   final val = double.tryParse(budgetCtrl.text);
                   if (val != null) {
-                    ref.read(budgetProvider.notifier).updateBudgetLimit(val);
+                    ref.read(budgetProvider.notifier).updateBudgetLimit('family_001', val);
                   }
                   Navigator.pop(ctx);
                 },
