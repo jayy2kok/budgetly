@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_sms_inbox/flutter_sms_inbox.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -25,11 +26,12 @@ class SmsInboxReader {
     return (await Permission.sms.status).isGranted;
   }
 
-  /// Reads the SMS inbox and returns [Message] objects for all messages that:
-  /// - Matched a cached pattern (financial, regex-parsed), OR
-  /// - Came from a known sender but had no pattern match (unprocessed/LLM queue)
+  /// Reads the SMS inbox and returns [Message] objects for all financial-looking messages.
   ///
-  /// Non-financial messages from unknown senders are silently skipped.
+  /// Strategy (two-pass):
+  /// 1. Try matching against cached patterns (regex-local path).
+  /// 2. If no cached patterns exist for a sender, use keyword heuristics to
+  ///    detect financial messages and queue them for LLM analysis.
   ///
   /// [userId] is required so the backend can associate messages with the user.
   /// [since] filters out messages older than the given timestamp.
@@ -39,57 +41,91 @@ class SmsInboxReader {
     DateTime? since,
     int limit = 500,
   }) async {
-    if (!await hasPermission()) return [];
+    if (!await hasPermission()) {
+      debugPrint('[SmsInboxReader] No SMS permission — skipping inbox read.');
+      return [];
+    }
 
     await _cache.loadPatterns();
     final patterns = _cache.patterns;
     final knownSenders = patterns.map((p) => p.sender.toUpperCase()).toSet();
 
-    final smsList = await _query.querySms(
-      kinds: [SmsQueryKind.inbox],
-      count: limit,
-    );
+    debugPrint(
+        '[SmsInboxReader] Loaded ${patterns.length} cached patterns. Known senders: $knownSenders');
+    debugPrint('[SmsInboxReader] Reading inbox since: $since');
+
+    List<SmsMessage> smsList;
+    try {
+      smsList = await _query.querySms(
+        kinds: [SmsQueryKind.inbox],
+        count: limit,
+      );
+    } catch (e) {
+      debugPrint('[SmsInboxReader] Failed to query SMS inbox: $e');
+      return [];
+    }
+
+    debugPrint('[SmsInboxReader] Found ${smsList.length} total SMS in inbox.');
 
     final result = <Message>[];
 
     for (final sms in smsList) {
       final receivedAt = sms.dateSent ?? DateTime.now();
-      
-      // Since smsList is sorted descending, we can break early if we hit an old message
+
+      // Since smsList is sorted descending, break early for older messages
       if (since != null && receivedAt.isBefore(since)) {
+        debugPrint(
+            '[SmsInboxReader] Reached messages before cutoff ($since). Stopping.');
         break;
       }
 
-      final sender = (sms.sender ?? '').toUpperCase();
+      final sender = (sms.sender ?? '').toUpperCase().trim();
       final body = sms.body ?? '';
-      final id = 'sms_${sms.id ?? '${sender}_${sms.dateSent}'}';
+      final id = 'sms_${sms.id ?? '${sender}_${receivedAt.millisecondsSinceEpoch}'}';
 
-      // Only process messages from known bank/financial senders
-      if (!knownSenders.contains(sender)) continue;
+      if (sender.isEmpty || body.isEmpty) continue;
 
-      final senderPatterns =
-          patterns.where((p) => p.sender.toUpperCase() == sender).toList();
-      final parseResult = _parser.parseMessage(sender, body, senderPatterns);
+      // --- Strategy 1: Known sender with cached patterns ---
+      if (knownSenders.contains(sender)) {
+        final senderPatterns =
+            patterns.where((p) => p.sender.toUpperCase() == sender).toList();
+        final parseResult = _parser.parseMessage(sender, body, senderPatterns);
 
+        if (parseResult != null) {
+          result.add(Message(
+            id: id,
+            userId: userId,
+            sender: sms.sender ?? '',
+            rawText: body,
+            receivedAt: receivedAt,
+            status: MessageStatus.pending,
+            parseSource: ParseSource.regexLocal,
+            matchedPatternId: parseResult.matchedPatternId,
+            extractedData: parseResult.extractedFields.isNotEmpty
+                ? parseResult.extractedFields
+                : null,
+          ));
+        } else {
+          // Known sender but no pattern match — send to LLM
+          result.add(Message(
+            id: id,
+            userId: userId,
+            sender: sms.sender ?? '',
+            rawText: body,
+            receivedAt: receivedAt,
+            status: MessageStatus.pending,
+            parseSource: null,
+            matchedPatternId: null,
+            extractedData: null,
+          ));
+        }
+        continue;
+      }
 
-
-      if (parseResult != null) {
-        // Pattern matched — regex-parsed, may still be incomplete
-        result.add(Message(
-          id: id,
-          userId: userId,
-          sender: sms.sender ?? '',
-          rawText: body,
-          receivedAt: receivedAt,
-          status: MessageStatus.pending,
-          parseSource: ParseSource.regexLocal,
-          matchedPatternId: parseResult.matchedPatternId,
-          extractedData: parseResult.extractedFields.isNotEmpty
-              ? parseResult.extractedFields
-              : null,
-        ));
-      } else {
-        // Known sender, no regex match — queue for LLM analysis
+      // --- Strategy 2: Unknown sender — use keyword heuristics ---
+      // We queue messages that look financial so the LLM can decide and generate a pattern.
+      if (_looksFinancial(body)) {
+        debugPrint('[SmsInboxReader] Unknown sender $sender — looks financial, queuing for LLM.');
         result.add(Message(
           id: id,
           userId: userId,
@@ -104,6 +140,19 @@ class SmsInboxReader {
       }
     }
 
+    debugPrint('[SmsInboxReader] Found ${result.length} financial messages to process.');
     return result;
+  }
+
+  /// Returns true if the SMS body contains keywords commonly found in bank transaction alerts.
+  bool _looksFinancial(String body) {
+    const keywords = [
+      'debited', 'credited', 'spent', 'txn', 'transaction',
+      'upi', 'imps', 'neft', 'rtgs', 'payment', 'transfer',
+      'withdrawn', 'balance', 'a/c', 'acct', 'account',
+      'rs.', 'inr', '₹',
+    ];
+    final lower = body.toLowerCase();
+    return keywords.any((kw) => lower.contains(kw));
   }
 }

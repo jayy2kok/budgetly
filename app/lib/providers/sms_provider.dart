@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -188,7 +189,17 @@ class SmsNotifier extends Notifier<SmsState> {
 
     final userId = ref.read(authProvider).user?.id;
     final familyId = ref.read(familyProvider).currentFamily?.id;
-    if (userId == null || familyId == null) return;
+    if (userId == null) {
+      debugPrint('[SmsSyncMessage] Aborting: user not authenticated.');
+      state = state.copyWith(isSyncing: false);
+      return;
+    }
+    if (familyId == null) {
+      debugPrint('[SmsSyncMessage] Aborting: no family loaded yet.');
+      state = state.copyWith(isSyncing: false);
+      return;
+    }
+    debugPrint('[SmsSync] Starting inbox sync for user=$userId, family=$familyId');
 
     state = state.copyWith(isSyncing: true);
 
@@ -221,6 +232,7 @@ class SmsNotifier extends Notifier<SmsState> {
             });
           } else {
             // Fully parsed locally! Convert to transaction immediately.
+          debugPrint('[SmsSync] Regex-parsed fully, creating transaction for msg id=${msg.id}');
             final txData = {
               'amount': double.parse(msg.extractedData!['amount']!),
               'merchantName': msg.extractedData!['merchant'],
@@ -232,7 +244,8 @@ class SmsNotifier extends Notifier<SmsState> {
             await ref.read(transactionProvider.notifier).addTransaction(txData);
           }
         } else {
-          // No local match. Send to backend LLM server.
+          // No local match — send to backend LLM server.
+          debugPrint('[SmsSync] Submitting msg id=${msg.id} (sender=${msg.sender}) to backend LLM.');
           final response = await ref.read(messageServiceProvider).processMessage({
             'sender': msg.sender,
             'rawText': msg.rawText,
@@ -251,8 +264,8 @@ class SmsNotifier extends Notifier<SmsState> {
         state = state.copyWith(
             lastProcessedSmsTimestamp: msg.receivedAt.millisecondsSinceEpoch);
       }
-    } catch (_) {
-      // Background task silently recovers on next run
+    } catch (e, stack) {
+      debugPrint('[SmsSync] Error during sync: $e\n$stack');
     } finally {
       state = state.copyWith(isSyncing: false);
       ref.read(messageProvider.notifier).loadMessages();
