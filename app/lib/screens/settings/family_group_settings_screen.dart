@@ -6,7 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../config/theme.dart';
 import '../../config/routes.dart';
 import '../../models/family_member.dart';
-import '../../data/mock/sample_data.dart';
+import '../../providers/family_provider.dart';
 
 /// Family Management — Member list with role badges, invite button.
 class FamilyGroupSettingsScreen extends ConsumerWidget {
@@ -14,7 +14,17 @@ class FamilyGroupSettingsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final members = SampleData.members;
+    final familyState = ref.watch(familyProvider);
+    final members = familyState.members;
+    final familyGroup = familyState.currentFamily;
+
+    if (familyGroup == null) {
+      return Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(color: context.colors.primary),
+        ),
+      );
+    }
 
     return Scaffold(
       body: SafeArea(
@@ -96,7 +106,7 @@ class FamilyGroupSettingsScreen extends ConsumerWidget {
                     ),
                     SizedBox(height: 12),
                     Text(
-                      SampleData.familyGroup.name,
+                      familyGroup.name,
                       style: GoogleFonts.ibmPlexSans(
                         fontSize: 20,
                         fontWeight: FontWeight.w700,
@@ -105,7 +115,7 @@ class FamilyGroupSettingsScreen extends ConsumerWidget {
                     ),
                     SizedBox(height: 4),
                     Text(
-                      '${members.length} members • Created Jan 2025',
+                      '${members.length} members',
                       style: GoogleFonts.inter(
                         fontSize: 13,
                         color: context.colors.textDim,

@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/family_service.dart';
+import '../data/remote/remote_family_service.dart';
 import '../models/family_group.dart';
 import '../models/family_member.dart';
 import 'service_providers.dart';
@@ -41,6 +42,29 @@ class FamilyNotifier extends Notifier<FamilyState> {
   FamilyState build() {
     _service = ref.watch(familyServiceProvider);
     return const FamilyState();
+  }
+
+  /// Loads the current user's family, or auto-creates one (real-API mode).
+  /// Falls back to loading `family_001` in mock mode.
+  Future<void> loadMyFamily() async {
+    if (useRealApi) {
+      state = state.copyWith(isLoading: true);
+      try {
+        final remoteSvc = _service as RemoteFamilyService;
+        final family = await remoteSvc.getMyFamily();
+        final members = await remoteSvc.getMembers(family.id);
+
+        state = FamilyState(
+          currentFamily: family,
+          members: members,
+          isLoading: false,
+        );
+      } catch (e) {
+        state = state.copyWith(isLoading: false, error: e.toString());
+      }
+    } else {
+      await loadFamily('family_001');
+    }
   }
 
   Future<void> loadFamily(String familyId) async {

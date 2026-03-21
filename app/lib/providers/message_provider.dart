@@ -104,6 +104,36 @@ class MessageNotifier extends Notifier<MessageState> {
     }
   }
 
+  /// Merges locally-read on-device SMS messages into the pipeline.
+  ///
+  /// Deduplicates by ID to avoid showing the same message twice (e.g. if the
+  /// server and the inbox reader both have the same SMS).
+  void mergeLocalMessages(List<Message> localMessages) {
+    final existingIds = {
+      ...state.incompleteMessages.map((m) => m.id),
+      ...state.unprocessedMessages.map((m) => m.id),
+    };
+
+    final newIncomplete = <Message>[];
+    final newUnprocessed = <Message>[];
+
+    for (final msg in localMessages) {
+      if (existingIds.contains(msg.id)) continue; // already known
+      if (msg.parseSource == ParseSource.regexLocal && msg.isIncomplete) {
+        newIncomplete.add(msg);
+      } else if (msg.parseSource == null) {
+        newUnprocessed.add(msg);
+      }
+    }
+
+    if (newIncomplete.isEmpty && newUnprocessed.isEmpty) return;
+
+    state = state.copyWith(
+      incompleteMessages: [...state.incompleteMessages, ...newIncomplete],
+      unprocessedMessages: [...state.unprocessedMessages, ...newUnprocessed],
+    );
+  }
+
   /// Confirm an incomplete message with user-supplied data.
   Future<void> confirmMessage(String messageId) async {
     try {

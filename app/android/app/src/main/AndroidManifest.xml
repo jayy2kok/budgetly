@@ -1,4 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- SMS permissions — required for reading bank/financial SMS messages -->
+    <uses-permission android:name="android.permission.READ_SMS" />
+    <uses-permission android:name="android.permission.RECEIVE_SMS" />
+
     <application
         android:label="budgetly"
         android:name="${applicationName}"

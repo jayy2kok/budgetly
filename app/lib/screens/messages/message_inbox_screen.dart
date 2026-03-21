@@ -8,6 +8,7 @@ import '../../config/routes.dart';
 import '../../models/message.dart';
 import '../../providers/family_provider.dart';
 import '../../providers/message_provider.dart';
+import '../../providers/sms_provider.dart';
 
 /// Message Inbox — Two-tab layout: Incomplete + Unprocessed.
 class MessageInboxScreen extends ConsumerStatefulWidget {
@@ -25,8 +26,18 @@ class _MessageInboxScreenState extends ConsumerState<MessageInboxScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      // 1. Load remote messages from API
       ref.read(messageProvider.notifier).loadMessages();
+
+      // 2. Request SMS permission (shows OS dialog if not yet decided)
+      final smsNotifier = ref.read(smsProvider.notifier);
+      final granted = await smsNotifier.requestPermission();
+
+      // 3. If granted, read existing SMS from device and merge into pipeline
+      if (granted) {
+        smsNotifier.loadAndMergeInboxMessages();
+      }
     });
   }
 

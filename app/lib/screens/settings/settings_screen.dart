@@ -6,9 +6,10 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../config/theme.dart';
 import '../../config/routes.dart';
 import '../../providers/auth_provider.dart';
-import '../../data/mock/sample_data.dart';
 import '../../providers/theme_provider.dart';
 import '../../providers/sms_provider.dart';
+import '../../providers/family_provider.dart';
+import '../../models/family_member.dart';
 
 /// Settings screen — Profile card, grouped settings, SMS & Parsing, sign out.
 class SettingsScreen extends ConsumerWidget {
@@ -70,9 +71,20 @@ class SettingsScreen extends ConsumerWidget {
     final user = authState.user;
     final smsState = ref.watch(smsProvider);
 
-    final currentMember = SampleData.members.firstWhere(
+    final familyState = ref.watch(familyProvider);
+    final members = familyState.members;
+    
+    // Find current member or default to false for isAdmin if not found
+    final currentMember = members.firstWhere(
       (m) => m.userId == user?.id,
-      orElse: () => SampleData.members.first,
+      orElse: () => FamilyMember(
+        id: '',
+        userId: '',
+        familyGroupId: '',
+        role: MemberRole.member,
+        status: MemberStatus.active,
+        joinedAt: DateTime.now(),
+      ),
     );
     final isAdmin = currentMember.isAdmin;
 
@@ -157,7 +169,7 @@ class SettingsScreen extends ConsumerWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            user?.displayName ?? 'Arjun Sharma',
+                            user?.displayName ?? 'Budgetly User',
                             style: GoogleFonts.ibmPlexSans(
                               fontSize: 18,
                               fontWeight: FontWeight.w700,
@@ -317,7 +329,7 @@ class SettingsScreen extends ConsumerWidget {
                 icon: Icons.group_outlined,
                 label: 'Family Members',
                 trailing: Text(
-                  '${SampleData.members.length} members',
+                  '${members.length} members',
                   style: GoogleFonts.inter(
                     fontSize: 14,
                     color: context.colors.textDim,

@@ -8,6 +8,12 @@ import 'api_client.dart';
 class RemoteFamilyService implements FamilyService {
   final Dio _dio = ApiClient.instance.dio;
 
+  /// Fetches (or auto-creates) the authenticated user's family group.
+  Future<FamilyGroup> getMyFamily() async {
+    final response = await _dio.get('/families/my');
+    return FamilyGroup.fromJson(response.data as Map<String, dynamic>);
+  }
+
   @override
   Future<FamilyGroup> createFamily(Map<String, dynamic> data) async {
     final response = await _dio.post('/families', data: data);

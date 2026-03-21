@@ -8,7 +8,9 @@ import 'package:intl/intl.dart';
 import '../../config/theme.dart';
 
 import '../../providers/transaction_provider.dart';
-import '../../data/mock/sample_data.dart';
+import '../../providers/family_provider.dart';
+import '../../providers/category_provider.dart';
+import '../../models/category.dart';
 
 /// Add Expense screen — Amount input, payer, category.
 class AddExpenseScreen extends ConsumerStatefulWidget {
@@ -21,8 +23,8 @@ class AddExpenseScreen extends ConsumerStatefulWidget {
 class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   final _amountController = TextEditingController();
   final _merchantController = TextEditingController();
-  String _selectedCategoryId = 'cat_001';
-  String _selectedPayerId = 'user_001';
+  String? _selectedCategoryId;
+  String? _selectedPayerId;
   DateTime _selectedDate = DateTime.now();
   bool _isSaving = false;
 
@@ -33,10 +35,11 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     super.dispose();
   }
 
-  String get _selectedCategoryName {
-    final cat = SampleData.categories.firstWhere(
+  String _selectedCategoryName(List<Category> categories) {
+    if (_selectedCategoryId == null) return "Unknown";
+    final cat = categories.firstWhere(
       (c) => c.id == _selectedCategoryId,
-      orElse: () => SampleData.categories.first,
+      orElse: () => categories.isNotEmpty ? categories.first : const Category(id: '', familyGroupId: '', name: 'Unknown', icon: '❓', budgetLimit: 0, color: '#000000', sortOrder: 0),
     );
     return cat.name;
   }
@@ -64,6 +67,20 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final familyState = ref.watch(familyProvider);
+    final members = familyState.members;
+    
+    final categoryState = ref.watch(categoryProvider);
+    final categories = categoryState.categories;
+
+    // Default selections
+    if (_selectedCategoryId == null && categories.isNotEmpty) {
+      _selectedCategoryId = categories.first.id;
+    }
+    if (_selectedPayerId == null && members.isNotEmpty) {
+      _selectedPayerId = members.first.userId;
+    }
+    
     return Scaffold(
       body: Column(
         children: [
@@ -183,7 +200,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                         ),
                       ),
                       Text(
-                        _selectedCategoryName,
+                        _selectedCategoryName(categories),
                         style: GoogleFonts.inter(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
@@ -211,7 +228,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                       ),
                     ),
                     child: Row(
-                      children: SampleData.members.map((member) {
+                      children: members.map((member) {
                         final isSelected = _selectedPayerId == member.userId;
                         return Expanded(
                           child: GestureDetector(
@@ -322,10 +339,10 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                     height: 90,
                     child: ListView.separated(
                       scrollDirection: Axis.horizontal,
-                      itemCount: SampleData.categories.length,
+                      itemCount: categories.length,
                       separatorBuilder: (_, _) => SizedBox(width: 14),
                       itemBuilder: (context, index) {
-                        final cat = SampleData.categories[index];
+                        final cat = categories[index];
                         final isSelected = cat.id == _selectedCategoryId;
                         return GestureDetector(
                           onTap: () =>

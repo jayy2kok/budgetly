@@ -4,11 +4,13 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 
 import '../../config/theme.dart';
-import '../../data/mock/sample_data.dart';
 import '../../models/category.dart';
-import '../../models/transaction.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/budget_provider.dart';
+import '../../providers/family_provider.dart';
+import '../../providers/category_provider.dart';
+import '../../providers/transaction_provider.dart';
+import '../../models/family_member.dart';
 
 /// Monthly Budget — Overall progress + per-category breakdown.
 class MonthlyBudgetScreen extends ConsumerWidget {
@@ -119,8 +121,9 @@ class MonthlyBudgetScreen extends ConsumerWidget {
               child: ElevatedButton(
                 onPressed: () {
                   final val = double.tryParse(budgetCtrl.text);
-                  if (val != null) {
-                    ref.read(budgetProvider.notifier).updateBudgetLimit('family_001', val);
+                  final familyId = ref.read(familyProvider).currentFamily?.id;
+                  if (val != null && familyId != null) {
+                    ref.read(budgetProvider.notifier).updateBudgetLimit(familyId, val);
                   }
                   Navigator.pop(ctx);
                 },
@@ -148,7 +151,7 @@ class MonthlyBudgetScreen extends ConsumerWidget {
     );
   }
 
-  void _showAddCategorySheet(BuildContext context) {
+  void _showAddCategorySheet(BuildContext context, WidgetRef ref) {
     final nameCtrl = TextEditingController();
     final budgetCtrl = TextEditingController();
     var selectedEmoji = _emojis[0];
@@ -338,16 +341,16 @@ class MonthlyBudgetScreen extends ConsumerWidget {
                     final budget = double.tryParse(budgetCtrl.text.trim()) ?? 0;
                     if (name.isEmpty || budget <= 0) return;
 
-                    SampleData.categories.add(
-                      Category(
-                        id: 'cat_${DateTime.now().millisecondsSinceEpoch}',
-                        familyGroupId: 'family_001',
-                        name: name,
-                        icon: selectedEmoji,
-                        budgetLimit: budget,
-                        color: '#5B5EF4',
-                        sortOrder: SampleData.categories.length,
-                      ),
+                    final req = {
+                      'name': name,
+                      'icon': selectedEmoji,
+                      'budgetLimit': budget,
+                      'color': '#5B5EF4',
+                      'sortOrder': ref.read(categoryProvider).categories.length,
+                    };
+                    ref.read(categoryProvider.notifier).createCategory(
+                      ref.read(familyProvider).currentFamily?.id ?? '',
+                      req,
                     );
                     Navigator.pop(ctx);
                     // Trigger rebuild by using a snackbar as feedback
@@ -558,27 +561,20 @@ class MonthlyBudgetScreen extends ConsumerWidget {
                 height: 52,
                 child: ElevatedButton(
                   onPressed: () {
-                    final index = SampleData.categories.indexWhere(
-                      (c) => c.id == category.id,
-                    );
-                    if (index != -1) {
-                      SampleData.categories[index] = Category(
-                        id: category.id,
-                        familyGroupId: category.familyGroupId,
-                        name: nameCtrl.text.trim().isEmpty
-                            ? category.name
-                            : nameCtrl.text.trim(),
-                        icon: selectedEmoji,
-                        budgetLimit:
-                            double.tryParse(budgetCtrl.text) ??
-                            category.budgetLimit,
-                        color: category.color,
-                        sortOrder: category.sortOrder,
-                      );
-                      ref
-                          .read(budgetProvider.notifier)
-                          .loadDashboard(SampleData.familyGroup.id);
-                    }
+                    final req = {
+                      'name': nameCtrl.text.trim().isEmpty ? category.name : nameCtrl.text.trim(),
+                      'icon': selectedEmoji,
+                      'budgetLimit': double.tryParse(budgetCtrl.text) ?? category.budgetLimit,
+                      'color': category.color,
+                      'sortOrder': category.sortOrder,
+                    };
+                    ref.read(categoryProvider.notifier).updateCategory(
+                      category.familyGroupId,
+                      category.id,
+                      req,
+                    ).then((_) {
+                      ref.read(budgetProvider.notifier).loadDashboard(category.familyGroupId);
+                    });
                     Navigator.pop(ctx);
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
@@ -640,34 +636,12 @@ class MonthlyBudgetScreen extends ConsumerWidget {
           ),
           TextButton(
             onPressed: () {
-              // Update transactions to uncategorized
-              for (int i = 0; i < SampleData.transactions.length; i++) {
-                if (SampleData.transactions[i].categoryId == category.id) {
-                  SampleData.transactions[i] = Transaction(
-                    id: SampleData.transactions[i].id,
-                    familyGroupId: SampleData.transactions[i].familyGroupId,
-                    createdByUserId: SampleData.transactions[i].createdByUserId,
-                    categoryId: 'uncategorized',
-                    amount: SampleData.transactions[i].amount,
-                    currency: SampleData.transactions[i].currency,
-                    merchant: SampleData.transactions[i].merchant,
-                    description: SampleData.transactions[i].description,
-                    type: SampleData.transactions[i].type,
-                    sourceType: SampleData.transactions[i].sourceType,
-                    sourceRawText: SampleData.transactions[i].sourceRawText,
-                    matchedPatternId: SampleData.transactions[i].matchedPatternId,
-                    notes: SampleData.transactions[i].notes,
-                    transactionDate: SampleData.transactions[i].transactionDate,
-                    createdAt: SampleData.transactions[i].createdAt,
-                  );
-                }
-              }
-              SampleData.categories.removeWhere((c) => c.id == category.id);
-
-              Navigator.pop(ctx);
-              ref
-                  .read(budgetProvider.notifier)
-                  .loadDashboard(SampleData.familyGroup.id);
+              ref.read(categoryProvider.notifier).deleteCategory(
+                category.familyGroupId,
+                category.id,
+              ).then((_) {
+                ref.read(budgetProvider.notifier).loadDashboard(category.familyGroupId);
+              });
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(content: Text('${category.name} deleted')),
               );
@@ -687,19 +661,24 @@ class MonthlyBudgetScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final totalBudget = SampleData.monthlyBudgetLimit;
-    final totalSpent = SampleData.totalSpent;
-    final spentPercent = (totalSpent / totalBudget).clamp(0.0, 1.0);
+    final budgetState = ref.watch(budgetProvider);
+    final totalBudget = budgetState.monthlyLimit;
+    final totalSpent = budgetState.totalSpent;
+    final spentPercent = totalBudget > 0 ? (totalSpent / totalBudget).clamp(0.0, 1.0) : 0.0;
     final isOver = totalSpent > totalBudget;
 
     final authState = ref.watch(authProvider);
     final user = authState.user;
 
-    final currentMember = SampleData.members.firstWhere(
+    final familyState = ref.watch(familyProvider);
+    final currentMember = familyState.members.firstWhere(
       (m) => m.userId == user?.id,
-      orElse: () => SampleData.members.first,
+      orElse: () => FamilyMember(id: '', userId: '', familyGroupId: '', role: MemberRole.member, status: MemberStatus.active, joinedAt: DateTime.now()),
     );
     final isAdmin = currentMember.isAdmin;
+
+    final categoryState = ref.watch(categoryProvider);
+    final categories = categoryState.categories;
 
     return Scaffold(
       body: CustomScrollView(
@@ -937,18 +916,12 @@ class MonthlyBudgetScreen extends ConsumerWidget {
             padding: EdgeInsets.symmetric(horizontal: 20),
             sliver: SliverList(
               delegate: SliverChildBuilderDelegate((context, index) {
-                final cat = SampleData.categories[index];
-                // Simulate spent amounts (decreasing proportion)
-                final spent = [
-                  22000.0,
-                  13500.0,
-                  9800.0,
-                  95000.0,
-                  16200.0,
-                  4500.0,
-                  9200.0,
-                  11800.0,
-                ][index];
+                final cat = categories[index];
+                final transactions = ref.watch(transactionProvider).transactions;
+                final spent = transactions
+                    .where((t) => t.categoryId == cat.id)
+                    .fold(0.0, (sum, t) => sum + t.amount);
+                
                 return _CategoryBudgetCard(
                   category: cat,
                   spent: spent,
@@ -956,7 +929,7 @@ class MonthlyBudgetScreen extends ConsumerWidget {
                   onEdit: () => _showEditCategorySheet(context, ref, cat),
                   onDelete: () => _showDeleteCategoryDialog(context, ref, cat),
                 );
-              }, childCount: SampleData.categories.length),
+              }, childCount: categories.length),
             ),
           ),
 
@@ -966,7 +939,7 @@ class MonthlyBudgetScreen extends ConsumerWidget {
               child: Padding(
                 padding: EdgeInsets.fromLTRB(20, 8, 20, 0),
                 child: GestureDetector(
-                  onTap: () => _showAddCategorySheet(context),
+                  onTap: () => _showAddCategorySheet(context, ref),
                   child: Container(
                     height: 56,
                     decoration: BoxDecoration(

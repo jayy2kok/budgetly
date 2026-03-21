@@ -7,10 +7,12 @@ import 'package:intl/intl.dart';
 
 import '../../config/theme.dart';
 import '../../config/routes.dart';
-import '../../providers/auth_provider.dart';
 import '../../providers/budget_provider.dart';
+import '../../providers/family_provider.dart';
+import '../../providers/category_provider.dart';
 import '../../providers/transaction_provider.dart';
 import '../../models/transaction.dart';
+import '../../models/family_member.dart';
 
 /// Dashboard — Budget ring, stat cards, activity list.
 class DashboardScreen extends ConsumerStatefulWidget {
@@ -24,9 +26,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   @override
   void initState() {
     super.initState();
-    // Load data on first frame
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(budgetProvider.notifier).loadDashboard('family_001');
+      final familyId = ref.read(familyProvider).currentFamily?.id;
+      if (familyId != null) {
+        ref.read(budgetProvider.notifier).loadDashboard(familyId);
+        ref.read(categoryProvider.notifier).loadCategories(familyId);
+      }
       ref.read(transactionProvider.notifier).loadTransactions();
     });
   }
@@ -35,7 +40,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   Widget build(BuildContext context) {
     final budget = ref.watch(budgetProvider);
     final txnState = ref.watch(transactionProvider);
-    final authState = ref.watch(authProvider);
 
     return Scaffold(
       body: CustomScrollView(
@@ -86,7 +90,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     ),
                     // Family avatars
                     _FamilyAvatars(
-                      userName: authState.user?.displayName ?? 'U',
+                      members: ref.watch(familyProvider).members,
                     ),
                   ],
                 ),
@@ -189,18 +193,34 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
 // ─── Family Avatars ───
 class _FamilyAvatars extends StatelessWidget {
-  final String userName;
-  const _FamilyAvatars({required this.userName});
+  final List<FamilyMember> members;
+  const _FamilyAvatars({required this.members});
 
   @override
   Widget build(BuildContext context) {
+    if (members.isEmpty) return const SizedBox();
+
+    final displayMembers = members.take(3).toList();
+    final width = 44.0 + ((displayMembers.length - 1) * 26.0);
+
     return SizedBox(
-      width: 70,
+      width: width,
       height: 44,
       child: Stack(
-        children: [
-          Positioned(
-            left: 0,
+        children: List.generate(displayMembers.length, (index) {
+          final member = displayMembers[index];
+          final initial = member.user?.displayName.isNotEmpty == true 
+              ? member.user!.displayName[0].toUpperCase() 
+              : 'U';
+          
+          final colors = [
+            context.colors.primary,
+            context.colors.accentMint,
+            context.colors.accentCoral,
+          ];
+
+          return Positioned(
+            left: index * 26.0,
             child: Container(
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
@@ -208,9 +228,9 @@ class _FamilyAvatars extends StatelessWidget {
               ),
               child: CircleAvatar(
                 radius: 19,
-                backgroundColor: context.colors.primary,
+                backgroundColor: colors[index % colors.length],
                 child: Text(
-                  userName.isNotEmpty ? userName[0] : 'U',
+                  initial,
                   style: TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w700,
@@ -219,33 +239,13 @@ class _FamilyAvatars extends StatelessWidget {
                 ),
               ),
             ),
-          ),
-          Positioned(
-            left: 26,
-            child: Container(
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(color: context.colors.background, width: 3),
-              ),
-              child: CircleAvatar(
-                radius: 19,
-                backgroundColor: context.colors.accentMint,
-                child: Text(
-                  'P',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 14,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
+          );
+        }),
       ),
     );
   }
 }
+
 
 // ─── Budget Ring Section ───
 class _BudgetRingSection extends StatelessWidget {

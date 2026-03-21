@@ -1,6 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:permission_handler/permission_handler.dart';
 
+import '../providers/auth_provider.dart';
+import '../providers/message_provider.dart';
 import '../services/pattern_cache_service.dart';
+import '../services/sms_inbox_reader.dart';
 
 /// State for SMS parsing settings and pattern cache.
 class SmsState {
@@ -9,6 +13,7 @@ class SmsState {
   final int cachedPatternCount;
   final DateTime? lastSyncTime;
   final bool isRefreshing;
+  final bool permissionPermanentlyDenied;
 
   const SmsState({
     this.smsPermissionGranted = false,
@@ -16,6 +21,7 @@ class SmsState {
     this.cachedPatternCount = 0,
     this.lastSyncTime,
     this.isRefreshing = false,
+    this.permissionPermanentlyDenied = false,
   });
 
   SmsState copyWith({
@@ -24,6 +30,7 @@ class SmsState {
     int? cachedPatternCount,
     DateTime? lastSyncTime,
     bool? isRefreshing,
+    bool? permissionPermanentlyDenied,
   }) {
     return SmsState(
       smsPermissionGranted: smsPermissionGranted ?? this.smsPermissionGranted,
@@ -32,6 +39,8 @@ class SmsState {
       cachedPatternCount: cachedPatternCount ?? this.cachedPatternCount,
       lastSyncTime: lastSyncTime ?? this.lastSyncTime,
       isRefreshing: isRefreshing ?? this.isRefreshing,
+      permissionPermanentlyDenied:
+          permissionPermanentlyDenied ?? this.permissionPermanentlyDenied,
     );
   }
 
@@ -52,15 +61,19 @@ class SmsNotifier extends Notifier<SmsState> {
   @override
   SmsState build() {
     _cache = PatternCacheService();
-    // Auto-load patterns on init
     _init();
     return const SmsState();
   }
 
   Future<void> _init() async {
+    // Load cached patterns
     await _cache.loadPatterns();
+
+    // Check real SMS permission status from the OS
+    final status = await Permission.sms.status;
     state = state.copyWith(
-      smsPermissionGranted: true, // Mock: assume granted
+      smsPermissionGranted: status.isGranted,
+      permissionPermanentlyDenied: status.isPermanentlyDenied,
       cachedPatternCount: _cache.patternCount,
       lastSyncTime: _cache.lastSyncTime,
     );
@@ -73,10 +86,36 @@ class SmsNotifier extends Notifier<SmsState> {
     );
   }
 
-  /// Request SMS permission (mock: always grants).
-  Future<void> requestPermission() async {
-    await Future.delayed(const Duration(milliseconds: 300));
-    state = state.copyWith(smsPermissionGranted: true);
+  /// Request SMS permission from the OS.
+  ///
+  /// Returns true if the permission is granted after the request.
+  /// If permanently denied, the user must go to app settings.
+  Future<bool> requestPermission() async {
+    // Already granted
+    if (state.smsPermissionGranted) return true;
+
+    if (state.permissionPermanentlyDenied) {
+      // Can't prompt again — user must enable from system Settings
+      await openAppSettings();
+      return false;
+    }
+
+    final result = await Permission.sms.request();
+    final granted = result.isGranted;
+    state = state.copyWith(
+      smsPermissionGranted: granted,
+      permissionPermanentlyDenied: result.isPermanentlyDenied,
+    );
+    return granted;
+  }
+
+  /// Re-check permission status (e.g. after returning from Settings).
+  Future<void> recheckPermission() async {
+    final status = await Permission.sms.status;
+    state = state.copyWith(
+      smsPermissionGranted: status.isGranted,
+      permissionPermanentlyDenied: status.isPermanentlyDenied,
+    );
   }
 
   /// Refresh patterns from server.
@@ -88,6 +127,24 @@ class SmsNotifier extends Notifier<SmsState> {
       lastSyncTime: _cache.lastSyncTime,
       isRefreshing: false,
     );
+  }
+
+  /// Reads the on-device SMS inbox and merges results into the message pipeline.
+  ///
+  /// Only processes messages from senders in the pattern cache (known banks).
+  /// Matched messages are added as regex-parsed; unmatched go to the LLM queue.
+  Future<void> loadAndMergeInboxMessages() async {
+    if (!state.smsPermissionGranted) return;
+
+    final userId = ref.read(authProvider).user?.id;
+    if (userId == null) return; // Not authenticated yet
+
+    final reader = SmsInboxReader(cache: _cache);
+    final messages = await reader.readInbox(userId: userId);
+
+    if (messages.isNotEmpty) {
+      ref.read(messageProvider.notifier).mergeLocalMessages(messages);
+    }
   }
 }
 

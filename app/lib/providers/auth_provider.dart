@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/auth_service.dart';
 import '../models/user.dart';
+import 'family_provider.dart';
 import 'service_providers.dart';
 
 /// Auth state — tracks the current user's sign-in state.
@@ -56,21 +57,18 @@ class AuthNotifier extends Notifier<AuthState> {
   /// In mock mode (useRealApi = false): returns sample user data instantly.
   ///
   /// In real-API mode (useRealApi = true): Requires google_sign_in v7 to be
-  /// fully configured with a serverClientId. See GOOGLE_SIGNIN_SETUP.md for
-  /// setup instructions. Call `GoogleSignInHelper.getIdToken()` from your
-  /// platform-specific integration layer and pass it here via [overrideIdToken].
+  /// fully configured with a serverClientId. Pass the ID token from the login
+  /// screen via [overrideIdToken].
   Future<void> signInWithGoogle({String? overrideIdToken}) async {
     state = state.copyWith(status: AuthStatus.loading);
     try {
       final String idToken;
 
       if (useRealApi) {
-        // In real-API mode, the ID token must be provided by the calling UI layer
-        // (via a platform-specific GoogleSignIn flow) or via overrideIdToken.
         if (overrideIdToken == null || overrideIdToken.isEmpty) {
           throw Exception(
             'Real API mode requires a Google ID token. '
-            'Use GoogleSignInHelper in the login screen to obtain one.',
+            'Use GoogleSignIn in the login screen to obtain one.',
           );
         }
         idToken = overrideIdToken;
@@ -85,6 +83,10 @@ class AuthNotifier extends Notifier<AuthState> {
         accessToken: result.accessToken,
         refreshToken: result.refreshToken,
       );
+
+      // After auth, load (or auto-create) the user's family.
+      // This stores the real family ID in familyProvider for all screens to use.
+      ref.read(familyProvider.notifier).loadMyFamily();
     } catch (e) {
       state = AuthState(
         status: AuthStatus.error,

@@ -35,6 +35,15 @@ dependencies:
   # Google Fonts
   google_fonts: ^8.0.2
 
+  # Permissions
+  permission_handler: ^11.3.1
+
+  # SMS Inbox reading (Android)
+  flutter_sms_inbox: ^1.0.3
+
+  # Local persistence
+  shared_preferences: ^2.3.4
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
