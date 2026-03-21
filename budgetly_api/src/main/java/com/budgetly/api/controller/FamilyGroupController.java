@@ -24,6 +24,13 @@ public class FamilyGroupController implements FamilyGroupsApi {
                 .body(familyGroupService.createFamily(userId, createFamilyRequest));
     }
 
+    /** GET /api/v1/families/my — returns (or auto-creates) the authenticated user's family. */
+    @Override
+    public ResponseEntity<FamilyGroup> getMyFamily() {
+        String userId = ControllerUtils.getCurrentUserId();
+        return ResponseEntity.ok(familyGroupService.getMyFamily(userId));
+    }
+
     @Override
     public ResponseEntity<FamilyGroup> getFamily(String id) {
         String userId = ControllerUtils.getCurrentUserId();

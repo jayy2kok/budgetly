@@ -51,10 +51,39 @@ public class FamilyGroupService {
         return toDto(group);
     }
 
+    /**
+     * Returns the user's current family, or auto-creates one on first login.
+     * A user can only belong to ONE family at a time.
+     */
+    public FamilyGroup getMyFamily(String userId) {
+        List<FamilyMemberDocument> memberships = familyMemberRepository.findByUserId(userId);
+        java.util.Optional<FamilyMemberDocument> activeMembership = memberships.stream()
+                .filter(m -> "ACTIVE".equals(m.getStatus()))
+                .findFirst();
+
+        if (activeMembership.isPresent()) {
+            return toDto(familyGroupRepository.findById(activeMembership.get().getFamilyGroupId())
+                    .orElseThrow(() -> new ResourceNotFoundException("FamilyGroup",
+                            activeMembership.get().getFamilyGroupId())));
+        }
+
+        // No family yet — auto-create a personal family for this user
+        UserDocument user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", userId));
+        String familyName = user.getDisplayName() + "'s Family";
+
+        CreateFamilyRequest req = new CreateFamilyRequest();
+        req.setName(familyName);
+        req.setDefaultCurrency("INR");
+        req.setMonthlyBudgetLimit(50000.0);
+        return createFamily(userId, req);
+    }
+
     public FamilyGroup getFamily(String userId, String familyId) {
         FamilyGroupDocument group = getGroupAndValidateMember(userId, familyId);
         return toDto(group);
     }
+
 
     public FamilyGroup updateFamily(String userId, String familyId, UpdateFamilyRequest request) {
         FamilyGroupDocument group = getGroupAndValidateMember(userId, familyId);
