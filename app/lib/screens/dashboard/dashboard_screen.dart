@@ -11,8 +11,10 @@ import '../../providers/budget_provider.dart';
 import '../../providers/family_provider.dart';
 import '../../providers/category_provider.dart';
 import '../../providers/transaction_provider.dart';
+import '../../providers/sms_provider.dart';
 import '../../models/transaction.dart';
 import '../../models/family_member.dart';
+import '../../widgets/sms_consent_dialog.dart';
 
 /// Dashboard — Budget ring, stat cards, activity list.
 class DashboardScreen extends ConsumerStatefulWidget {
@@ -33,6 +35,24 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         ref.read(categoryProvider.notifier).loadCategories(familyId);
       }
       ref.read(transactionProvider.notifier).loadTransactions();
+
+      // SMS Consent Check
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (!mounted) return;
+        final smsState = ref.read(smsProvider);
+        if (!smsState.hasPromptedForConsent &&
+            !smsState.smsPermissionGranted &&
+            !smsState.permissionPermanentlyDenied) {
+          showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            builder: (ctx) => const SmsConsentDialog(),
+          );
+        } else if (smsState.smsPermissionGranted) {
+          ref.read(smsProvider.notifier).syncInboxMessages();
+        }
+      });
     });
   }
 

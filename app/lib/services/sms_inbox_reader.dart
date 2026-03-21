@@ -32,9 +32,11 @@ class SmsInboxReader {
   /// Non-financial messages from unknown senders are silently skipped.
   ///
   /// [userId] is required so the backend can associate messages with the user.
+  /// [since] filters out messages older than the given timestamp.
   /// [limit] is the max number of SMS to scan (most recent first).
   Future<List<Message>> readInbox({
     required String userId,
+    DateTime? since,
     int limit = 500,
   }) async {
     if (!await hasPermission()) return [];
@@ -51,6 +53,13 @@ class SmsInboxReader {
     final result = <Message>[];
 
     for (final sms in smsList) {
+      final receivedAt = sms.dateSent ?? DateTime.now();
+      
+      // Since smsList is sorted descending, we can break early if we hit an old message
+      if (since != null && receivedAt.isBefore(since)) {
+        break;
+      }
+
       final sender = (sms.sender ?? '').toUpperCase();
       final body = sms.body ?? '';
       final id = 'sms_${sms.id ?? '${sender}_${sms.dateSent}'}';
@@ -62,7 +71,7 @@ class SmsInboxReader {
           patterns.where((p) => p.sender.toUpperCase() == sender).toList();
       final parseResult = _parser.parseMessage(sender, body, senderPatterns);
 
-      final receivedAt = sms.dateSent ?? DateTime.now();
+
 
       if (parseResult != null) {
         // Pattern matched — regex-parsed, may still be incomplete
