@@ -49,6 +49,37 @@ class MessageE2ETest extends BaseE2ETest {
                 .body("parsedData.merchant", equalTo("Amazon"));
     }
 
+    @Test
+    void processMessage_financialSmsWithTemplate_generatesRegexAndPattern() {
+        UserDocument user = seedUser("g-msg-template-1", "Template User", "template1@test.com");
+        FamilyGroupDocument family = seedFamily(user.getId(), "Template Family");
+
+        llmProvider.setNextResult(
+                LlmAnalysisResult.builder()
+                        .financial(true)
+                        .amount(2500.0)
+                        .merchant("Swiggy")
+                        .transactionType("EXPENSE")
+                        .template("Spent Rs {amount} at {merchant} on {timestamp}")
+                        .extractionMap(Map.of("amount", "amount", "merchant", "merchant", "timestamp", "timestamp"))
+                        .build()
+        );
+
+        givenAuth(user.getId())
+                .body(Map.of(
+                        "familyGroupId", family.getId(),
+                        "sender", "SWIGGY",
+                        "rawText", "Spent Rs 2500.00 at Swiggy on 15/04/2026"
+                ))
+                .post("/messages/process")
+                .then()
+                .statusCode(200)
+                .body("isFinancial", equalTo(true))
+                .body("transactionId", notNullValue())
+                .body("generatedPattern.regex", containsString("(?<amount>\\d+(?:\\.\\d+)?)"))
+                .body("generatedPattern.sender", equalTo("SWIGGY"));
+    }
+
     // ── Process Message — Non-Financial ─────────────────────────
 
     @Test

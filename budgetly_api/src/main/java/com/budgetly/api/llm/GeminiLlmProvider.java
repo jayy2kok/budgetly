@@ -30,7 +30,11 @@ public class GeminiLlmProvider implements LlmProvider {
             
             1. Determine if this SMS is a FINANCIAL transaction (debit/credit bank transaction).
             2. If financial, extract: amount (number only), merchant/payee name, transaction type (EXPENSE for debit, INCOME for credit), raw timestamp string.
-            3. Generate a Java/Dart-compatible regex pattern with named capture groups: (?<amount>...), (?<merchant>...), (?<timestamp>...).
+            3. Create a template string from the raw SMS by replacing variable parts with token placeholders in curly braces:
+               - Rules:
+                 * Use tokens: {amount}, {merchant}, {timestamp}, and optionally {accountLast4}.
+                 * Only use the tokens listed in extractionMap.
+                 * Do NOT include any regex syntax (e.g. .*, \\d) – output plain text with {} placeholders.
             4. Return ONLY a valid JSON object with these fields:
                - financial: boolean
                - amount: number (null if not financial)
@@ -38,8 +42,8 @@ public class GeminiLlmProvider implements LlmProvider {
                - transactionType: "EXPENSE" or "INCOME" (null if not financial)
                - rawTimestamp: string (null if not financial)
                - notes: string (brief explanation)
-               - generatedRegex: string (java regex with named groups, null if not financial)
-               - extractionMap: object mapping group names to fields {"amount": "amount", "merchant": "merchant", "timestamp": "timestamp"}
+               - template: string (the SMS text with {} token placeholders, null if not financial)
+               - extractionMap: object mapping token name to target field {"amount": "amount", "merchant": "merchant", "timestamp": "timestamp"}
             
             SMS text: "%s"
             

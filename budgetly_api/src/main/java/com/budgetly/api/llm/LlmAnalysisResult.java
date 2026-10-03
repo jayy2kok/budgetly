@@ -22,4 +22,8 @@ public class LlmAnalysisResult {
     // Generated regex pattern
     private String generatedRegex;
     private Map<String, String> extractionMap;  // group → field
+
+    // Token-based template (replaces generatedRegex)
+    private String template;
 }
+

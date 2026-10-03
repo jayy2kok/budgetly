@@ -25,6 +25,7 @@ public class MessageService {
     private final TransactionService transactionService;
     private final PatternRegistryService patternRegistryService;
     private final LlmProvider llmProvider;
+    private final TemplateRegexService templateRegexService;
 
     public ProcessMessageResponse processMessage(String userId, ProcessMessageRequest request) {
         String familyGroupId = request.getFamilyGroupId();
@@ -61,16 +62,23 @@ public class MessageService {
         CreateTransactionRequest txRequest = buildTransactionRequest(llmResult, familyGroupId);
         response.setParsedData(txRequest);
 
-        // 4. Save pattern if regex was generated
+        // 4. Save pattern if template or regex was generated
         SmsPatternDocument savedPattern = null;
-        if (llmResult.getGeneratedRegex() != null) {
+        String regex = null;
+        if (llmResult.getTemplate() != null) {
+            regex = templateRegexService.generateRegex(llmResult.getTemplate(), llmResult.getExtractionMap());
+        } else if (llmResult.getGeneratedRegex() != null) {
+            regex = llmResult.getGeneratedRegex();
+        }
+
+        if (regex != null) {
             Map<String, String> em = llmResult.getExtractionMap() != null
                     ? llmResult.getExtractionMap()
                     : Map.of("amount", "amount", "merchant", "merchant", "timestamp", "timestamp");
 
             savedPattern = SmsPatternDocument.builder()
                     .sender(sender)
-                    .regex(llmResult.getGeneratedRegex())
+                    .regex(regex)
                     .extractionMap(em)
                     .sampleMessage(rawText)
                     .usageCount(1)
