@@ -106,6 +106,7 @@ public class MessageService {
 
         messageDoc.setStatus(createdTx != null ? "CONFIRMED" : "PENDING");
         messageDoc.setLinkedTransactionId(createdTx != null ? createdTx.getId() : null);
+        messageDoc.setMatchedPatternId(savedPattern != null ? savedPattern.getId() : null);
         messageDoc.setParseSource("LLM_SERVER");
 
         Map<String, Object> parsedDataMap = new HashMap<>();
