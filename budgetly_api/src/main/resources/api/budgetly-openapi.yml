@@ -1151,7 +1151,7 @@ components:
           format: double
         currency:
           type: string
-          default: INR
+          default: INRF
         merchant:
           type: string
         description:
@@ -1159,6 +1159,8 @@ components:
         type:
           $ref: "#/components/schemas/TransactionType"
         categoryId:
+          type: string
+        familyGroupId:
           type: string
         splitMethod:
           $ref: "#/components/schemas/SplitMethod"
@@ -1292,9 +1294,9 @@ components:
         sender:
           type: string
           description: SMS sender ID (e.g. "HDFCBK", "SBIUPI", "ICICIB")
-        regex:
-          type: string
-          description: Java/Dart-compatible regex pattern with named capture groups
+        template:
+                  type: string
+                  description: Anchor template with {tokens}
         extractionMap:
           $ref: "#/components/schemas/ExtractionMap"
         sampleMessage:
@@ -1336,9 +1338,9 @@ components:
           type: string
         patternId:
           type: string
-        regex:
-          type: string
-          description: Snapshot of the rejected regex
+        template:
+                  type: string
+                  description: Snapshot of the rejected template
         sampleMessage:
           type: string
         reportedByUserIds:

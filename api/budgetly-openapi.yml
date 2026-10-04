@@ -1271,9 +1271,9 @@ components:
         sender:
           type: string
           description: SMS sender ID (e.g. "HDFCBK", "SBIUPI", "ICICIB")
-        regex:
+        template:
           type: string
-          description: Java/Dart-compatible regex pattern with named capture groups
+          description: Anchor template with {tokens}
         extractionMap:
           $ref: "#/components/schemas/ExtractionMap"
         sampleMessage:
@@ -1315,9 +1315,9 @@ components:
           type: string
         patternId:
           type: string
-        regex:
+        template:
           type: string
-          description: Snapshot of the rejected regex
+          description: Snapshot of the rejected template
         sampleMessage:
           type: string
         reportedByUserIds:

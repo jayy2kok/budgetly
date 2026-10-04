@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 @RestController
 @RequestMapping("/api/v1")
@@ -17,38 +18,39 @@ public class MessageController implements MessagesApi {
     private final MessageService messageService;
 
     @Override
-    public ResponseEntity<ProcessMessageResponse> processMessage(ProcessMessageRequest processMessageRequest) {
+    public CompletableFuture<ResponseEntity<ProcessMessageResponse>> processMessage(ProcessMessageRequest processMessageRequest) {
         String userId = ControllerUtils.getCurrentUserId();
-        return ResponseEntity.ok(messageService.processMessage(userId, processMessageRequest));
+        return messageService.processMessage(userId, processMessageRequest)
+                .thenApply(ResponseEntity::ok);
     }
 
     @Override
-    public ResponseEntity<List<Message>> getPendingMessages() {
+    public CompletableFuture<ResponseEntity<List<Message>>> getPendingMessages() {
         String userId = ControllerUtils.getCurrentUserId();
-        return ResponseEntity.ok(messageService.getPendingMessages(userId));
+        return CompletableFuture.completedFuture(ResponseEntity.ok(messageService.getPendingMessages(userId)));
     }
 
     @Override
-    public ResponseEntity<List<Message>> getIgnoredMessages() {
+    public CompletableFuture<ResponseEntity<List<Message>>> getIgnoredMessages() {
         String userId = ControllerUtils.getCurrentUserId();
-        return ResponseEntity.ok(messageService.getIgnoredMessages(userId));
+        return CompletableFuture.completedFuture(ResponseEntity.ok(messageService.getIgnoredMessages(userId)));
     }
 
     @Override
-    public ResponseEntity<Transaction> confirmMessage(String id) {
+    public CompletableFuture<ResponseEntity<Transaction>> confirmMessage(String id) {
         String userId = ControllerUtils.getCurrentUserId();
-        return ResponseEntity.ok(messageService.confirmMessage(userId, id));
+        return CompletableFuture.completedFuture(ResponseEntity.ok(messageService.confirmMessage(userId, id)));
     }
 
     @Override
-    public ResponseEntity<Message> rejectMessage(String id) {
+    public CompletableFuture<ResponseEntity<Message>> rejectMessage(String id) {
         String userId = ControllerUtils.getCurrentUserId();
-        return ResponseEntity.ok(messageService.rejectMessage(userId, id));
+        return CompletableFuture.completedFuture(ResponseEntity.ok(messageService.rejectMessage(userId, id)));
     }
 
     @Override
-    public ResponseEntity<Message> restoreMessage(String id) {
+    public CompletableFuture<ResponseEntity<Message>> restoreMessage(String id) {
         String userId = ControllerUtils.getCurrentUserId();
-        return ResponseEntity.ok(messageService.restoreMessage(userId, id));
+        return CompletableFuture.completedFuture(ResponseEntity.ok(messageService.restoreMessage(userId, id)));
     }
 }

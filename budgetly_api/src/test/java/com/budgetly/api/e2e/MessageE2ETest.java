@@ -4,16 +4,31 @@ import com.budgetly.api.document.FamilyGroupDocument;
 import com.budgetly.api.document.MessageDocument;
 import com.budgetly.api.document.UserDocument;
 import com.budgetly.api.llm.LlmAnalysisResult;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.mongodb.core.MongoTemplate;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.util.Map;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 import static org.hamcrest.Matchers.*;
+import io.restassured.RestAssured;
 
 /**
  * E2E tests for Message API: /api/v1/messages/*
  */
 class MessageE2ETest extends BaseE2ETest {
+
+    private String getMessageIdByRawText(String userId, String rawText) {
+        return mongoTemplate.findOne(
+            org.springframework.data.mongodb.core.query.Query.query(
+                org.springframework.data.mongodb.core.query.Criteria.where("userId").is(userId).and("rawText").is(rawText)
+            ),
+            MessageDocument.class
+        ).getId();
+    }
 
     // ── Process Message — Financial ─────────────────────────────
 
@@ -29,8 +44,8 @@ class MessageE2ETest extends BaseE2ETest {
                         .amount(1500.0)
                         .merchant("Amazon")
                         .transactionType("EXPENSE")
-                        .generatedRegex("(?<amount>\\d+).*(?<merchant>\\w+)")
-                        .extractionMap(Map.of("amount", "amount", "merchant", "merchant", "timestamp", "timestamp"))
+                        .template("Rs.{amount} debited from a/c {accountLast4} for {merchant} on {timestamp}")
+                        .extractionMap(Map.of("amount","amount","accountLast4","accountLast4","merchant","merchant","timestamp","timestamp"))
                         .build()
         );
 
@@ -43,10 +58,16 @@ class MessageE2ETest extends BaseE2ETest {
                 .post("/messages/process")
                 .then()
                 .statusCode(200)
-                .body("isFinancial", equalTo(true))
-                .body("transactionId", notNullValue())
-                .body("parsedData.amount", equalTo(1500.0F))
-                .body("parsedData.merchant", equalTo("Amazon"));
+                .body("isFinancial", equalTo(true));
+
+        await().atMost(Duration.ofSeconds(30))
+                .untilAsserted(() -> {
+                    String messageId = getMessageIdByRawText(user.getId(), "Rs.1500 debited from a/c XX1234 for Amazon on 13-03-26");
+                    MessageDocument msg = mongoTemplate.findById(messageId, MessageDocument.class);
+                    assertThat(msg).isNotNull();
+                    assertThat(msg.getStatus()).isEqualTo("CONFIRMED");
+                    assertThat(msg.getLinkedTransactionId()).isNotNull();
+                });
     }
 
     @Test
@@ -74,10 +95,17 @@ class MessageE2ETest extends BaseE2ETest {
                 .post("/messages/process")
                 .then()
                 .statusCode(200)
-                .body("isFinancial", equalTo(true))
-                .body("transactionId", notNullValue())
-                .body("generatedPattern.regex", containsString("(?<amount>\\d+(?:\\.\\d+)?)"))
-                .body("generatedPattern.sender", equalTo("SWIGGY"));
+                .body("isFinancial", equalTo(true));
+
+        await().atMost(Duration.ofSeconds(30))
+                .untilAsserted(() -> {
+                    String messageId = getMessageIdByRawText(user.getId(), "Spent Rs 2500.00 at Swiggy on 15/04/2026");
+                    MessageDocument msg = mongoTemplate.findById(messageId, MessageDocument.class);
+                    assertThat(msg).isNotNull();
+                    assertThat(msg.getStatus()).isEqualTo("CONFIRMED");
+                    assertThat(msg.getLinkedTransactionId()).isNotNull();
+                    assertThat(msg.getMatchedPatternId()).isNotNull();
+                });
     }
 
     // ── Process Message — Non-Financial ─────────────────────────
@@ -98,8 +126,16 @@ class MessageE2ETest extends BaseE2ETest {
                 .post("/messages/process")
                 .then()
                 .statusCode(200)
-                .body("isFinancial", equalTo(false))
-                .body("message.status", equalTo("IGNORED"));
+                .body("isFinancial", equalTo(false));
+
+        await().atMost(Duration.ofSeconds(30))
+                .untilAsserted(() -> {
+                    String messageId = getMessageIdByRawText(user.getId(), "50% OFF on all electronics! Shop now!");
+                    MessageDocument msg = mongoTemplate.findById(messageId, MessageDocument.class);
+                    assertThat(msg).isNotNull();
+                    assertThat(msg.getStatus()).isEqualTo("IGNORED");
+                    assertThat(msg.getLinkedTransactionId()).isNull();
+                });
     }
 
     // ── Get Pending Messages ────────────────────────────────────
@@ -187,5 +223,28 @@ class MessageE2ETest extends BaseE2ETest {
                 .then()
                 .statusCode(200)
                 .body("status", equalTo("PENDING"));
+    }
+
+    // ── helpers ──────────────────────────────────────────────────
+
+    private String getLastMessageId(String userId) {
+        return RestAssured.given()
+                .auth().oauth2(getAuthToken(userId))
+                .get("/messages/pending")
+                .then()
+                .statusCode(200)
+                .extract()
+                .path("$[-1].id");
+    }
+
+    private String getLinkedTransactionId(String messageId) {
+        // Need to refetch in a test context where we can access UserDocument ID
+        return RestAssured.given()
+                .auth().oauth2(getAuthToken(seedUser("g-msg-1", "Msg User", "msg1@test.com").getId()))
+                .get("/messages/pending")
+                .then()
+                .statusCode(200)
+                .extract()
+                .path("find { it.id == '" + messageId + "' }.linkedTransactionId");
     }
 }
