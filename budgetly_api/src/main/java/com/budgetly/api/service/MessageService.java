@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import com.budgetly.api.document.MessageDocument;
@@ -14,6 +15,8 @@ import com.budgetly.api.exception.ResourceNotFoundException;
 import com.budgetly.api.generated.model.CreateTransactionRequest;
 import com.budgetly.api.generated.model.Message;
 import com.budgetly.api.generated.model.MessageStatus;
+import com.budgetly.api.generated.model.BulkMessageRequest;
+import com.budgetly.api.generated.model.BulkMessageResponse;
 import com.budgetly.api.generated.model.ParseSource;
 import com.budgetly.api.generated.model.ProcessMessageRequest;
 import com.budgetly.api.generated.model.ProcessMessageResponse;
@@ -137,8 +140,41 @@ public class MessageService {
     }
 
     public List<Message> getIgnoredMessages(String userId) {
-        return messageRepository.findByUserIdAndStatusIn(userId, List.of("IGNORED", "REJECTED"))
+        return messageRepository.findByUserIdAndStatus(userId, "IGNORED")
                 .stream().map(this::toMessageDto).collect(Collectors.toList());
+    }
+
+    @Value("${budgetly.change-stream.max-batch-size:500}")
+    private int maxBatchSize;
+
+    public CompletableFuture<BulkMessageResponse> bulkInsertMessages(String userId, BulkMessageRequest request) {
+        if (request.getMessages() == null || request.getMessages().isEmpty()) {
+            throw new IllegalArgumentException("Messages list must not be empty");
+        }
+        if (request.getMessages().size() > maxBatchSize) {
+            throw new IllegalArgumentException("Batch size exceeds maximum limit of " + maxBatchSize);
+        }
+
+        List<MessageDocument> docs = request.getMessages().stream()
+                .map(req -> MessageDocument.builder()
+                        .userId(userId)
+                        .familyGroupId(request.getFamilyGroupId())
+                        .sender(req.getSender())
+                        .rawText(req.getRawText())
+                        .status(MessageDocument.STATUS_PENDING)
+                        .parseSource("LLM_SERVER")
+                        .build())
+                .collect(Collectors.toList());
+
+        List<MessageDocument> savedDocs = messageRepository.saveAll(docs);
+        
+        BulkMessageResponse response = new BulkMessageResponse();
+        response.setStatus("ACCEPTED");
+        response.setAcceptedCount(savedDocs.size());
+        response.setMessageIds(savedDocs.stream().map(MessageDocument::getMessageId).collect(Collectors.toList()));
+        response.setMessages(savedDocs.stream().map(this::toMessageDto).collect(Collectors.toList()));
+        
+        return CompletableFuture.completedFuture(response);
     }
 
     public Transaction confirmMessage(String userId, String messageId) {
@@ -177,12 +213,12 @@ public class MessageService {
                 .orElseThrow(() -> new ResourceNotFoundException("Message", messageId));
     }
 
-    private CreateTransactionRequest buildTransactionRequest(LlmAnalysisResult llm, String familyGroupId) {
+    private CreateTransactionRequest buildTransactionRequest(LlmAnalysisResult llmResult, String familyGroupId) {
         CreateTransactionRequest req = new CreateTransactionRequest();
-        req.setAmount(llm.getAmount() != null ? llm.getAmount() : 0.0);
-        req.setMerchant(llm.getMerchant() != null ? llm.getMerchant() : "Unknown");
+        req.setAmount(llmResult.getAmount() != null ? llmResult.getAmount() : 0.0);
+        req.setMerchant(llmResult.getMerchant() != null ? llmResult.getMerchant() : "Unknown");
         req.setType(TransactionType.fromValue(
-                "INCOME".equals(llm.getTransactionType()) ? "INCOME" : "EXPENSE"));
+                "INCOME".equals(llmResult.getTransactionType()) ? "INCOME" : "EXPENSE"));
         req.setTransactionDate(Instant.now().atOffset(ZoneOffset.UTC));
         req.setCurrency("INR");
         return req;

@@ -3,6 +3,13 @@ spring:
     mongodb:
       uri: mongodb://localhost/budgetly_test
 
+budgetly:
+  change-stream:
+    enabled: false
+    collection: messages
+    token-collection: change_stream_tokens
+    max-batch-size: 500
+
 de:
   flapdoodle:
     mongodb:

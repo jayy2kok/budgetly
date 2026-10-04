@@ -19,6 +19,8 @@
 
     <properties>
         <java.version>21</java.version>
+        <mockito.version>5.14.2</mockito.version>
+        <byte-buddy.version>1.15.11</byte-buddy.version>
         <lombok.version>1.18.44</lombok.version>
         <openapi-generator.version>7.4.0</openapi-generator.version>
         <rest-assured.version>5.4.0</rest-assured.version>
@@ -52,6 +54,10 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
         </dependency>
 
         <!-- Swagger / OpenAPI -->
@@ -114,7 +120,32 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.mockito</groupId>
+                    <artifactId>mockito-core</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <version>5.14.2</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <version>5.14.2</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-junit-jupiter</artifactId>
+            <version>5.14.2</version>
+            <scope>test</scope>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.security</groupId>
             <artifactId>spring-security-test</artifactId>
@@ -243,6 +274,10 @@
                         <include>**/*Test.java</include>
                         <include>**/*E2ETest.java</include>
                     </includes>
+                    <!-- The local toolchain runs JDK 25 while the project targets Java 21.
+                         Byte Buddy (used by Mockito's inline mock maker) requires the
+                         experimental flag to instrument classes on JDK 25. -->
+                    <argLine>-Dnet.bytebuddy.experimental=true -XX:+EnableDynamicAgentLoading</argLine>
                 </configuration>
             </plugin>
 

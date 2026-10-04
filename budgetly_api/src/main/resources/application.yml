@@ -52,10 +52,18 @@ management:
   endpoints:
     web:
       exposure:
-        include: health, info
+        include: health, info, prometheus, metrics
   endpoint:
     health:
       show-details: always
+
+# Change Stream Pipeline Configuration
+budgetly:
+  change-stream:
+    enabled: ${BUDGETLY_CHANGE_STREAM_ENABLED:true}
+    collection: messages
+    token-collection: change_stream_tokens
+    max-batch-size: ${BUDGETLY_BULK_MAX_BATCH_SIZE:500}
 
 logging:
   level:

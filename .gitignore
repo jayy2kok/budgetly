@@ -30,6 +30,7 @@
 *.iml
 *.swp
 *.swo
+.github/
 
 # OS
 .DS_Store

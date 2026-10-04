@@ -1,14 +1,18 @@
 package com.budgetly.api.e2e;
 
-import com.budgetly.api.document.FamilyGroupDocument;
-import com.budgetly.api.document.UserDocument;
-import io.restassured.RestAssured;
-import org.junit.jupiter.api.Test;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 import java.util.Map;
 
-import static io.restassured.RestAssured.given;
-import static org.hamcrest.Matchers.*;
+import org.junit.jupiter.api.Test;
+
+import com.budgetly.api.document.FamilyGroupDocument;
+import com.budgetly.api.document.UserDocument;
+
+import io.restassured.RestAssured;
 
 /**
  * E2E tests for security enforcement and cross-cutting concerns.

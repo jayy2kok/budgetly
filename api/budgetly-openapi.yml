@@ -511,6 +511,34 @@ paths:
           description: Transaction deleted
 
   # ─────────────────────── MESSAGES (SMS PROCESSING) ─────────
+  /messages/bulk:
+    post:
+      tags: [Messages]
+      operationId: bulkInsertMessages
+      summary: Bulk insert SMS messages for asynchronous processing
+      description: Bulk inserts incoming messages with PENDING status to be processed asynchronously by the change stream consumer.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BulkMessageRequest"
+      responses:
+        "202":
+          description: Messages accepted for processing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BulkMessageResponse"
+        "400":
+          description: Invalid request or batch too large
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /messages/process:
     post:
       tags: [Messages]
@@ -1202,6 +1230,9 @@ components:
       properties:
         id:
           type: string
+        messageId:
+          type: string
+          description: Unique message identifier
         userId:
           type: string
         familyGroupId:
@@ -1224,14 +1255,45 @@ components:
         receivedAt:
           type: string
           format: date-time
+        createdAt:
+          type: string
+          format: date-time
 
     MessageStatus:
       type: string
-      enum: [PENDING, CONFIRMED, REJECTED, IGNORED]
+      enum: [PENDING, IN_PROGRESS, PROCESSED, FAILED, CONFIRMED, REJECTED, IGNORED]
 
     ParseSource:
       type: string
       enum: [REGEX_LOCAL, LLM_SERVER, MANUAL]
+
+    BulkMessageRequest:
+      type: object
+      required: [messages]
+      properties:
+        familyGroupId:
+          type: string
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/ProcessMessageRequest"
+
+    BulkMessageResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: "ACCEPTED"
+        acceptedCount:
+          type: integer
+        messageIds:
+          type: array
+          items:
+            type: string
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/Message"
 
     ProcessMessageRequest:
       type: object

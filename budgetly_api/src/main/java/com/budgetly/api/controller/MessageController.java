@@ -43,6 +43,13 @@ public class MessageController implements MessagesApi {
     }
 
     @Override
+    public CompletableFuture<ResponseEntity<BulkMessageResponse>> bulkInsertMessages(BulkMessageRequest bulkMessageRequest) {
+        String userId = ControllerUtils.getCurrentUserId();
+        return messageService.bulkInsertMessages(userId, bulkMessageRequest)
+                .thenApply(res -> ResponseEntity.status(org.springframework.http.HttpStatus.ACCEPTED).body(res));
+    }
+
+    @Override
     public CompletableFuture<ResponseEntity<Message>> rejectMessage(String id) {
         String userId = ControllerUtils.getCurrentUserId();
         return CompletableFuture.completedFuture(ResponseEntity.ok(messageService.rejectMessage(userId, id)));

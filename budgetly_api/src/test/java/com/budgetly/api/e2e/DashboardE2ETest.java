@@ -1,15 +1,16 @@
 package com.budgetly.api.e2e;
 
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+
+import java.util.Map;
+
+import org.junit.jupiter.api.Test;
+
 import com.budgetly.api.document.CategoryDocument;
 import com.budgetly.api.document.FamilyGroupDocument;
 import com.budgetly.api.document.UserDocument;
-import org.junit.jupiter.api.Test;
-
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
-import java.util.Map;
-
-import static org.hamcrest.Matchers.*;
 
 /**
  * E2E tests for Dashboard & Budget API: /api/v1/families/{fid}/dashboard, budget

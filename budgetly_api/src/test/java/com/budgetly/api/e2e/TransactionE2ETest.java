@@ -1,17 +1,19 @@
 package com.budgetly.api.e2e;
 
-import com.budgetly.api.document.CategoryDocument;
-import com.budgetly.api.document.FamilyGroupDocument;
-import com.budgetly.api.document.TransactionDocument;
-import com.budgetly.api.document.UserDocument;
-import org.junit.jupiter.api.Test;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.notNullValue;
 
-import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.*;
+import org.junit.jupiter.api.Test;
+
+import com.budgetly.api.document.CategoryDocument;
+import com.budgetly.api.document.FamilyGroupDocument;
+import com.budgetly.api.document.TransactionDocument;
+import com.budgetly.api.document.UserDocument;
 
 /**
  * E2E tests for Transaction API: /api/v1/families/{fid}/transactions/*
