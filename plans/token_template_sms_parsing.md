@@ -1,6 +1,6 @@
-# Token-Template SMS-Parsing Upgrade – Plan for Sherlock
+# Literal Anchor Template SMS-Parsing Architecture
 
-> **Goal** – Replace the "LLM-writes-regex" step with a *template-generation* step that is far less error-prone, and then turn that template into a deterministic, cross-language regular expression on the backend.
+> **Goal** – Eliminate regex generation entirely and replace it with **Literal Anchor Template Parsing**, achieving 100% precision and true cross-language symmetry between Java and Dart without regex fragility.
 > **Result** – Every new sender that the LLM sees for the first time will be stored as a `SmsPattern` whose `regex` field is **generated automatically** from a safe template, guaranteeing that the Dart-side `RegExp` and the Java-side `java.util.regex` behave identically.
 
 ---

@@ -5,7 +5,7 @@ services:
     image: mongo:7
     container_name: budgetly-mongo
     ports:
-      - "27017:27017"
+      - "${MONGO_HOST_PORT:-27018}:27017"
     volumes:
       - mongo_data:/data/db
     environment:
@@ -28,9 +28,12 @@ services:
         condition: service_healthy
     environment:
       SPRING_DATA_MONGODB_URI: mongodb://budgetly:budgetly_secret@mongodb:27017/budgetly?authSource=admin
+      LLM_PROVIDER: ${LLM_PROVIDER:-openai}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-http://rpi.local:20129/v1}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_MODEL: ${OPENAI_MODEL:-auto/best-free}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-placeholder-client-id}
       JWT_SECRET: ${JWT_SECRET:-budgetly-super-secret-key-for-development-min-256-bits-long}
-      GEMINI_API_KEY: ${GEMINI_API_KEY:-placeholder-api-key}
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider http://localhost:8080/actuator/health || exit 1"]
       interval: 30s

@@ -15,5 +15,5 @@ class ApiConfig {
   static const int connectTimeout = 10000;
 
   /// Response timeout in milliseconds.
-  static const int receiveTimeout = 15000;
+  static const int receiveTimeout = 60000;
 }

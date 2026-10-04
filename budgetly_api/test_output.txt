@@ -1,0 +1,765 @@
+WARNING: A restricted method in java.lang.System has been called
+WARNING: java.lang.System::load has been called by org.fusesource.jansi.internal.JansiLoader in an unnamed module (file:/D:/programs/apache-maven-3.9.6/lib/jansi-2.4.0.jar)
+WARNING: Use --enable-native-access=ALL-UNNAMED to avoid a warning for callers in this module
+WARNING: Restricted methods will be blocked in a future release unless native access is enabled
+
+WARNING: A terminally deprecated method in sun.misc.Unsafe has been called
+WARNING: sun.misc.Unsafe::objectFieldOffset has been called by com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper (file:/D:/programs/apache-maven-3.9.6/lib/guava-32.0.1-jre.jar)
+WARNING: Please consider reporting this to the maintainers of class com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper
+WARNING: sun.misc.Unsafe::objectFieldOffset will be removed in a future release
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] ---------------------< com.budgetly:budgetly-api >----------------------
+[INFO] Building budgetly-api 1.0.0-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- openapi-generator:7.4.0:generate (generate-async-messages-api) @ budgetly-api ---
+[INFO] Generating with dryRun=false
+[INFO] OpenAPI Generator: spring (server)
+[INFO] Generator 'spring' is considered stable.
+[INFO] ----------------------------------
+[INFO] Environment variable JAVA_POST_PROCESS_FILE not defined so the Java code may not be properly formatted. To define it, try 'export JAVA_POST_PROCESS_FILE="/usr/local/bin/clang-format -i"' (Linux/Mac)
+[INFO] NOTE: To enable file post-processing, 'enablePostProcessFile' must be set to `true` (--enable-post-process-file for CLI).
+[INFO] Invoker Package Name, originally not set, is now derived from api package name: com.budgetly.api.generated
+[INFO] Inline schema created as getPatternSenders_200_response_inner. To have complete control of the model name, set the `title` field or use the modelNameMapping option (e.g. --model-name-mappings getPatternSenders_200_response_inner=NewModel,ModelA=NewModelA in CLI) or inlineSchemaNameMapping option (--inline-schema-name-mappings getPatternSenders_200_response_inner=NewModel,ModelA=NewModelA in CLI).
+[INFO] Inline schema created as reportPattern_200_response. To have complete control of the model name, set the `title` field or use the modelNameMapping option (e.g. --model-name-mappings reportPattern_200_response=NewModel,ModelA=NewModelA in CLI) or inlineSchemaNameMapping option (--inline-schema-name-mappings reportPattern_200_response=NewModel,ModelA=NewModelA in CLI).
+[INFO] Inline schema created as PatternStatsResponse_topSenders_inner. To have complete control of the model name, set the `title` field or use the modelNameMapping option (e.g. --model-name-mappings PatternStatsResponse_topSenders_inner=NewModel,ModelA=NewModelA in CLI) or inlineSchemaNameMapping option (--inline-schema-name-mappings PatternStatsResponse_topSenders_inner=NewModel,ModelA=NewModelA in CLI).
+[INFO] Processing operation googleSignIn
+[INFO] Processing operation refreshToken
+[INFO] Processing operation getCurrentUser
+[INFO] Processing operation createFamily
+[INFO] Processing operation getMyFamily
+[INFO] Processing operation getFamily
+[INFO] Processing operation updateFamily
+[INFO] Processing operation deleteFamily
+[INFO] Processing operation inviteToFamily
+[INFO] Processing operation joinFamily
+[INFO] Processing operation listFamilyMembers
+[INFO] Processing operation updateMember
+[INFO] Processing operation removeMember
+[INFO] Processing operation listCategories
+[INFO] Processing operation createCategory
+[INFO] Processing operation updateCategory
+[INFO] Processing operation deleteCategory
+[INFO] Processing operation listTransactions
+[INFO] Processing operation createTransaction
+[INFO] Processing operation getTransaction
+[INFO] Processing operation updateTransaction
+[INFO] Processing operation deleteTransaction
+[INFO] Processing operation processMessage
+[INFO] Processing operation getPendingMessages
+[INFO] Processing operation getIgnoredMessages
+[INFO] Processing operation confirmMessage
+[INFO] Processing operation rejectMessage
+[INFO] Processing operation restoreMessage
+[INFO] Processing operation getPatterns
+[INFO] Processing operation getPatternSenders
+[INFO] Processing operation reportPattern
+[INFO] Processing operation getPatternStats
+[INFO] Processing operation getDashboard
+[INFO] Processing operation getBudgetSummary
+[INFO] Processing operation updateBudget
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\AuthResponse.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\BudgetSummary.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\Category.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\CategoryBudgetBreakdown.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\CreateCategoryRequest.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\CreateFamilyRequest.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\CreateTransactionRequest.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\DashboardData.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\ErrorResponse.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\ExtractionMap.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\FamilyGroup.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\FamilyMember.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\GetPatternSenders200ResponseInner.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\GoogleSignInRequest.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\InviteRequest.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\InviteResponse.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\JoinFamilyRequest.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\MemberRole.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\MemberStatus.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\Message.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\MessageStatus.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\ParseSource.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\PatternReportRequest.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\PatternStatsResponse.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\PatternStatsResponseTopSendersInner.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\ProcessMessageRequest.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\ProcessMessageResponse.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\RefreshTokenRequest.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\RejectedPattern.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\ReportPattern200Response.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\SmsPattern.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\SourceType.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\SplitMethod.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\Transaction.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\TransactionPage.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\TransactionType.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\UpdateBudgetRequest.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\UpdateCategoryRequest.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\UpdateFamilyRequest.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\UpdateMemberRequest.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\UpdateTransactionRequest.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\User.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\controller\MessagesApi.java
+[INFO] Skipping generation of Webhooks.
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\pom.xml
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\README.md
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\controller\ApiUtil.java
+[INFO] Skipped D:\git\budgetly\budgetly_api\target\generated-sources\openapi\.openapi-generator-ignore (Skipped by supportingFiles options supplied by user.)
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\.openapi-generator\VERSION
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\.openapi-generator\FILES
+################################################################################
+# Thanks for using OpenAPI Generator.                                          #
+# Please consider donation to help us maintain this project 🙏                 #
+# https://opencollective.com/openapi_generator/donate                          #
+################################################################################
+[INFO] 
+[INFO] --- openapi-generator:7.4.0:generate (generate-other-apis) @ budgetly-api ---
+[INFO] Generating with dryRun=false
+[INFO] OpenAPI Generator: spring (server)
+[INFO] Generator 'spring' is considered stable.
+[INFO] ----------------------------------
+[INFO] Environment variable JAVA_POST_PROCESS_FILE not defined so the Java code may not be properly formatted. To define it, try 'export JAVA_POST_PROCESS_FILE="/usr/local/bin/clang-format -i"' (Linux/Mac)
+[INFO] NOTE: To enable file post-processing, 'enablePostProcessFile' must be set to `true` (--enable-post-process-file for CLI).
+[INFO] Invoker Package Name, originally not set, is now derived from api package name: com.budgetly.api.generated
+[INFO] Inline schema created as getPatternSenders_200_response_inner. To have complete control of the model name, set the `title` field or use the modelNameMapping option (e.g. --model-name-mappings getPatternSenders_200_response_inner=NewModel,ModelA=NewModelA in CLI) or inlineSchemaNameMapping option (--inline-schema-name-mappings getPatternSenders_200_response_inner=NewModel,ModelA=NewModelA in CLI).
+[INFO] Inline schema created as reportPattern_200_response. To have complete control of the model name, set the `title` field or use the modelNameMapping option (e.g. --model-name-mappings reportPattern_200_response=NewModel,ModelA=NewModelA in CLI) or inlineSchemaNameMapping option (--inline-schema-name-mappings reportPattern_200_response=NewModel,ModelA=NewModelA in CLI).
+[INFO] Inline schema created as PatternStatsResponse_topSenders_inner. To have complete control of the model name, set the `title` field or use the modelNameMapping option (e.g. --model-name-mappings PatternStatsResponse_topSenders_inner=NewModel,ModelA=NewModelA in CLI) or inlineSchemaNameMapping option (--inline-schema-name-mappings PatternStatsResponse_topSenders_inner=NewModel,ModelA=NewModelA in CLI).
+[INFO] Processing operation googleSignIn
+[INFO] Processing operation refreshToken
+[INFO] Processing operation getCurrentUser
+[INFO] Processing operation createFamily
+[INFO] Processing operation getMyFamily
+[INFO] Processing operation getFamily
+[INFO] Processing operation updateFamily
+[INFO] Processing operation deleteFamily
+[INFO] Processing operation inviteToFamily
+[INFO] Processing operation joinFamily
+[INFO] Processing operation listFamilyMembers
+[INFO] Processing operation updateMember
+[INFO] Processing operation removeMember
+[INFO] Processing operation listCategories
+[INFO] Processing operation createCategory
+[INFO] Processing operation updateCategory
+[INFO] Processing operation deleteCategory
+[INFO] Processing operation listTransactions
+[INFO] Processing operation createTransaction
+[INFO] Processing operation getTransaction
+[INFO] Processing operation updateTransaction
+[INFO] Processing operation deleteTransaction
+[INFO] Processing operation processMessage
+[INFO] Processing operation getPendingMessages
+[INFO] Processing operation getIgnoredMessages
+[INFO] Processing operation confirmMessage
+[INFO] Processing operation rejectMessage
+[INFO] Processing operation restoreMessage
+[INFO] Processing operation getPatterns
+[INFO] Processing operation getPatternSenders
+[INFO] Processing operation reportPattern
+[INFO] Processing operation getPatternStats
+[INFO] Processing operation getDashboard
+[INFO] Processing operation getBudgetSummary
+[INFO] Processing operation updateBudget
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\AuthResponse.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\BudgetSummary.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\Category.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\CategoryBudgetBreakdown.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\CreateCategoryRequest.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\CreateFamilyRequest.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\CreateTransactionRequest.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\DashboardData.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\ErrorResponse.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\ExtractionMap.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\FamilyGroup.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\FamilyMember.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\GetPatternSenders200ResponseInner.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\GoogleSignInRequest.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\InviteRequest.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\InviteResponse.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\JoinFamilyRequest.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\MemberRole.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\MemberStatus.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\Message.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\MessageStatus.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\ParseSource.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\PatternReportRequest.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\PatternStatsResponse.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\PatternStatsResponseTopSendersInner.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\ProcessMessageRequest.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\ProcessMessageResponse.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\RefreshTokenRequest.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\RejectedPattern.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\ReportPattern200Response.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\SmsPattern.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\SourceType.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\SplitMethod.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\Transaction.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\TransactionPage.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\TransactionType.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\UpdateBudgetRequest.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\UpdateCategoryRequest.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\UpdateFamilyRequest.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\UpdateMemberRequest.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\UpdateTransactionRequest.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\model\User.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\controller\AuthApi.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\controller\CategoriesApi.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\controller\DashboardApi.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\controller\FamilyGroupsApi.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\controller\PatternRegistryApi.java
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\controller\TransactionsApi.java
+[INFO] Skipping generation of Webhooks.
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\pom.xml
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\README.md
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\src\main\java\com\budgetly\api\generated\controller\ApiUtil.java
+[INFO] Skipped D:\git\budgetly\budgetly_api\target\generated-sources\openapi\.openapi-generator-ignore (Skipped by supportingFiles options supplied by user.)
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\.openapi-generator\VERSION
+[INFO] writing file D:\git\budgetly\budgetly_api\target\generated-sources\openapi\.openapi-generator\FILES
+################################################################################
+# Thanks for using OpenAPI Generator.                                          #
+# Please consider donation to help us maintain this project 🙏                 #
+# https://opencollective.com/openapi_generator/donate                          #
+################################################################################
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ budgetly-api ---
+[INFO] Copying 2 resources from src\main\resources to target\classes
+[INFO] Copying 1 resource from src\main\resources to target\classes
+[INFO] 
+[INFO] --- compiler:3.13.0:compile (default-compile) @ budgetly-api ---
+[INFO] Recompiling the module because of changed source code.
+[INFO] Compiling 97 source files with javac [debug parameters release 21] to target\classes
+[INFO] /D:/git/budgetly/budgetly_api/src/main/java/com/budgetly/api/llm/GeminiLlmProvider.java: Some input files use unchecked or unsafe operations.
+[INFO] /D:/git/budgetly/budgetly_api/src/main/java/com/budgetly/api/llm/GeminiLlmProvider.java: Recompile with -Xlint:unchecked for details.
+[INFO] 
+[INFO] --- resources:3.3.1:testResources (default-testResources) @ budgetly-api ---
+[INFO] Copying 1 resource from src\test\resources to target\test-classes
+[INFO] 
+[INFO] --- compiler:3.13.0:testCompile (default-testCompile) @ budgetly-api ---
+[INFO] Recompiling the module because of changed dependency.
+[INFO] Compiling 12 source files with javac [debug parameters release 21] to target\test-classes
+[INFO] 
+[INFO] --- surefire:3.5.2:test (default-test) @ budgetly-api ---
+[INFO] Using auto detected provider org.apache.maven.surefire.junitplatform.JUnitPlatformProvider
+[INFO] 
+[INFO] -------------------------------------------------------
+[INFO]  T E S T S
+[INFO] -------------------------------------------------------
+[INFO] Running com.budgetly.api.e2e.MessageE2ETest
+Standard Commons Logging discovery in action with spring-jcl: please remove commons-logging.jar from classpath in order to avoid potential conflicts
+12:04:17.966 [main] INFO org.springframework.test.context.support.AnnotationConfigContextLoaderUtils -- Could not detect default configuration classes for test class [com.budgetly.api.e2e.MessageE2ETest]: MessageE2ETest does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+12:04:18.055 [main] INFO org.springframework.boot.test.context.SpringBootTestContextBootstrapper -- Found @SpringBootConfiguration com.budgetly.api.BudgetlyApplication for test class com.budgetly.api.e2e.MessageE2ETest
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v3.4.3)
+
+2026-10-04T12:04:19.104+05:30  INFO 46696 --- [budgetly-api] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data MongoDB repositories in DEFAULT mode.
+2026-10-04T12:04:19.154+05:30  INFO 46696 --- [budgetly-api] [           main] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 44 ms. Found 8 MongoDB repository interfaces.
+WARNING: A restricted method in java.lang.System has been called
+WARNING: java.lang.System::load has been called by org.apache.tomcat.jni.Library in an unnamed module (file:/C:/Users/jayra/.m2/repository/org/apache/tomcat/embed/tomcat-embed-core/10.1.36/tomcat-embed-core-10.1.36.jar)
+WARNING: Use --enable-native-access=ALL-UNNAMED to avoid a warning for callers in this module
+WARNING: Restricted methods will be blocked in a future release unless native access is enabled
+
+2026-10-04T12:04:19.374+05:30  WARN 46696 --- [budgetly-api] [           main] trationDelegate$BeanPostProcessorChecker : Bean 'de.flapdoodle.embed.mongo.spring.autoconfigure.EmbeddedMongoAutoConfiguration' of type [de.flapdoodle.embed.mongo.spring.autoconfigure.EmbeddedMongoAutoConfiguration] is not eligible for getting processed by all BeanPostProcessors (for example: not eligible for auto-proxying). The currently created BeanPostProcessor [fixTransactionAndAuth] is declared through a non-static factory method on that class; consider declaring it as static instead.
+2026-10-04T12:04:19.388+05:30  WARN 46696 --- [budgetly-api] [           main] trationDelegate$BeanPostProcessorChecker : Bean 'de.flapdoodle.mongodb.embedded-de.flapdoodle.embed.mongo.spring.autoconfigure.EmbeddedMongoProperties' of type [de.flapdoodle.embed.mongo.spring.autoconfigure.EmbeddedMongoProperties] is not eligible for getting processed by all BeanPostProcessors (for example: not eligible for auto-proxying). Is this bean getting eagerly injected/applied to a currently created BeanPostProcessor [fixTransactionAndAuth]? Check the corresponding BeanPostProcessor declaration and its dependencies/advisors. If this bean does not have to be post-processed, declare it with ROLE_INFRASTRUCTURE.
+2026-10-04T12:04:19.411+05:30  WARN 46696 --- [budgetly-api] [           main] trationDelegate$BeanPostProcessorChecker : Bean 'net' of type [de.flapdoodle.embed.mongo.config.ImmutableNet] is not eligible for getting processed by all BeanPostProcessors (for example: not eligible for auto-proxying). Is this bean getting eagerly injected/applied to a currently created BeanPostProcessor [fixTransactionAndAuth]? Check the corresponding BeanPostProcessor declaration and its dependencies/advisors. If this bean does not have to be post-processed, declare it with ROLE_INFRASTRUCTURE.
+2026-10-04T12:04:19.414+05:30  WARN 46696 --- [budgetly-api] [           main] trationDelegate$BeanPostProcessorChecker : Bean 'spring.data.mongodb-org.springframework.boot.autoconfigure.mongo.MongoProperties' of type [org.springframework.boot.autoconfigure.mongo.MongoProperties] is not eligible for getting processed by all BeanPostProcessors (for example: not eligible for auto-proxying). Is this bean getting eagerly injected/applied to a currently created BeanPostProcessor [fixTransactionAndAuth]? Check the corresponding BeanPostProcessor declaration and its dependencies/advisors. If this bean does not have to be post-processed, declare it with ROLE_INFRASTRUCTURE.
+2026-10-04T12:04:19.573+05:30  INFO 46696 --- [budgetly-api] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port 0 (http)
+2026-10-04T12:04:19.583+05:30  INFO 46696 --- [budgetly-api] [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-10-04T12:04:19.584+05:30  INFO 46696 --- [budgetly-api] [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/10.1.36]
+2026-10-04T12:04:19.654+05:30  INFO 46696 --- [budgetly-api] [           main] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
+2026-10-04T12:04:19.655+05:30  INFO 46696 --- [budgetly-api] [           main] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 1196 ms
+Standard Commons Logging discovery in action with spring-jcl: please remove commons-logging.jar from classpath in order to avoid potential conflicts
+2026-10-04T12:04:20.418+05:30  INFO 46696 --- [budgetly-api] [           main] org.mongodb.driver.client                : MongoClient with metadata {"driver": {"name": "mongo-java-driver|sync|spring-boot", "version": "5.2.1"}, "os": {"type": "Windows", "name": "Windows 11", "architecture": "amd64", "version": "10.0"}, "platform": "Java/Oracle Corporation/25.0.1+8-LTS-27"} created with settings MongoClientSettings{readPreference=primary, writeConcern=WriteConcern{w=null, wTimeout=null ms, journal=null}, retryWrites=true, retryReads=true, readConcern=ReadConcern{level=null}, credential=null, transportSettings=null, commandListeners=[io.micrometer.core.instrument.binder.mongodb.MongoMetricsCommandListener@4e614370], codecRegistry=ProvidersCodecRegistry{codecProviders=[ValueCodecProvider{}, BsonValueCodecProvider{}, DBRefCodecProvider{}, DBObjectCodecProvider{}, DocumentCodecProvider{}, CollectionCodecProvider{}, IterableCodecProvider{}, MapCodecProvider{}, GeoJsonCodecProvider{}, GridFSFileCodecProvider{}, Jsr310CodecProvider{}, JsonObjectCodecProvider{}, BsonCodecProvider{}, EnumCodecProvider{}, com.mongodb.client.model.mql.ExpressionCodecProvider@1e1ea16d, com.mongodb.Jep395RecordCodecProvider@6da9541c, com.mongodb.KotlinCodecProvider@2157889c]}, loggerSettings=LoggerSettings{maxDocumentLength=1000}, clusterSettings={hosts=[kubernetes.docker.internal:49684], srvServiceName=mongodb, mode=SINGLE, requiredClusterType=UNKNOWN, requiredReplicaSetName='null', serverSelector='null', clusterListeners='[]', serverSelectionTimeout='30000 ms', localThreshold='15 ms'}, socketSettings=SocketSettings{connectTimeoutMS=10000, readTimeoutMS=0, receiveBufferSize=0, proxySettings=ProxySettings{host=null, port=null, username=null, password=null}}, heartbeatSocketSettings=SocketSettings{connectTimeoutMS=10000, readTimeoutMS=10000, receiveBufferSize=0, proxySettings=ProxySettings{host=null, port=null, username=null, password=null}}, connectionPoolSettings=ConnectionPoolSettings{maxSize=100, minSize=0, maxWaitTimeMS=120000, maxConnectionLifeTimeMS=0, maxConnectionIdleTimeMS=0, maintenanceInitialDelayMS=0, maintenanceFrequencyMS=60000, connectionPoolListeners=[io.micrometer.core.instrument.binder.mongodb.MongoMetricsConnectionPoolListener@65e92505], maxConnecting=2}, serverSettings=ServerSettings{heartbeatFrequencyMS=10000, minHeartbeatFrequencyMS=500, serverMonitoringMode=AUTO, serverListeners='[]', serverMonitorListeners='[]'}, sslSettings=SslSettings{enabled=false, invalidHostNameAllowed=false, context=null}, applicationName='null', compressorList=[], uuidRepresentation=JAVA_LEGACY, serverApi=null, autoEncryptionSettings=null, dnsClient=null, inetAddressResolver=null, contextProvider=null, timeoutMS=null}
+2026-10-04T12:04:20.432+05:30  INFO 46696 --- [budgetly-api] [.internal:49684] org.mongodb.driver.cluster               : Monitor thread successfully connected to server with description ServerDescription{address=kubernetes.docker.internal:49684, type=STANDALONE, cryptd=false, state=CONNECTED, ok=true, minWireVersion=0, maxWireVersion=21, maxDocumentSize=16777216, logicalSessionTimeoutMinutes=30, roundTripTimeNanos=13093300, minRoundTripTimeNanos=0}
+2026-10-04T12:04:21.014+05:30  WARN 46696 --- [budgetly-api] [           main] .s.s.UserDetailsServiceAutoConfiguration : 
+
+Using generated security password: 709ad03c-0a89-452a-9627-4e6a1848915f
+
+This generated password is for development use only. Your security configuration must be updated before running your application in production.
+
+2026-10-04T12:04:21.301+05:30  INFO 46696 --- [budgetly-api] [           main] o.s.b.a.e.web.EndpointLinksResolver      : Exposing 2 endpoints beneath base path '/actuator'
+2026-10-04T12:04:21.734+05:30  INFO 46696 --- [budgetly-api] [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port 49692 (http) with context path '/'
+Mockito is currently self-attaching to enable the inline-mock-maker. This will no longer work in future releases of the JDK. Please add Mockito as an agent to your build what is described in Mockito's documentation: https://javadoc.io/doc/org.mockito/mockito-core/latest/org/mockito/Mockito.html#0.3
+Java HotSpot(TM) 64-Bit Server VM warning: Sharing is only supported for boot loader classes because bootstrap classpath has been appended
+WARNING: A Java agent has been loaded dynamically (C:\Users\jayra\.m2\repository\net\bytebuddy\byte-buddy-agent\1.15.11\byte-buddy-agent-1.15.11.jar)
+WARNING: If a serviceability tool is in use, please run with -XX:+EnableDynamicAgentLoading to hide this warning
+WARNING: If a serviceability tool is not in use, please run with -Djdk.instrument.traceUsage for more information
+WARNING: Dynamic loading of agents will be disallowed by default in a future release
+2026-10-04T12:04:23.137+05:30  INFO 46696 --- [budgetly-api] [o-auto-1-exec-1] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-10-04T12:04:23.137+05:30  INFO 46696 --- [budgetly-api] [o-auto-1-exec-1] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
+2026-10-04T12:04:23.138+05:30  INFO 46696 --- [budgetly-api] [o-auto-1-exec-1] o.s.web.servlet.DispatcherServlet        : Completed initialization in 0 ms
+2026-10-04T12:04:23.307+05:30  WARN 46696 --- [budgetly-api] [o-auto-1-exec-1] o.apache.catalina.core.AsyncContextImpl  : onError() call failed for listener of type [org.apache.catalina.core.AsyncListenerWrapper]
+
+java.lang.NullPointerException: Cannot invoke "java.lang.Throwable.getMessage()" because the return value of "org.springframework.core.NestedExceptionUtils.getMostSpecificCause(java.lang.Throwable)" is null
+	at org.springframework.web.util.DisconnectedClientHelper.isClientDisconnectedException(DisconnectedClientHelper.java:120) ~[spring-web-6.2.3.jar:6.2.3]
+	at org.springframework.web.context.request.async.WebAsyncManager.lambda$startDeferredResultProcessing$6(WebAsyncManager.java:450) ~[spring-web-6.2.3.jar:6.2.3]
+	at org.springframework.web.context.request.async.StandardServletAsyncWebRequest.lambda$onError$0(StandardServletAsyncWebRequest.java:195) ~[spring-web-6.2.3.jar:6.2.3]
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604) ~[na:na]
+	at org.springframework.web.context.request.async.StandardServletAsyncWebRequest.onError(StandardServletAsyncWebRequest.java:195) ~[spring-web-6.2.3.jar:6.2.3]
+	at org.apache.catalina.core.AsyncListenerWrapper.fireOnError(AsyncListenerWrapper.java:49) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.catalina.core.AsyncContextImpl.setErrorState(AsyncContextImpl.java:415) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.catalina.connector.CoyoteAdapter.asyncDispatch(CoyoteAdapter.java:242) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.coyote.AbstractProcessor.dispatch(AbstractProcessor.java:243) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.coyote.AbstractProcessorLight.process(AbstractProcessorLight.java:57) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.coyote.AbstractProtocol$ConnectionHandler.process(AbstractProtocol.java:905) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.tomcat.util.net.NioEndpoint$SocketProcessor.doRun(NioEndpoint.java:1743) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.tomcat.util.net.SocketProcessorBase.run(SocketProcessorBase.java:52) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1190) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:659) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.tomcat.util.threads.TaskThread$WrappingRunnable.run(TaskThread.java:63) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at java.base/java.lang.Thread.run(Thread.java:1474) ~[na:na]
+
+2026-10-04T12:04:23.451+05:30  WARN 46696 --- [budgetly-api] [o-auto-1-exec-2] o.apache.catalina.core.AsyncContextImpl  : onError() call failed for listener of type [org.apache.catalina.core.AsyncListenerWrapper]
+
+java.lang.NullPointerException: Cannot invoke "java.lang.Throwable.getMessage()" because the return value of "org.springframework.core.NestedExceptionUtils.getMostSpecificCause(java.lang.Throwable)" is null
+	at org.springframework.web.util.DisconnectedClientHelper.isClientDisconnectedException(DisconnectedClientHelper.java:120) ~[spring-web-6.2.3.jar:6.2.3]
+	at org.springframework.web.context.request.async.WebAsyncManager.lambda$startDeferredResultProcessing$6(WebAsyncManager.java:450) ~[spring-web-6.2.3.jar:6.2.3]
+	at org.springframework.web.context.request.async.StandardServletAsyncWebRequest.lambda$onError$0(StandardServletAsyncWebRequest.java:195) ~[spring-web-6.2.3.jar:6.2.3]
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604) ~[na:na]
+	at org.springframework.web.context.request.async.StandardServletAsyncWebRequest.onError(StandardServletAsyncWebRequest.java:195) ~[spring-web-6.2.3.jar:6.2.3]
+	at org.apache.catalina.core.AsyncListenerWrapper.fireOnError(AsyncListenerWrapper.java:49) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.catalina.core.AsyncContextImpl.setErrorState(AsyncContextImpl.java:415) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.catalina.connector.CoyoteAdapter.asyncDispatch(CoyoteAdapter.java:242) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.coyote.AbstractProcessor.dispatch(AbstractProcessor.java:243) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.coyote.AbstractProcessorLight.process(AbstractProcessorLight.java:57) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.coyote.AbstractProtocol$ConnectionHandler.process(AbstractProtocol.java:905) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.tomcat.util.net.NioEndpoint$SocketProcessor.doRun(NioEndpoint.java:1743) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.tomcat.util.net.SocketProcessorBase.run(SocketProcessorBase.java:52) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1190) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:659) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.tomcat.util.threads.TaskThread$WrappingRunnable.run(TaskThread.java:63) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at java.base/java.lang.Thread.run(Thread.java:1474) ~[na:na]
+
+2026-10-04T12:04:23.548+05:30  WARN 46696 --- [budgetly-api] [o-auto-1-exec-4] o.apache.catalina.core.AsyncContextImpl  : onError() call failed for listener of type [org.apache.catalina.core.AsyncListenerWrapper]
+
+java.lang.NullPointerException: Cannot invoke "java.lang.Throwable.getMessage()" because the return value of "org.springframework.core.NestedExceptionUtils.getMostSpecificCause(java.lang.Throwable)" is null
+	at org.springframework.web.util.DisconnectedClientHelper.isClientDisconnectedException(DisconnectedClientHelper.java:120) ~[spring-web-6.2.3.jar:6.2.3]
+	at org.springframework.web.context.request.async.WebAsyncManager.lambda$startDeferredResultProcessing$6(WebAsyncManager.java:450) ~[spring-web-6.2.3.jar:6.2.3]
+	at org.springframework.web.context.request.async.StandardServletAsyncWebRequest.lambda$onError$0(StandardServletAsyncWebRequest.java:195) ~[spring-web-6.2.3.jar:6.2.3]
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604) ~[na:na]
+	at org.springframework.web.context.request.async.StandardServletAsyncWebRequest.onError(StandardServletAsyncWebRequest.java:195) ~[spring-web-6.2.3.jar:6.2.3]
+	at org.apache.catalina.core.AsyncListenerWrapper.fireOnError(AsyncListenerWrapper.java:49) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.catalina.core.AsyncContextImpl.setErrorState(AsyncContextImpl.java:415) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.catalina.connector.CoyoteAdapter.asyncDispatch(CoyoteAdapter.java:242) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.coyote.AbstractProcessor.dispatch(AbstractProcessor.java:243) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.coyote.AbstractProcessorLight.process(AbstractProcessorLight.java:57) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.coyote.AbstractProtocol$ConnectionHandler.process(AbstractProtocol.java:905) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.tomcat.util.net.NioEndpoint$SocketProcessor.doRun(NioEndpoint.java:1743) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.tomcat.util.net.SocketProcessorBase.run(SocketProcessorBase.java:52) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1190) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:659) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.tomcat.util.threads.TaskThread$WrappingRunnable.run(TaskThread.java:63) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at java.base/java.lang.Thread.run(Thread.java:1474) ~[na:na]
+
+2026-10-04T12:04:23.736+05:30  WARN 46696 --- [budgetly-api] [o-auto-1-exec-6] o.apache.catalina.core.AsyncContextImpl  : onError() call failed for listener of type [org.apache.catalina.core.AsyncListenerWrapper]
+
+java.lang.NullPointerException: Cannot invoke "java.lang.Throwable.getMessage()" because the return value of "org.springframework.core.NestedExceptionUtils.getMostSpecificCause(java.lang.Throwable)" is null
+	at org.springframework.web.util.DisconnectedClientHelper.isClientDisconnectedException(DisconnectedClientHelper.java:120) ~[spring-web-6.2.3.jar:6.2.3]
+	at org.springframework.web.context.request.async.WebAsyncManager.lambda$startDeferredResultProcessing$6(WebAsyncManager.java:450) ~[spring-web-6.2.3.jar:6.2.3]
+	at org.springframework.web.context.request.async.StandardServletAsyncWebRequest.lambda$onError$0(StandardServletAsyncWebRequest.java:195) ~[spring-web-6.2.3.jar:6.2.3]
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604) ~[na:na]
+	at org.springframework.web.context.request.async.StandardServletAsyncWebRequest.onError(StandardServletAsyncWebRequest.java:195) ~[spring-web-6.2.3.jar:6.2.3]
+	at org.apache.catalina.core.AsyncListenerWrapper.fireOnError(AsyncListenerWrapper.java:49) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.catalina.core.AsyncContextImpl.setErrorState(AsyncContextImpl.java:415) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.catalina.connector.CoyoteAdapter.asyncDispatch(CoyoteAdapter.java:242) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.coyote.AbstractProcessor.dispatch(AbstractProcessor.java:243) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.coyote.AbstractProcessorLight.process(AbstractProcessorLight.java:57) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.coyote.AbstractProtocol$ConnectionHandler.process(AbstractProtocol.java:905) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.tomcat.util.net.NioEndpoint$SocketProcessor.doRun(NioEndpoint.java:1743) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.tomcat.util.net.SocketProcessorBase.run(SocketProcessorBase.java:52) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1190) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:659) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.tomcat.util.threads.TaskThread$WrappingRunnable.run(TaskThread.java:63) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at java.base/java.lang.Thread.run(Thread.java:1474) ~[na:na]
+
+2026-10-04T12:04:23.862+05:30  WARN 46696 --- [budgetly-api] [o-auto-1-exec-8] o.apache.catalina.core.AsyncContextImpl  : onError() call failed for listener of type [org.apache.catalina.core.AsyncListenerWrapper]
+
+java.lang.NullPointerException: Cannot invoke "java.lang.Throwable.getMessage()" because the return value of "org.springframework.core.NestedExceptionUtils.getMostSpecificCause(java.lang.Throwable)" is null
+	at org.springframework.web.util.DisconnectedClientHelper.isClientDisconnectedException(DisconnectedClientHelper.java:120) ~[spring-web-6.2.3.jar:6.2.3]
+	at org.springframework.web.context.request.async.WebAsyncManager.lambda$startDeferredResultProcessing$6(WebAsyncManager.java:450) ~[spring-web-6.2.3.jar:6.2.3]
+	at org.springframework.web.context.request.async.StandardServletAsyncWebRequest.lambda$onError$0(StandardServletAsyncWebRequest.java:195) ~[spring-web-6.2.3.jar:6.2.3]
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604) ~[na:na]
+	at org.springframework.web.context.request.async.StandardServletAsyncWebRequest.onError(StandardServletAsyncWebRequest.java:195) ~[spring-web-6.2.3.jar:6.2.3]
+	at org.apache.catalina.core.AsyncListenerWrapper.fireOnError(AsyncListenerWrapper.java:49) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.catalina.core.AsyncContextImpl.setErrorState(AsyncContextImpl.java:415) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.catalina.connector.CoyoteAdapter.asyncDispatch(CoyoteAdapter.java:242) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.coyote.AbstractProcessor.dispatch(AbstractProcessor.java:243) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.coyote.AbstractProcessorLight.process(AbstractProcessorLight.java:57) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.coyote.AbstractProtocol$ConnectionHandler.process(AbstractProtocol.java:905) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.tomcat.util.net.NioEndpoint$SocketProcessor.doRun(NioEndpoint.java:1743) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.tomcat.util.net.SocketProcessorBase.run(SocketProcessorBase.java:52) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1190) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:659) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.tomcat.util.threads.TaskThread$WrappingRunnable.run(TaskThread.java:63) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at java.base/java.lang.Thread.run(Thread.java:1474) ~[na:na]
+
+2026-10-04T12:04:23.979+05:30  WARN 46696 --- [budgetly-api] [o-auto-1-exec-9] o.apache.catalina.core.AsyncContextImpl  : onError() call failed for listener of type [org.apache.catalina.core.AsyncListenerWrapper]
+
+java.lang.NullPointerException: Cannot invoke "java.lang.Throwable.getMessage()" because the return value of "org.springframework.core.NestedExceptionUtils.getMostSpecificCause(java.lang.Throwable)" is null
+	at org.springframework.web.util.DisconnectedClientHelper.isClientDisconnectedException(DisconnectedClientHelper.java:120) ~[spring-web-6.2.3.jar:6.2.3]
+	at org.springframework.web.context.request.async.WebAsyncManager.lambda$startDeferredResultProcessing$6(WebAsyncManager.java:450) ~[spring-web-6.2.3.jar:6.2.3]
+	at org.springframework.web.context.request.async.StandardServletAsyncWebRequest.lambda$onError$0(StandardServletAsyncWebRequest.java:195) ~[spring-web-6.2.3.jar:6.2.3]
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604) ~[na:na]
+	at org.springframework.web.context.request.async.StandardServletAsyncWebRequest.onError(StandardServletAsyncWebRequest.java:195) ~[spring-web-6.2.3.jar:6.2.3]
+	at org.apache.catalina.core.AsyncListenerWrapper.fireOnError(AsyncListenerWrapper.java:49) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.catalina.core.AsyncContextImpl.setErrorState(AsyncContextImpl.java:415) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.catalina.connector.CoyoteAdapter.asyncDispatch(CoyoteAdapter.java:242) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.coyote.AbstractProcessor.dispatch(AbstractProcessor.java:243) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.coyote.AbstractProcessorLight.process(AbstractProcessorLight.java:57) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.coyote.AbstractProtocol$ConnectionHandler.process(AbstractProtocol.java:905) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.tomcat.util.net.NioEndpoint$SocketProcessor.doRun(NioEndpoint.java:1743) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.tomcat.util.net.SocketProcessorBase.run(SocketProcessorBase.java:52) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1190) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:659) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.tomcat.util.threads.TaskThread$WrappingRunnable.run(TaskThread.java:63) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at java.base/java.lang.Thread.run(Thread.java:1474) ~[na:na]
+
+2026-10-04T12:04:24.070+05:30  WARN 46696 --- [budgetly-api] [o-auto-1-exec-1] o.apache.catalina.core.AsyncContextImpl  : onError() call failed for listener of type [org.apache.catalina.core.AsyncListenerWrapper]
+
+java.lang.NullPointerException: Cannot invoke "java.lang.Throwable.getMessage()" because the return value of "org.springframework.core.NestedExceptionUtils.getMostSpecificCause(java.lang.Throwable)" is null
+	at org.springframework.web.util.DisconnectedClientHelper.isClientDisconnectedException(DisconnectedClientHelper.java:120) ~[spring-web-6.2.3.jar:6.2.3]
+	at org.springframework.web.context.request.async.WebAsyncManager.lambda$startDeferredResultProcessing$6(WebAsyncManager.java:450) ~[spring-web-6.2.3.jar:6.2.3]
+	at org.springframework.web.context.request.async.StandardServletAsyncWebRequest.lambda$onError$0(StandardServletAsyncWebRequest.java:195) ~[spring-web-6.2.3.jar:6.2.3]
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604) ~[na:na]
+	at org.springframework.web.context.request.async.StandardServletAsyncWebRequest.onError(StandardServletAsyncWebRequest.java:195) ~[spring-web-6.2.3.jar:6.2.3]
+	at org.apache.catalina.core.AsyncListenerWrapper.fireOnError(AsyncListenerWrapper.java:49) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.catalina.core.AsyncContextImpl.setErrorState(AsyncContextImpl.java:415) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.catalina.connector.CoyoteAdapter.asyncDispatch(CoyoteAdapter.java:242) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.coyote.AbstractProcessor.dispatch(AbstractProcessor.java:243) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.coyote.AbstractProcessorLight.process(AbstractProcessorLight.java:57) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.coyote.AbstractProtocol$ConnectionHandler.process(AbstractProtocol.java:905) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.tomcat.util.net.NioEndpoint$SocketProcessor.doRun(NioEndpoint.java:1743) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.tomcat.util.net.SocketProcessorBase.run(SocketProcessorBase.java:52) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1190) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:659) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.tomcat.util.threads.TaskThread$WrappingRunnable.run(TaskThread.java:63) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at java.base/java.lang.Thread.run(Thread.java:1474) ~[na:na]
+
+2026-10-04T12:04:24.184+05:30  WARN 46696 --- [budgetly-api] [o-auto-1-exec-3] o.apache.catalina.core.AsyncContextImpl  : onError() call failed for listener of type [org.apache.catalina.core.AsyncListenerWrapper]
+
+java.lang.NullPointerException: Cannot invoke "java.lang.Throwable.getMessage()" because the return value of "org.springframework.core.NestedExceptionUtils.getMostSpecificCause(java.lang.Throwable)" is null
+	at org.springframework.web.util.DisconnectedClientHelper.isClientDisconnectedException(DisconnectedClientHelper.java:120) ~[spring-web-6.2.3.jar:6.2.3]
+	at org.springframework.web.context.request.async.WebAsyncManager.lambda$startDeferredResultProcessing$6(WebAsyncManager.java:450) ~[spring-web-6.2.3.jar:6.2.3]
+	at org.springframework.web.context.request.async.StandardServletAsyncWebRequest.lambda$onError$0(StandardServletAsyncWebRequest.java:195) ~[spring-web-6.2.3.jar:6.2.3]
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604) ~[na:na]
+	at org.springframework.web.context.request.async.StandardServletAsyncWebRequest.onError(StandardServletAsyncWebRequest.java:195) ~[spring-web-6.2.3.jar:6.2.3]
+	at org.apache.catalina.core.AsyncListenerWrapper.fireOnError(AsyncListenerWrapper.java:49) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.catalina.core.AsyncContextImpl.setErrorState(AsyncContextImpl.java:415) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.catalina.connector.CoyoteAdapter.asyncDispatch(CoyoteAdapter.java:242) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.coyote.AbstractProcessor.dispatch(AbstractProcessor.java:243) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.coyote.AbstractProcessorLight.process(AbstractProcessorLight.java:57) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.coyote.AbstractProtocol$ConnectionHandler.process(AbstractProtocol.java:905) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.tomcat.util.net.NioEndpoint$SocketProcessor.doRun(NioEndpoint.java:1743) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.tomcat.util.net.SocketProcessorBase.run(SocketProcessorBase.java:52) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1190) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:659) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at org.apache.tomcat.util.threads.TaskThread$WrappingRunnable.run(TaskThread.java:63) ~[tomcat-embed-core-10.1.36.jar:10.1.36]
+	at java.base/java.lang.Thread.run(Thread.java:1474) ~[na:na]
+
+[ERROR] Tests run: 8, Failures: 8, Errors: 0, Skipped: 0, Time elapsed: 6.306 s <<< FAILURE! -- in com.budgetly.api.e2e.MessageE2ETest
+[ERROR] com.budgetly.api.e2e.MessageE2ETest.rejectMessage_changesStatusToRejected -- Time elapsed: 1.544 s <<< FAILURE!
+java.lang.AssertionError: 
+1 expectation failed.
+Expected status code <200> but was <403>.
+
+	at java.base/jdk.internal.reflect.DirectConstructorHandleAccessor.newInstance(DirectConstructorHandleAccessor.java:62)
+	at java.base/java.lang.reflect.Constructor.newInstanceWithCaller(Constructor.java:499)
+	at java.base/java.lang.reflect.Constructor.newInstance(Constructor.java:483)
+	at org.codehaus.groovy.reflection.CachedConstructor.invoke(CachedConstructor.java:73)
+	at org.codehaus.groovy.runtime.callsite.ConstructorSite$ConstructorSiteNoUnwrapNoCoerce.callConstructor(ConstructorSite.java:108)
+	at org.codehaus.groovy.runtime.callsite.CallSiteArray.defaultCallConstructor(CallSiteArray.java:57)
+	at org.codehaus.groovy.runtime.callsite.AbstractCallSite.callConstructor(AbstractCallSite.java:263)
+	at org.codehaus.groovy.runtime.callsite.AbstractCallSite.callConstructor(AbstractCallSite.java:277)
+	at io.restassured.internal.ResponseSpecificationImpl$HamcrestAssertionClosure.validate(ResponseSpecificationImpl.groovy:512)
+	at io.restassured.internal.ResponseSpecificationImpl$HamcrestAssertionClosure$validate$1.call(Unknown Source)
+	at org.codehaus.groovy.runtime.callsite.CallSiteArray.defaultCall(CallSiteArray.java:45)
+	at org.codehaus.groovy.runtime.callsite.AbstractCallSite.call(AbstractCallSite.java:125)
+	at org.codehaus.groovy.runtime.callsite.AbstractCallSite.call(AbstractCallSite.java:139)
+	at io.restassured.internal.ResponseSpecificationImpl.validateResponseIfRequired(ResponseSpecificationImpl.groovy:696)
+	at io.restassured.internal.ResponseSpecificationImpl.this$2$validateResponseIfRequired(ResponseSpecificationImpl.groovy)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:104)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:565)
+	at org.codehaus.groovy.runtime.callsite.PlainObjectMetaMethodSite.doInvoke(PlainObjectMetaMethodSite.java:43)
+	at org.codehaus.groovy.runtime.callsite.PogoMetaMethodSite$PogoCachedMethodSiteNoUnwrapNoCoerce.invoke(PogoMetaMethodSite.java:198)
+	at org.codehaus.groovy.runtime.callsite.PogoMetaMethodSite.callCurrent(PogoMetaMethodSite.java:62)
+	at org.codehaus.groovy.runtime.callsite.CallSiteArray.defaultCallCurrent(CallSiteArray.java:49)
+	at org.codehaus.groovy.runtime.callsite.AbstractCallSite.callCurrent(AbstractCallSite.java:171)
+	at org.codehaus.groovy.runtime.callsite.AbstractCallSite.callCurrent(AbstractCallSite.java:185)
+	at io.restassured.internal.ResponseSpecificationImpl.statusCode(ResponseSpecificationImpl.groovy:135)
+	at io.restassured.specification.ResponseSpecification$statusCode$0.callCurrent(Unknown Source)
+	at org.codehaus.groovy.runtime.callsite.CallSiteArray.defaultCallCurrent(CallSiteArray.java:49)
+	at org.codehaus.groovy.runtime.callsite.AbstractCallSite.callCurrent(AbstractCallSite.java:171)
+	at org.codehaus.groovy.runtime.callsite.AbstractCallSite.callCurrent(AbstractCallSite.java:185)
+	at io.restassured.internal.ResponseSpecificationImpl.statusCode(ResponseSpecificationImpl.groovy:143)
+	at io.restassured.internal.ValidatableResponseOptionsImpl.statusCode(ValidatableResponseOptionsImpl.java:89)
+	at com.budgetly.api.e2e.MessageE2ETest.rejectMessage_changesStatusToRejected(MessageE2ETest.java:208)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:565)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+
+[ERROR] com.budgetly.api.e2e.MessageE2ETest.restoreMessage_changesStatusToPending -- Time elapsed: 0.097 s <<< FAILURE!
+java.lang.AssertionError: 
+1 expectation failed.
+Expected status code <200> but was <403>.
+
+	at java.base/jdk.internal.reflect.DirectConstructorHandleAccessor.newInstance(DirectConstructorHandleAccessor.java:62)
+	at java.base/java.lang.reflect.Constructor.newInstanceWithCaller(Constructor.java:499)
+	at java.base/java.lang.reflect.Constructor.newInstance(Constructor.java:483)
+	at org.codehaus.groovy.reflection.CachedConstructor.invoke(CachedConstructor.java:73)
+	at org.codehaus.groovy.runtime.callsite.ConstructorSite$ConstructorSiteNoUnwrapNoCoerce.callConstructor(ConstructorSite.java:108)
+	at org.codehaus.groovy.runtime.callsite.AbstractCallSite.callConstructor(AbstractCallSite.java:277)
+	at io.restassured.internal.ResponseSpecificationImpl$HamcrestAssertionClosure.validate(ResponseSpecificationImpl.groovy:512)
+	at io.restassured.internal.ResponseSpecificationImpl$HamcrestAssertionClosure$validate$1.call(Unknown Source)
+	at io.restassured.internal.ResponseSpecificationImpl.validateResponseIfRequired(ResponseSpecificationImpl.groovy:696)
+	at io.restassured.internal.ResponseSpecificationImpl.this$2$validateResponseIfRequired(ResponseSpecificationImpl.groovy)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:104)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:565)
+	at org.codehaus.groovy.runtime.callsite.PlainObjectMetaMethodSite.doInvoke(PlainObjectMetaMethodSite.java:43)
+	at org.codehaus.groovy.runtime.callsite.PogoMetaMethodSite$PogoCachedMethodSiteNoUnwrapNoCoerce.invoke(PogoMetaMethodSite.java:198)
+	at org.codehaus.groovy.runtime.callsite.PogoMetaMethodSite.callCurrent(PogoMetaMethodSite.java:62)
+	at org.codehaus.groovy.runtime.callsite.AbstractCallSite.callCurrent(AbstractCallSite.java:185)
+	at io.restassured.internal.ResponseSpecificationImpl.statusCode(ResponseSpecificationImpl.groovy:135)
+	at io.restassured.specification.ResponseSpecification$statusCode$0.callCurrent(Unknown Source)
+	at io.restassured.internal.ResponseSpecificationImpl.statusCode(ResponseSpecificationImpl.groovy:143)
+	at io.restassured.internal.ValidatableResponseOptionsImpl.statusCode(ValidatableResponseOptionsImpl.java:89)
+	at com.budgetly.api.e2e.MessageE2ETest.restoreMessage_changesStatusToPending(MessageE2ETest.java:224)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:565)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+
+[ERROR] com.budgetly.api.e2e.MessageE2ETest.getPendingMessages_returnsOnlyPending -- Time elapsed: 0.096 s <<< FAILURE!
+java.lang.AssertionError: 
+1 expectation failed.
+Expected status code <200> but was <403>.
+
+	at java.base/jdk.internal.reflect.DirectConstructorHandleAccessor.newInstance(DirectConstructorHandleAccessor.java:62)
+	at java.base/java.lang.reflect.Constructor.newInstanceWithCaller(Constructor.java:499)
+	at java.base/java.lang.reflect.Constructor.newInstance(Constructor.java:483)
+	at org.codehaus.groovy.reflection.CachedConstructor.invoke(CachedConstructor.java:73)
+	at org.codehaus.groovy.runtime.callsite.ConstructorSite$ConstructorSiteNoUnwrapNoCoerce.callConstructor(ConstructorSite.java:108)
+	at org.codehaus.groovy.runtime.callsite.AbstractCallSite.callConstructor(AbstractCallSite.java:277)
+	at io.restassured.internal.ResponseSpecificationImpl$HamcrestAssertionClosure.validate(ResponseSpecificationImpl.groovy:512)
+	at io.restassured.internal.ResponseSpecificationImpl$HamcrestAssertionClosure$validate$1.call(Unknown Source)
+	at io.restassured.internal.ResponseSpecificationImpl.validateResponseIfRequired(ResponseSpecificationImpl.groovy:696)
+	at io.restassured.internal.ResponseSpecificationImpl.this$2$validateResponseIfRequired(ResponseSpecificationImpl.groovy)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:104)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:565)
+	at org.codehaus.groovy.runtime.callsite.PlainObjectMetaMethodSite.doInvoke(PlainObjectMetaMethodSite.java:43)
+	at org.codehaus.groovy.runtime.callsite.PogoMetaMethodSite$PogoCachedMethodSiteNoUnwrapNoCoerce.invoke(PogoMetaMethodSite.java:198)
+	at org.codehaus.groovy.runtime.callsite.PogoMetaMethodSite.callCurrent(PogoMetaMethodSite.java:62)
+	at org.codehaus.groovy.runtime.callsite.AbstractCallSite.callCurrent(AbstractCallSite.java:185)
+	at io.restassured.internal.ResponseSpecificationImpl.statusCode(ResponseSpecificationImpl.groovy:135)
+	at io.restassured.specification.ResponseSpecification$statusCode$0.callCurrent(Unknown Source)
+	at io.restassured.internal.ResponseSpecificationImpl.statusCode(ResponseSpecificationImpl.groovy:143)
+	at io.restassured.internal.ValidatableResponseOptionsImpl.statusCode(ValidatableResponseOptionsImpl.java:89)
+	at com.budgetly.api.e2e.MessageE2ETest.getPendingMessages_returnsOnlyPending(MessageE2ETest.java:153)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:565)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+
+[ERROR] com.budgetly.api.e2e.MessageE2ETest.processMessage_nonFinancialSms_marksIgnored -- Time elapsed: 0.185 s <<< FAILURE!
+java.lang.AssertionError: 
+1 expectation failed.
+Expected status code <200> but was <403>.
+
+	at java.base/jdk.internal.reflect.DirectConstructorHandleAccessor.newInstance(DirectConstructorHandleAccessor.java:62)
+	at java.base/java.lang.reflect.Constructor.newInstanceWithCaller(Constructor.java:499)
+	at java.base/java.lang.reflect.Constructor.newInstance(Constructor.java:483)
+	at org.codehaus.groovy.reflection.CachedConstructor.invoke(CachedConstructor.java:73)
+	at org.codehaus.groovy.runtime.callsite.ConstructorSite$ConstructorSiteNoUnwrapNoCoerce.callConstructor(ConstructorSite.java:108)
+	at org.codehaus.groovy.runtime.callsite.AbstractCallSite.callConstructor(AbstractCallSite.java:277)
+	at io.restassured.internal.ResponseSpecificationImpl$HamcrestAssertionClosure.validate(ResponseSpecificationImpl.groovy:512)
+	at io.restassured.internal.ResponseSpecificationImpl$HamcrestAssertionClosure$validate$1.call(Unknown Source)
+	at io.restassured.internal.ResponseSpecificationImpl.validateResponseIfRequired(ResponseSpecificationImpl.groovy:696)
+	at io.restassured.internal.ResponseSpecificationImpl.this$2$validateResponseIfRequired(ResponseSpecificationImpl.groovy)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:104)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:565)
+	at org.codehaus.groovy.runtime.callsite.PlainObjectMetaMethodSite.doInvoke(PlainObjectMetaMethodSite.java:43)
+	at org.codehaus.groovy.runtime.callsite.PogoMetaMethodSite$PogoCachedMethodSiteNoUnwrapNoCoerce.invoke(PogoMetaMethodSite.java:198)
+	at org.codehaus.groovy.runtime.callsite.PogoMetaMethodSite.callCurrent(PogoMetaMethodSite.java:62)
+	at org.codehaus.groovy.runtime.callsite.AbstractCallSite.callCurrent(AbstractCallSite.java:185)
+	at io.restassured.internal.ResponseSpecificationImpl.statusCode(ResponseSpecificationImpl.groovy:135)
+	at io.restassured.specification.ResponseSpecification$statusCode$0.callCurrent(Unknown Source)
+	at io.restassured.internal.ResponseSpecificationImpl.statusCode(ResponseSpecificationImpl.groovy:143)
+	at io.restassured.internal.ValidatableResponseOptionsImpl.statusCode(ValidatableResponseOptionsImpl.java:89)
+	at com.budgetly.api.e2e.MessageE2ETest.processMessage_nonFinancialSms_marksIgnored(MessageE2ETest.java:128)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:565)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+
+[ERROR] com.budgetly.api.e2e.MessageE2ETest.processMessage_financialSmsWithTemplate_generatesRegexAndPattern -- Time elapsed: 0.126 s <<< FAILURE!
+java.lang.AssertionError: 
+1 expectation failed.
+Expected status code <200> but was <403>.
+
+	at java.base/jdk.internal.reflect.DirectConstructorHandleAccessor.newInstance(DirectConstructorHandleAccessor.java:62)
+	at java.base/java.lang.reflect.Constructor.newInstanceWithCaller(Constructor.java:499)
+	at java.base/java.lang.reflect.Constructor.newInstance(Constructor.java:483)
+	at org.codehaus.groovy.reflection.CachedConstructor.invoke(CachedConstructor.java:73)
+	at org.codehaus.groovy.runtime.callsite.ConstructorSite$ConstructorSiteNoUnwrapNoCoerce.callConstructor(ConstructorSite.java:108)
+	at org.codehaus.groovy.runtime.callsite.AbstractCallSite.callConstructor(AbstractCallSite.java:277)
+	at io.restassured.internal.ResponseSpecificationImpl$HamcrestAssertionClosure.validate(ResponseSpecificationImpl.groovy:512)
+	at io.restassured.internal.ResponseSpecificationImpl$HamcrestAssertionClosure$validate$1.call(Unknown Source)
+	at io.restassured.internal.ResponseSpecificationImpl.validateResponseIfRequired(ResponseSpecificationImpl.groovy:696)
+	at io.restassured.internal.ResponseSpecificationImpl.this$2$validateResponseIfRequired(ResponseSpecificationImpl.groovy)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:104)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:565)
+	at org.codehaus.groovy.runtime.callsite.PlainObjectMetaMethodSite.doInvoke(PlainObjectMetaMethodSite.java:43)
+	at org.codehaus.groovy.runtime.callsite.PogoMetaMethodSite$PogoCachedMethodSiteNoUnwrapNoCoerce.invoke(PogoMetaMethodSite.java:198)
+	at org.codehaus.groovy.runtime.callsite.PogoMetaMethodSite.callCurrent(PogoMetaMethodSite.java:62)
+	at org.codehaus.groovy.runtime.callsite.AbstractCallSite.callCurrent(AbstractCallSite.java:185)
+	at io.restassured.internal.ResponseSpecificationImpl.statusCode(ResponseSpecificationImpl.groovy:135)
+	at io.restassured.specification.ResponseSpecification$statusCode$0.callCurrent(Unknown Source)
+	at io.restassured.internal.ResponseSpecificationImpl.statusCode(ResponseSpecificationImpl.groovy:143)
+	at io.restassured.internal.ValidatableResponseOptionsImpl.statusCode(ValidatableResponseOptionsImpl.java:89)
+	at com.budgetly.api.e2e.MessageE2ETest.processMessage_financialSmsWithTemplate_generatesRegexAndPattern(MessageE2ETest.java:97)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:565)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+
+[ERROR] com.budgetly.api.e2e.MessageE2ETest.processMessage_financialSms_createsTransaction -- Time elapsed: 0.116 s <<< FAILURE!
+java.lang.AssertionError: 
+1 expectation failed.
+Expected status code <200> but was <403>.
+
+	at java.base/jdk.internal.reflect.DirectConstructorHandleAccessor.newInstance(DirectConstructorHandleAccessor.java:62)
+	at java.base/java.lang.reflect.Constructor.newInstanceWithCaller(Constructor.java:499)
+	at java.base/java.lang.reflect.Constructor.newInstance(Constructor.java:483)
+	at org.codehaus.groovy.reflection.CachedConstructor.invoke(CachedConstructor.java:73)
+	at org.codehaus.groovy.runtime.callsite.ConstructorSite$ConstructorSiteNoUnwrapNoCoerce.callConstructor(ConstructorSite.java:108)
+	at org.codehaus.groovy.runtime.callsite.AbstractCallSite.callConstructor(AbstractCallSite.java:277)
+	at io.restassured.internal.ResponseSpecificationImpl$HamcrestAssertionClosure.validate(ResponseSpecificationImpl.groovy:512)
+	at io.restassured.internal.ResponseSpecificationImpl$HamcrestAssertionClosure$validate$1.call(Unknown Source)
+	at io.restassured.internal.ResponseSpecificationImpl.validateResponseIfRequired(ResponseSpecificationImpl.groovy:696)
+	at io.restassured.internal.ResponseSpecificationImpl.this$2$validateResponseIfRequired(ResponseSpecificationImpl.groovy)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:104)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:565)
+	at org.codehaus.groovy.runtime.callsite.PlainObjectMetaMethodSite.doInvoke(PlainObjectMetaMethodSite.java:43)
+	at org.codehaus.groovy.runtime.callsite.PogoMetaMethodSite$PogoCachedMethodSiteNoUnwrapNoCoerce.invoke(PogoMetaMethodSite.java:198)
+	at org.codehaus.groovy.runtime.callsite.PogoMetaMethodSite.callCurrent(PogoMetaMethodSite.java:62)
+	at org.codehaus.groovy.runtime.callsite.AbstractCallSite.callCurrent(AbstractCallSite.java:185)
+	at io.restassured.internal.ResponseSpecificationImpl.statusCode(ResponseSpecificationImpl.groovy:135)
+	at io.restassured.specification.ResponseSpecification$statusCode$0.callCurrent(Unknown Source)
+	at io.restassured.internal.ResponseSpecificationImpl.statusCode(ResponseSpecificationImpl.groovy:143)
+	at io.restassured.internal.ValidatableResponseOptionsImpl.statusCode(ValidatableResponseOptionsImpl.java:89)
+	at com.budgetly.api.e2e.MessageE2ETest.processMessage_financialSms_createsTransaction(MessageE2ETest.java:60)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:565)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+
+[ERROR] com.budgetly.api.e2e.MessageE2ETest.getIgnoredMessages_returnsIgnoredAndRejected -- Time elapsed: 0.089 s <<< FAILURE!
+java.lang.AssertionError: 
+1 expectation failed.
+Expected status code <200> but was <403>.
+
+	at java.base/jdk.internal.reflect.DirectConstructorHandleAccessor.newInstance(DirectConstructorHandleAccessor.java:62)
+	at java.base/java.lang.reflect.Constructor.newInstanceWithCaller(Constructor.java:499)
+	at java.base/java.lang.reflect.Constructor.newInstance(Constructor.java:483)
+	at org.codehaus.groovy.reflection.CachedConstructor.invoke(CachedConstructor.java:73)
+	at org.codehaus.groovy.runtime.callsite.ConstructorSite$ConstructorSiteNoUnwrapNoCoerce.callConstructor(ConstructorSite.java:108)
+	at org.codehaus.groovy.runtime.callsite.AbstractCallSite.callConstructor(AbstractCallSite.java:277)
+	at io.restassured.internal.ResponseSpecificationImpl$HamcrestAssertionClosure.validate(ResponseSpecificationImpl.groovy:512)
+	at io.restassured.internal.ResponseSpecificationImpl$HamcrestAssertionClosure$validate$1.call(Unknown Source)
+	at io.restassured.internal.ResponseSpecificationImpl.validateResponseIfRequired(ResponseSpecificationImpl.groovy:696)
+	at io.restassured.internal.ResponseSpecificationImpl.this$2$validateResponseIfRequired(ResponseSpecificationImpl.groovy)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:104)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:565)
+	at org.codehaus.groovy.runtime.callsite.PlainObjectMetaMethodSite.doInvoke(PlainObjectMetaMethodSite.java:43)
+	at org.codehaus.groovy.runtime.callsite.PogoMetaMethodSite$PogoCachedMethodSiteNoUnwrapNoCoerce.invoke(PogoMetaMethodSite.java:198)
+	at org.codehaus.groovy.runtime.callsite.PogoMetaMethodSite.callCurrent(PogoMetaMethodSite.java:62)
+	at org.codehaus.groovy.runtime.callsite.AbstractCallSite.callCurrent(AbstractCallSite.java:185)
+	at io.restassured.internal.ResponseSpecificationImpl.statusCode(ResponseSpecificationImpl.groovy:135)
+	at io.restassured.specification.ResponseSpecification$statusCode$0.callCurrent(Unknown Source)
+	at io.restassured.internal.ResponseSpecificationImpl.statusCode(ResponseSpecificationImpl.groovy:143)
+	at io.restassured.internal.ValidatableResponseOptionsImpl.statusCode(ValidatableResponseOptionsImpl.java:89)
+	at com.budgetly.api.e2e.MessageE2ETest.getIgnoredMessages_returnsIgnoredAndRejected(MessageE2ETest.java:171)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:565)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+
+[ERROR] com.budgetly.api.e2e.MessageE2ETest.confirmMessage_createsTransaction -- Time elapsed: 0.111 s <<< FAILURE!
+java.lang.AssertionError: 
+1 expectation failed.
+Expected status code <200> but was <403>.
+
+	at java.base/jdk.internal.reflect.DirectConstructorHandleAccessor.newInstance(DirectConstructorHandleAccessor.java:62)
+	at java.base/java.lang.reflect.Constructor.newInstanceWithCaller(Constructor.java:499)
+	at java.base/java.lang.reflect.Constructor.newInstance(Constructor.java:483)
+	at org.codehaus.groovy.reflection.CachedConstructor.invoke(CachedConstructor.java:73)
+	at org.codehaus.groovy.runtime.callsite.ConstructorSite$ConstructorSiteNoUnwrapNoCoerce.callConstructor(ConstructorSite.java:108)
+	at org.codehaus.groovy.runtime.callsite.AbstractCallSite.callConstructor(AbstractCallSite.java:277)
+	at io.restassured.internal.ResponseSpecificationImpl$HamcrestAssertionClosure.validate(ResponseSpecificationImpl.groovy:512)
+	at io.restassured.internal.ResponseSpecificationImpl$HamcrestAssertionClosure$validate$1.call(Unknown Source)
+	at io.restassured.internal.ResponseSpecificationImpl.validateResponseIfRequired(ResponseSpecificationImpl.groovy:696)
+	at io.restassured.internal.ResponseSpecificationImpl.this$2$validateResponseIfRequired(ResponseSpecificationImpl.groovy)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:104)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:565)
+	at org.codehaus.groovy.runtime.callsite.PlainObjectMetaMethodSite.doInvoke(PlainObjectMetaMethodSite.java:43)
+	at org.codehaus.groovy.runtime.callsite.PogoMetaMethodSite$PogoCachedMethodSiteNoUnwrapNoCoerce.invoke(PogoMetaMethodSite.java:198)
+	at org.codehaus.groovy.runtime.callsite.PogoMetaMethodSite.callCurrent(PogoMetaMethodSite.java:62)
+	at org.codehaus.groovy.runtime.callsite.AbstractCallSite.callCurrent(AbstractCallSite.java:185)
+	at io.restassured.internal.ResponseSpecificationImpl.statusCode(ResponseSpecificationImpl.groovy:135)
+	at io.restassured.specification.ResponseSpecification$statusCode$0.callCurrent(Unknown Source)
+	at io.restassured.internal.ResponseSpecificationImpl.statusCode(ResponseSpecificationImpl.groovy:143)
+	at io.restassured.internal.ValidatableResponseOptionsImpl.statusCode(ValidatableResponseOptionsImpl.java:89)
+	at com.budgetly.api.e2e.MessageE2ETest.confirmMessage_createsTransaction(MessageE2ETest.java:191)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:565)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1604)
+
+[INFO] 
+[INFO] Results:
+[INFO] 
+[ERROR] Failures: 
+[ERROR]   MessageE2ETest.confirmMessage_createsTransaction:191 1 expectation failed.
+Expected status code <200> but was <403>.
+
+[ERROR]   MessageE2ETest.getIgnoredMessages_returnsIgnoredAndRejected:171 1 expectation failed.
+Expected status code <200> but was <403>.
+
+[ERROR]   MessageE2ETest.getPendingMessages_returnsOnlyPending:153 1 expectation failed.
+Expected status code <200> but was <403>.
+
+[ERROR]   MessageE2ETest.processMessage_financialSmsWithTemplate_generatesRegexAndPattern:97 1 expectation failed.
+Expected status code <200> but was <403>.
+
+[ERROR]   MessageE2ETest.processMessage_financialSms_createsTransaction:60 1 expectation failed.
+Expected status code <200> but was <403>.
+
+[ERROR]   MessageE2ETest.processMessage_nonFinancialSms_marksIgnored:128 1 expectation failed.
+Expected status code <200> but was <403>.
+
+[ERROR]   MessageE2ETest.rejectMessage_changesStatusToRejected:208 1 expectation failed.
+Expected status code <200> but was <403>.
+
+[ERROR]   MessageE2ETest.restoreMessage_changesStatusToPending:224 1 expectation failed.
+Expected status code <200> but was <403>.
+
+[INFO] 
+[ERROR] Tests run: 8, Failures: 8, Errors: 0, Skipped: 0
+[INFO] 
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD FAILURE
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  16.485 s
+[INFO] Finished at: 2026-10-04T12:04:25+05:30
+[INFO] ------------------------------------------------------------------------
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-surefire-plugin:3.5.2:test (default-test) on project budgetly-api: There are test failures.
+[ERROR] 
+[ERROR] See D:\git\budgetly\budgetly_api\target\surefire-reports for the individual test results.
+[ERROR] See dump files (if any exist) [date].dump, [date]-jvmRun[N].dump and [date].dumpstream.
+[ERROR] -> [Help 1]
+[ERROR] 
+[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
+[ERROR] Re-run Maven using the -X switch to enable full debug logging.
+[ERROR] 
+[ERROR] For more information about the errors and possible solutions, please read the following articles:
+[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException

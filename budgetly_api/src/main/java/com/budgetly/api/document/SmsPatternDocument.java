@@ -24,7 +24,7 @@ public class SmsPatternDocument {
     @Indexed
     private String sender;   // e.g. "HDFCBK", "SBIUPI"
 
-    private String regex;    // Java/Dart-compatible regex with named capture groups
+    private String template; // Anchor template with {tokens}
 
     // Maps capture group names to transaction fields
     private Map<String, String> extractionMap;

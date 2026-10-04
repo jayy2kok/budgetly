@@ -25,7 +25,7 @@ public class RejectedPatternDocument {
     @Indexed
     private String patternId;  // FK to pattern_registry
 
-    private String regex;          // Snapshot of the rejected regex
+    private String template;       // Snapshot of the rejected template
     private String sampleMessage;
 
     @Builder.Default

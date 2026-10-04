@@ -27,7 +27,7 @@ Map<String, dynamic> _$ExtractionMapToJson(ExtractionMap instance) =>
 SmsPattern _$SmsPatternFromJson(Map<String, dynamic> json) => SmsPattern(
   id: json['id'] as String,
   sender: json['sender'] as String,
-  regex: json['regex'] as String,
+  template: json['template'] as String,
   extractionMap: ExtractionMap.fromJson(
     json['extractionMap'] as Map<String, dynamic>,
   ),
@@ -40,7 +40,7 @@ Map<String, dynamic> _$SmsPatternToJson(SmsPattern instance) =>
     <String, dynamic>{
       'id': instance.id,
       'sender': instance.sender,
-      'regex': instance.regex,
+      'template': instance.template,
       'extractionMap': instance.extractionMap,
       'sampleMessage': instance.sampleMessage,
       'usageCount': instance.usageCount,

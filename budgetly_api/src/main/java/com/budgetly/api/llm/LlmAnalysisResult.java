@@ -19,11 +19,9 @@ public class LlmAnalysisResult {
     private String rawTimestamp;
     private String notes;
 
-    // Generated regex pattern
-    private String generatedRegex;
     private Map<String, String> extractionMap;  // group → field
 
-    // Token-based template (replaces generatedRegex)
+    // Token-based template
     private String template;
 }
 

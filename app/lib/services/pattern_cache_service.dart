@@ -1,11 +1,10 @@
+import 'package:dio/dio.dart';
 import '../models/sms_pattern.dart';
+import '../data/remote/api_client.dart';
 
-/// In-memory mock cache for SMS regex patterns.
-///
-/// In production this would persist to sqflite/SharedPreferences
-/// and sync with the server via GET /patterns?since=...
+/// Real pattern cache service that syncs SMS regex patterns with the server.
 class PatternCacheService {
-  // ignore: prefer_final_fields
+  final Dio _dio = ApiClient.instance.dio;
   List<SmsPattern> _patterns = [];
   DateTime? _lastSyncTime;
 
@@ -18,29 +17,34 @@ class PatternCacheService {
   /// All cached patterns.
   List<SmsPattern> get patterns => List.unmodifiable(_patterns);
 
-  /// Loads patterns from the local on-disk cache or returns empty if none.
-  ///
-  /// Real patterns are fetched from the server via [refreshPatterns].
-  /// Calling [loadPatterns] without a prior sync will return an empty list,
-  /// which causes all SMS to be treated as unknown senders and sent to the
-  /// LLM backend for classification and pattern generation.
+  /// Loads patterns from the server.
   Future<void> loadPatterns() async {
-    await Future.delayed(const Duration(milliseconds: 50));
-    // On first run _patterns is already [] — no hardcoded mocks.
-    // After refreshPatterns() has run at least once, _patterns will be populated.
-    _lastSyncTime = _patterns.isNotEmpty ? _lastSyncTime : null;
+    try {
+      await refreshPatterns();
+    } catch (e) {
+      // Fallback to empty if offline
+      _patterns = [];
+    }
   }
 
-  /// Refresh patterns from server (simulates delta sync).
+  /// Refresh patterns from server (fetches active patterns).
   Future<void> refreshPatterns() async {
-    await Future.delayed(const Duration(milliseconds: 500));
-    _lastSyncTime = DateTime.now();
-    // In production: fetch from GET /patterns?since=_lastSyncTime
+    try {
+      final response = await _dio.get('/patterns');
+      final list = response.data as List<dynamic>;
+      _patterns = list
+          .map((json) => SmsPattern.fromJson(json as Map<String, dynamic>))
+          .toList();
+      _lastSyncTime = DateTime.now();
+    } catch (e) {
+      // Keep existing patterns if refresh fails
+    }
   }
 
-  /// Get patterns for a specific sender.
+  /// Get patterns for a specific sender (case-insensitive).
   List<SmsPattern> getPatternsBySender(String sender) {
-    return _patterns.where((p) => p.sender == sender).toList();
+    return _patterns
+        .where((p) => p.sender.toUpperCase() == sender.toUpperCase())
+        .toList();
   }
-
 }

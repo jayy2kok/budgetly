@@ -6,7 +6,7 @@ public interface LlmProvider {
      *
      * @param sender  SMS sender ID (e.g. "HDFCBK")
      * @param rawText Full raw SMS text
-     * @return LlmAnalysisResult with isFinancial, parsed fields, and generated regex
+     * @return LlmAnalysisResult with isFinancial flag, parsed financial fields, and a template string for regex generation
      */
     LlmAnalysisResult analyzeMessage(String sender, String rawText);
 }
