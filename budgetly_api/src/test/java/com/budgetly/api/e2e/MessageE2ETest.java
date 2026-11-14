@@ -4,16 +4,31 @@ import com.budgetly.api.document.FamilyGroupDocument;
 import com.budgetly.api.document.MessageDocument;
 import com.budgetly.api.document.UserDocument;
 import com.budgetly.api.llm.LlmAnalysisResult;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.mongodb.core.MongoTemplate;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.util.Map;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 import static org.hamcrest.Matchers.*;
+import io.restassured.RestAssured;
 
 /**
  * E2E tests for Message API: /api/v1/messages/*
  */
 class MessageE2ETest extends BaseE2ETest {
+
+    private String getMessageIdByRawText(String userId, String rawText) {
+        return mongoTemplate.findOne(
+            org.springframework.data.mongodb.core.query.Query.query(
+                org.springframework.data.mongodb.core.query.Criteria.where("userId").is(userId).and("rawText").is(rawText)
+            ),
+            MessageDocument.class
+        ).getId();
+    }
 
     // ── Process Message — Financial ─────────────────────────────
 
@@ -29,8 +44,8 @@ class MessageE2ETest extends BaseE2ETest {
                         .amount(1500.0)
                         .merchant("Amazon")
                         .transactionType("EXPENSE")
-                        .generatedRegex("(?<amount>\\d+).*(?<merchant>\\w+)")
-                        .extractionMap(Map.of("amount", "amount", "merchant", "merchant", "timestamp", "timestamp"))
+                        .template("Rs.{amount} debited from a/c {accountLast4} for {merchant} on {timestamp}")
+                        .extractionMap(Map.of("amount","amount","accountLast4","accountLast4","merchant","merchant","timestamp","timestamp"))
                         .build()
         );
 
@@ -43,10 +58,54 @@ class MessageE2ETest extends BaseE2ETest {
                 .post("/messages/process")
                 .then()
                 .statusCode(200)
-                .body("isFinancial", equalTo(true))
-                .body("transactionId", notNullValue())
-                .body("parsedData.amount", equalTo(1500.0F))
-                .body("parsedData.merchant", equalTo("Amazon"));
+                .body("isFinancial", equalTo(true));
+
+        await().atMost(Duration.ofSeconds(30))
+                .untilAsserted(() -> {
+                    String messageId = getMessageIdByRawText(user.getId(), "Rs.1500 debited from a/c XX1234 for Amazon on 13-03-26");
+                    MessageDocument msg = mongoTemplate.findById(messageId, MessageDocument.class);
+                    assertThat(msg).isNotNull();
+                    assertThat(msg.getStatus()).isEqualTo("CONFIRMED");
+                    assertThat(msg.getLinkedTransactionId()).isNotNull();
+                });
+    }
+
+    @Test
+    void processMessage_financialSmsWithTemplate_generatesRegexAndPattern() {
+        UserDocument user = seedUser("g-msg-template-1", "Template User", "template1@test.com");
+        FamilyGroupDocument family = seedFamily(user.getId(), "Template Family");
+
+        llmProvider.setNextResult(
+                LlmAnalysisResult.builder()
+                        .financial(true)
+                        .amount(2500.0)
+                        .merchant("Swiggy")
+                        .transactionType("EXPENSE")
+                        .template("Spent Rs {amount} at {merchant} on {timestamp}")
+                        .extractionMap(Map.of("amount", "amount", "merchant", "merchant", "timestamp", "timestamp"))
+                        .build()
+        );
+
+        givenAuth(user.getId())
+                .body(Map.of(
+                        "familyGroupId", family.getId(),
+                        "sender", "SWIGGY",
+                        "rawText", "Spent Rs 2500.00 at Swiggy on 15/04/2026"
+                ))
+                .post("/messages/process")
+                .then()
+                .statusCode(200)
+                .body("isFinancial", equalTo(true));
+
+        await().atMost(Duration.ofSeconds(30))
+                .untilAsserted(() -> {
+                    String messageId = getMessageIdByRawText(user.getId(), "Spent Rs 2500.00 at Swiggy on 15/04/2026");
+                    MessageDocument msg = mongoTemplate.findById(messageId, MessageDocument.class);
+                    assertThat(msg).isNotNull();
+                    assertThat(msg.getStatus()).isEqualTo("CONFIRMED");
+                    assertThat(msg.getLinkedTransactionId()).isNotNull();
+                    assertThat(msg.getMatchedPatternId()).isNotNull();
+                });
     }
 
     // ── Process Message — Non-Financial ─────────────────────────
@@ -67,8 +126,64 @@ class MessageE2ETest extends BaseE2ETest {
                 .post("/messages/process")
                 .then()
                 .statusCode(200)
-                .body("isFinancial", equalTo(false))
-                .body("message.status", equalTo("IGNORED"));
+                .body("isFinancial", equalTo(false));
+
+        await().atMost(Duration.ofSeconds(30))
+                .untilAsserted(() -> {
+                    String messageId = getMessageIdByRawText(user.getId(), "50% OFF on all electronics! Shop now!");
+                    MessageDocument msg = mongoTemplate.findById(messageId, MessageDocument.class);
+                    assertThat(msg).isNotNull();
+                    assertThat(msg.getStatus()).isEqualTo("IGNORED");
+                    assertThat(msg.getLinkedTransactionId()).isNull();
+                });
+    }
+
+    // ── Bulk Insert Messages ────────────────────────────────────
+
+    @Test
+    void bulkInsertMessages_appShapedPayload_isAccepted() {
+        UserDocument user = seedUser("g-msg-bulk", "Bulk User", "bulk@test.com");
+        FamilyGroupDocument family = seedFamily(user.getId(), "Bulk Family");
+
+        // Mirror the app's exact payload: familyGroupId at the TOP level and
+        // per-message items carrying {sender, rawText, receivedAt}. Regression for
+        // the 500 that blocked phone syncs (bulk items used to require familyGroupId)
+        // and for the dropped-timestamp bug (receivedAt must reach the doc).
+        givenAuth(user.getId())
+                .body(Map.of(
+                        "familyGroupId", family.getId(),
+                        "messages", java.util.List.of(
+                                Map.of("sender", "HDFCBK", "rawText", "Spent Rs 500 at BigBazaar on 01/10/2026",
+                                        "receivedAt", "2026-10-18T09:30:00+05:30"),
+                                Map.of("sender", "SBIUPI", "rawText", "Rs.250 debited for Swiggy")
+                        )
+                ))
+                .post("/messages/bulk")
+                .then()
+                .statusCode(202)
+                .body("status", equalTo("ACCEPTED"))
+                .body("acceptedCount", equalTo(2));
+
+        await().atMost(Duration.ofSeconds(15))
+                .untilAsserted(() -> assertThat(mongoTemplate.count(
+                        org.springframework.data.mongodb.core.query.Query.query(
+                                org.springframework.data.mongodb.core.query.Criteria.where("userId").is(user.getId())
+                                        .and("familyGroupId").is(family.getId())
+                                        .and("source").is(MessageDocument.SOURCE_BULK)),
+                        MessageDocument.class)).isEqualTo(2L));
+
+        // The timestamped message must keep its real SMS receivedAt (not the
+        // server's receipt time).
+        await().atMost(Duration.ofSeconds(15))
+                .untilAsserted(() -> {
+                    MessageDocument doc = mongoTemplate.findOne(
+                            org.springframework.data.mongodb.core.query.Query.query(
+                                    org.springframework.data.mongodb.core.query.Criteria.where("userId").is(user.getId())
+                                            .and("rawText").is("Spent Rs 500 at BigBazaar on 01/10/2026")),
+                            MessageDocument.class);
+                    assertThat(doc).isNotNull();
+                    assertThat(doc.getReceivedAt()).isEqualTo(java.time.Instant.parse("2026-10-18T04:00:00Z"));
+                });
     }
 
     // ── Get Pending Messages ────────────────────────────────────
@@ -156,5 +271,28 @@ class MessageE2ETest extends BaseE2ETest {
                 .then()
                 .statusCode(200)
                 .body("status", equalTo("PENDING"));
+    }
+
+    // ── helpers ──────────────────────────────────────────────────
+
+    private String getLastMessageId(String userId) {
+        return RestAssured.given()
+                .auth().oauth2(getAuthToken(userId))
+                .get("/messages/pending")
+                .then()
+                .statusCode(200)
+                .extract()
+                .path("$[-1].id");
+    }
+
+    private String getLinkedTransactionId(String messageId) {
+        // Need to refetch in a test context where we can access UserDocument ID
+        return RestAssured.given()
+                .auth().oauth2(getAuthToken(seedUser("g-msg-1", "Msg User", "msg1@test.com").getId()))
+                .get("/messages/pending")
+                .then()
+                .statusCode(200)
+                .extract()
+                .path("find { it.id == '" + messageId + "' }.linkedTransactionId");
     }
 }

@@ -42,3 +42,12 @@ desktop.ini
 
 # Maven
 budgetly_api/target/
+
+# Local tooling / editor config
+opencode.json
+
+# graft context graph (local cache; regenerate with `graft build`)
+graft/
+
+# Decompiled probe output (investigative only)
+budgetly_api/mprobe/

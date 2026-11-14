@@ -1,7 +1,7 @@
 spring:
   data:
     mongodb:
-      uri: mongodb://budgetly:budgetly_secret@mongodb:27017/budgetly?authSource=admin
+      uri: mongodb://budgetly:budgetly_secret@mongodb:27017/budgetly?authSource=admin&replicaSet=rs0
 
 logging:
   level:

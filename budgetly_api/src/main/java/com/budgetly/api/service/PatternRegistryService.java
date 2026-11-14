@@ -73,7 +73,7 @@ public class PatternRegistryService {
             } else {
                 RejectedPatternDocument rp = RejectedPatternDocument.builder()
                         .patternId(patternId)
-                        .regex(pattern.getRegex())
+                        .template(pattern.getTemplate())
                         .sampleMessage(request.getSampleMessage())
                         .reportedByUserIds(new ArrayList<>(List.of(userId)))
                         .reportCount(pattern.getReportCount())
@@ -112,11 +112,17 @@ public class PatternRegistryService {
         return patternRepository.save(doc);
     }
 
+    /** Active templates registered for a sender, in registration order. */
+    public List<SmsPatternDocument> findActiveBySender(String sender) {
+        if (sender == null) return List.of();
+        return patternRepository.findBySenderAndActiveTrue(sender);
+    }
+
     public SmsPattern toDto(SmsPatternDocument doc) {
         SmsPattern dto = new SmsPattern();
         dto.setId(doc.getId());
         dto.setSender(doc.getSender());
-        dto.setRegex(doc.getRegex());
+        dto.setTemplate(doc.getTemplate());
         dto.setSampleMessage(doc.getSampleMessage());
         dto.setUsageCount(doc.getUsageCount());
         if (doc.getCreatedAt() != null) dto.setCreatedAt(doc.getCreatedAt().atOffset(ZoneOffset.UTC));

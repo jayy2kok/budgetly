@@ -44,9 +44,12 @@ Map<String, dynamic> _$MessageToJson(Message instance) => <String, dynamic>{
 
 const _$MessageStatusEnumMap = {
   MessageStatus.pending: 'PENDING',
+  MessageStatus.inProgress: 'IN_PROGRESS',
+  MessageStatus.processed: 'PROCESSED',
   MessageStatus.confirmed: 'CONFIRMED',
   MessageStatus.rejected: 'REJECTED',
   MessageStatus.ignored: 'IGNORED',
+  MessageStatus.failed: 'FAILED',
 };
 
 const _$ParseSourceEnumMap = {

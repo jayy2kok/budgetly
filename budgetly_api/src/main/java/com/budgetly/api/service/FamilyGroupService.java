@@ -34,7 +34,7 @@ public class FamilyGroupService {
                 .avatarInitial(request.getAvatarInitial() != null ? request.getAvatarInitial()
                         : request.getName().substring(0, 1).toUpperCase())
                 .defaultCurrency(request.getDefaultCurrency() != null ? request.getDefaultCurrency() : "INR")
-                .monthlyBudgetLimit(request.getMonthlyBudgetLimit() != null ? request.getMonthlyBudgetLimit() : 50000.0)
+                .monthlyBudgetLimit(request.getMonthlyBudgetLimit() != null ? request.getMonthlyBudgetLimit() : 0.0)
                 .createdByUserId(userId)
                 .build();
         group = familyGroupRepository.save(group);
@@ -75,7 +75,6 @@ public class FamilyGroupService {
         CreateFamilyRequest req = new CreateFamilyRequest();
         req.setName(familyName);
         req.setDefaultCurrency("INR");
-        req.setMonthlyBudgetLimit(50000.0);
         return createFamily(userId, req);
     }
 

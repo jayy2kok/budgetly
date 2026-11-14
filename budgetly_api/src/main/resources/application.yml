@@ -19,9 +19,19 @@ jwt:
 google:
   client-id: ${GOOGLE_CLIENT_ID:your-google-client-id}
 
+# LLM provider selection: "openai" (OpenAI-compatible, e.g. OmniRoute) or "gemini"
+llm:
+  provider: ${LLM_PROVIDER:openai}
+
+# OpenAI-compatible LLM (OmniRoute, Ollama, LocalAI, vLLM, etc.)
+openai:
+  base-url: ${OPENAI_BASE_URL:http://rpi.local:20129/v1}
+  api-key: ${OPENAI_API_KEY:placeholder-key}
+  model: ${OPENAI_MODEL:auto/best-free}
+
 # Gemini LLM
 gemini:
-  api-key: ${GEMINI_API_KEY:your-gemini-api-key}
+  api-key: ${GEMI...key}
   api-url: https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent
 
 # Pattern registry
@@ -42,10 +52,18 @@ management:
   endpoints:
     web:
       exposure:
-        include: health, info
+        include: health, info, prometheus, metrics
   endpoint:
     health:
       show-details: always
+
+# Change Stream Pipeline Configuration
+budgetly:
+  change-stream:
+    enabled: ${BUDGETLY_CHANGE_STREAM_ENABLED:true}
+    collection: messages
+    token-collection: change_stream_tokens
+    max-batch-size: ${BUDGETLY_BULK_MAX_BATCH_SIZE:500}
 
 logging:
   level:

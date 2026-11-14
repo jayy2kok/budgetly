@@ -1,110 +1,121 @@
-# Token-Template SMS-Parsing Upgrade – Plan for Sherlock
+# Literal Anchor Template SMS-Parsing Architecture
 
-> **Goal** – Replace the "LLM-writes-regex" step with a *template-generation* step that is far less error-prone, and then turn that template into a deterministic, cross-language regular expression on the backend.
-> **Result** – Every new sender that the LLM sees for the first time will be stored as a `SmsPattern` whose `regex` field is **generated automatically** from a safe template, guaranteeing that the Dart-side `RegExp` and the Java-side `java.util.regex` behave identically.
+> **Goal** – Avoid regex generation entirely. Store sender templates as literal text
+> with `{token}` placeholders and match them at runtime by **literal anchor** search –
+> left literal before a token, right literal after it. No regex is ever compiled, so
+> Java and Dart behave identically by construction, with no cross-language regex
+> divergence.
+>
+> **Status (2026-11-14)** – Implemented. `AnchorParserService` (Java) + `_parseAnchorTemplate`
+> (Dart) share the same literal-anchor algorithm, asserted against a mirrored corpus in
+> `AnchorParserTest` and `sms_parser_service_test.dart`. The original `TemplateRegexService`
+> plan below was **abandoned** — see §4 (Decision) for why.
 
 ---
 
 ## 1. High-Level Flow
 
-| Phase | Current Implementation | New Implementation (Token-Template) |
-|-------|------------------------|--------------------------------------|
-| **Inbox read** (Flutter) | ✅ Load cached `SmsPattern`s → `RegExp` match → fallback to LLM if no match. | ✅ Same, but patterns now contain a *template*-derived regex. |
-| **Backend processing** (Spring) | ✅ LLM returns JSON `{amount, merchant, timestamp, …, regex}` → store `SmsPattern`. | ✅ LLM returns **template** string (e.g. `"Spent Rs {amount} at {merchant} via UPI"`). Backend **converts** that template into a strict regex and stores it. |
-| **Pattern cache sync** (Flutter) | ✅ Pull raw regex from `/patterns`. | ✅ Pull raw regex (unchanged for the client). |
-| **Future SMS** | ✅ Match against stored regex. | ✅ Same – the regex is now guaranteed to be syntactically correct. |
+| Phase | Implementation |
+|-------|----------------|
+| **Inbox read** (Flutter) | `SmsInboxReader` loads cached `SmsPattern`s → `SmsParserService.parseMessage(sender, text)` does literal anchor matching against the sender's templates. **Complete** match → `parseSource=regexLocal` + `extractedData`; **incomplete** (match but missing required fields) or **unknown** sender → queued for the server. |
+| **Backend ingestion** (Spring) | App batch-inserts queued SMS via `POST /messages/bulk` (≤500/batch). The `MessageChangeStreamListener` consumes `BULK+PENDING` docs and, per message: **anchor fast-path** first — `PatternRegistryService.findActiveBySender(sender)` + `AnchorParserService.parse` → complete extraction creates the transaction with `parseSource=REGEX_LOCAL`, zero LLM calls; otherwise falls back to the LLM. |
+| **LLM (first sighting)** | LLM returns `{financial, amount, merchant, transactionType, rawTimestamp, notes, template, extractionMap}`. The **template** (e.g. `"Spent Rs {amount} at {merchant} on {timestamp}"`) and `extractionMap` are stored as the new `SmsPattern`. |
+| **Pattern cache sync** (Flutter) | `GET /patterns` sync → the app stores the same `{template, extractionMap, sampleMessage, usageCount}`. Matching is literal-anchor on both sides; no regex to keep in sync. |
+| **Future SMS** | Any sender with a stored template is matched locally against literals; the server's anchor fast-path makes the same match self-sufficient (transaction created without the LLM). |
 
 ---
 
-## 2. Backend – Template → Regex Converter
+## 2. The Algorithm — Literal Anchor Matching
 
-Create a new service class `TemplateRegexService` under `com.budgetly.api.service`:
+Both `AnchorParserService.parse(template, smsText)` and `_parseAnchorTemplate(template, text)`
+implement the same steps:
 
-```java
-package com.budgetly.api.service;
+1. Split the template into `literals` (text between `{token}`s) and `tokens` (placeholder names).
+   A template with **no tokens** cannot extract anything → return `null` (non-match).
+2. For each token `i`, with `left = literals[i]` and `right = literals[i+1]`:
+   - `leftIndex = smsText.indexOf(left, currentIndex)` — **left anchor mismatch** → `null`.
+   - `valueStart = leftIndex + left.length`.
+   - If `right` is empty (last token): `valueEnd = smsText.length`.
+     Else `valueEnd = smsText.indexOf(right, valueStart)` — **right anchor mismatch** → `null`.
+   - `value = smsText.substring(valueStart, valueEnd).trim()`.
+   - Advance `currentIndex = valueEnd`.
 
-import org.springframework.stereotype.Service;
-import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+`extractionMap` (from the LLM at pattern-creation time) maps token names to the canonical
+fields, e.g. `accountLast4 → accountLast4`, `merchant → merchant`, `amount → amount`,
+`timestamp → timestamp`. Only tokens present in `extractionMap` are exposed as extracted fields.
 
-@Service
-public class TemplateRegexService {
-
-    private static final Pattern TOKEN_PATTERN = Pattern.compile("\\{([^}]+)\\}");
-
-    /**
-     * Turns a tokenised template (e.g. "Spent Rs {amount} at {merchant} on {timestamp}")
-     * into a Java-compatible regex with named capture groups.
-     */
-    public String generateRegex(String template, Map<String, String> extractionMap) {
-        // Escape all regex meta-characters outside of tokens
-        String escaped = Pattern.quote(template);
-
-        // Undo the quoting for token placeholders, then replace each with a named group
-        Matcher m = TOKEN_PATTERN.matcher(escaped);
-        StringBuffer sb = new StringBuffer();
-        while (m.find()) {
-            String token = m.group(1);
-            String groupPattern = defaultPatternFor(token);
-            String namedGroup = "(?<" + token + ">" + groupPattern + ")";
-            m.appendReplacement(sb, namedGroup);
-        }
-        m.appendTail(sb);
-        
-        // Un-quote the surrounding literal text
-        return sb.toString()
-                 .replaceAll("^\\\\Q", "")
-                 .replaceAll("\\\\E$", "")
-                 .replaceAll("\\\\E\\\\Q", ""); 
-    }
-
-    private String defaultPatternFor(String token) {
-        return switch (token) {
-            case "amount"    -> "\\d+(?:\\.\\d+)?";
-            case "timestamp" -> "\\d{2}/\\d{2}/\\d{4}|\\d{4}-\\d{2}-\\d{2}";
-            case "merchant"  -> ".+?";
-            case "accountLast4" -> "\\d{4}";
-            default           -> ".+?"; 
-        };
-    }
-}
-```
-
-Integration point for `MessageService.java`:
-```java
-String template = llmResult.getTemplate(); 
-Map<String, String> extractionMap = llmResult.getExtractionMap();
-String regex = templateRegexService.generateRegex(template, extractionMap);
-
-// Store standard Regex going forward
-```
+**Parity guarantees:**
+- Tokens are **non-greedy by construction** (matched up to the first occurrence of the right
+  literal).
+- Regex meta-characters in literals (`Rs.`, `()`, `+`) are matched **literally** via
+  `indexOf` — no escaping, no `\Q…\E` quoting, nothing that can diverge between engines.
+- Trimming: extracted values are `.trim()`ed on both sides.
 
 ---
 
-## 3. LLM Prompt – Return a Template, Not a Regex
+## 3. Data Model
 
-Modify the prompt in `GeminiLlmProvider` to ask for **two fields**:
+*   **`SmsPatternDocument`** (`pattern_registry` collection): `sender`, `template`,
+    `extractionMap`, `sampleMessage` (the SMS that generated the pattern), `usageCount`
+    (incremented per successful server-side anchor match), `active`, `createdAt`.
+*   **`MessageDocument`** (`messages` collection): `status`
+    (`PENDING/IN_PROGRESS/PROCESSED/CONFIRMED/REJECTED/IGNORED/FAILED`), **`source`**
+    (`BULK` from `/messages/bulk` vs `DIRECT` from the legacy synchronous
+    `POST /messages/process`), `parseSource` (`REGEX_LOCAL` when matched server-side
+    without the LLM, `LLM_SERVER` otherwise), `parsedTransactionData`, `errorMessage`,
+    `processedAt`.
+*   **`LlmAnalysisResult`**: `isFinancial`, `amount`, `merchant`, `transactionType`,
+    `rawTimestamp`, `notes`, `template`, `extractionMap`.
 
-1. **`template`** – the raw SMS with *tokens* in curly braces.
-2. **`extractionMap`** – a map from token name → target field (`amount`, `merchant`, `timestamp`, …).
-
-Prompt rules to add:
-- Only use the tokens listed in `extractionMap`.
-- Do not include any regex syntax (e.g. `.*`, `\\d`) – output plain text with `{}` placeholders.
+`rawTimestamp` (LLM) and the `{timestamp}` token (anchor match) are parsed into the
+transaction date by the shared `TransactionDateParser` (`dd/MM/yyyy`, `dd-MM-yyyy`,
+ISO, with optional `HH:mm[:ss]`), falling back to `receivedAt`/now.
 
 ---
 
-## 4. Data-Model Adjustments
+## 4. Decision: Why No Regex?
 
-*   **`LlmAnalysisResult`**: Add `String template;` and `Map<String,String> extractionMap;`.
-*   **`GeminiLlmProvider`**: Update JSON parsing to parse the new structure.
-*   **`MessageService`**: Call `TemplateRegexService` before saving `SmsPatternDocument`.
+The original design (`TemplateRegexService`) generated a Java regex from the template —
+`{amount}` → `(?<amount>\d+(?:\.\d+)?)` etc. — and mirrored the source to Dart. Problems that
+killed it:
+
+1. **Named-group syntax diverges** — Java `(?<name>…)` vs Dart/JS `(?<name>…)` differ
+   historically; ECMAScript named groups are a moving target.
+2. **Escaping/quoting divergence** — `Pattern.quote`, `\Q…\E` handling, and backslash-in-string
+   semantics behave differently across engines, so the "guaranteed identical regex" claim
+   broke in practice (observed in the K9 parity corpus case).
+3. **Greedy/lazy mismatch** — Perl/`.+?` lazy matching agrees mostly, but possessive quantifiers,
+   lookarounds, and `.` (line terminator riddles) all risk subtle divergence.
+4. **Maintenance** — a regex string in the DB is opaque; a template is auditable.
+
+**Chosen: literal anchor matching.** Anchors are **exact substrings**, matched with
+`indexOf`/`String.indexOf` on both platforms — trivially identical semantics. Precision stays
+100% because the anchors come from a real SMS the LLM observed, and recall degrades gracefully
+to the LLM when the literal anchors don't line up (drift). Token values are bounded by the
+nearest literal occurrences, so a malformed-but-anchored SMS still extracts something.
 
 ---
 
-## 5. End-to-End Test Plan
+## 5. Where the Pattern Is Used
 
-1. **Unit test**: `TemplateRegexServiceTest` to ensure templates correctly become `(?<amount>\d+(?:\.\d+)?)` style regex strings.
-2. **Integration test**: `MessageService` flow with a mocked LLM response returning a template.
-3. **Run CI**: `mvn verify` in `budgetly_api`.
+- **Server (listener)** — `MessageChangeStreamListener.tryAnchorMatch`: load active templates
+  for the sender, run `AnchorParserService.parse` against each; on a complete match
+  (amount+merchant+timestamp available via `extractionMap`) create the transaction with
+  `parseSource=REGEX_LOCAL`, bump `usageCount`, record the `budgetly.message.pattern.cache-hit`
+  metric, **no LLM call**. Incomplete match or no template → `analyzeWithLlm` fallback.
+- **Client (sync)** — `SmsNotifier.syncInboxMessages`: complete local match → `addTransaction`
+  immediately; everything else → batched `POST /messages/bulk` for the listener, then one
+  `refreshPatterns()` so next-sync anchors are fresh.
+
+---
+
+## 6. Test Plan (landed)
+
+1. **`AnchorParserTest`** (Java, `src/test/java/com/budgetly/api/phase1/`) — mirrored corpus of
+   templates × SMS texts shared with Dart (incl. the no-token→`null` parity case).
+2. **`sms_parser_service_test.dart`** (17 tests) — non-greedy token boundaries, regex
+   meta-chars in literals, multiple tokens, last-token-empty-right-literal, anchor-mismatch
+   → `null`, sender filter, `extractionMap` field mapping, multiple-pattern fallthrough.
+3. **`MessageChangeStreamListenerTest`** — anchor fast-path (no LLM + timestamp→transaction
+   date), incomplete→LLM fallback, no-registered-pattern→LLM fallback, source filter.
+4. **Run** — `mvn -B verify` in `budgetly_api` (embedded Mongo) and `flutter test` in `app`.

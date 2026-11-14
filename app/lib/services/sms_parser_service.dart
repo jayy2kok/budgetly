@@ -25,33 +25,32 @@ class ParseResult {
 /// In production this would use real Dart RegExp matching;
 /// for the prototype it uses simple string-contains matching.
 class SmsParserService {
-  /// Attempt to parse a message against patterns for its sender.
+  /// Attempt to parse a message against anchor templates for its sender.
   ParseResult? parseMessage(
     String sender,
     String rawText,
     List<SmsPattern> patterns,
   ) {
-    // Filter patterns for this sender
+    // Filter patterns for this sender (case-insensitive)
     final senderPatterns =
-        patterns.where((p) => p.sender == sender).toList();
+        patterns.where((p) => p.sender.toUpperCase() == sender.toUpperCase()).toList();
 
     for (final pattern in senderPatterns) {
       try {
-        final regex = RegExp(pattern.regex);
-        final match = regex.firstMatch(rawText);
-        if (match != null) {
+        final extracted = _parseAnchorTemplate(pattern.template, rawText);
+        if (extracted != null && extracted.isNotEmpty) {
           final fields = <String, String>{};
 
-          // Extract using named groups from the extraction map
+          // Extract using extraction map
           final map = pattern.extractionMap;
-          _tryExtract(match, map.amount, 'amount', fields);
-          _tryExtract(match, map.merchant, 'merchant', fields);
-          _tryExtract(match, map.timestamp, 'timestamp', fields);
-          if (map.accountLast4 != null) {
-            _tryExtract(match, map.accountLast4!, 'accountLast4', fields);
+          if (extracted.containsKey(map.amount)) fields['amount'] = extracted[map.amount]!;
+          if (extracted.containsKey(map.merchant)) fields['merchant'] = extracted[map.merchant]!;
+          if (extracted.containsKey(map.timestamp)) fields['timestamp'] = extracted[map.timestamp]!;
+          if (map.accountLast4 != null && extracted.containsKey(map.accountLast4)) {
+            fields['accountLast4'] = extracted[map.accountLast4]!;
           }
-          if (map.type != null) {
-            _tryExtract(match, map.type!, 'type', fields);
+          if (map.type != null && extracted.containsKey(map.type)) {
+            fields['type'] = extracted[map.type]!;
           }
 
           if (fields.isNotEmpty) {
@@ -62,26 +61,59 @@ class SmsParserService {
           }
         }
       } catch (_) {
-        // Invalid regex — skip this pattern
+        // Skip malformed template
         continue;
       }
     }
     return null;
   }
 
-  void _tryExtract(
-    RegExpMatch match,
-    String groupName,
-    String fieldName,
-    Map<String, String> fields,
-  ) {
-    try {
-      final value = match.namedGroup(groupName);
-      if (value != null && value.isNotEmpty) {
-        fields[fieldName] = value;
-      }
-    } catch (_) {
-      // Named group doesn't exist in this pattern
+  /// Extracts variable tokens using left/right literal anchors.
+  Map<String, String>? _parseAnchorTemplate(String template, String smsText) {
+    final tokenPattern = RegExp(r'\{([^}]+)\}');
+    final matches = tokenPattern.allMatches(template).toList();
+    if (matches.isEmpty) return null;
+
+    final List<String> literals = [];
+    final List<String> tokens = [];
+    int lastEnd = 0;
+
+    for (final match in matches) {
+      literals.add(template.substring(lastEnd, match.start));
+      tokens.add(match.group(1)!);
+      lastEnd = match.end;
     }
+    literals.add(template.substring(lastEnd));
+
+    final Map<String, String> results = {};
+    int currentIndex = 0;
+
+    for (int i = 0; i < tokens.length; i++) {
+      final leftLiteral = literals[i];
+      final rightLiteral = literals[i + 1];
+      final tokenName = tokens[i];
+
+      final leftIndex = smsText.indexOf(leftLiteral, currentIndex);
+      if (leftIndex == -1) {
+        return null; // Left anchor mismatch
+      }
+      final valueStart = leftIndex + leftLiteral.length;
+
+      int valueEnd;
+      if (rightLiteral.isEmpty) {
+        valueEnd = smsText.length;
+      } else {
+        valueEnd = smsText.indexOf(rightLiteral, valueStart);
+        if (valueEnd == -1) {
+          return null; // Right anchor mismatch
+        }
+      }
+
+      final extractedValue = smsText.substring(valueStart, valueEnd).trim();
+      results[tokenName] = extractedValue;
+      currentIndex = valueEnd;
+    }
+
+    return results;
   }
 }

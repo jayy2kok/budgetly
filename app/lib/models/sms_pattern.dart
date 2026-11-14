@@ -42,8 +42,8 @@ class SmsPattern {
   /// SMS sender ID (e.g. "HDFCBK", "SBIUPI").
   final String sender;
 
-  /// Java/Dart-compatible regex with named capture groups.
-  final String regex;
+  /// Anchor template with {tokens}
+  final String template;
 
   /// Maps capture groups to transaction fields.
   final ExtractionMap extractionMap;
@@ -59,7 +59,7 @@ class SmsPattern {
   const SmsPattern({
     required this.id,
     required this.sender,
-    required this.regex,
+    required this.template,
     required this.extractionMap,
     required this.sampleMessage,
     this.usageCount = 0,

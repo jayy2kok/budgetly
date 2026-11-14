@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_sms_inbox/flutter_sms_inbox.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../config/api_config.dart';
 import '../models/message.dart';
 import 'pattern_cache_service.dart';
 import 'sms_parser_service.dart';
@@ -72,10 +73,20 @@ class SmsInboxReader {
     for (final sms in smsList) {
       final receivedAt = sms.dateSent ?? DateTime.now();
 
-      // Since smsList is sorted descending, break early for older messages
-      if (since != null && receivedAt.isBefore(since)) {
+      // Since smsList is sorted descending, stop at the checkpoint message.
+      // The cutoff is EXCLUSIVE: the checkpoint's own message (receivedAt ==
+      // since) was already processed last sync and must not be re-ingested.
+      if (since != null && !receivedAt.isAfter(since)) {
         debugPrint(
-            '[SmsInboxReader] Reached messages before cutoff ($since). Stopping.');
+            '[SmsInboxReader] Reached messages at/before cutoff ($since). Stopping.');
+        break;
+      }
+
+      // Testing cap: stop once we've collected enough financial messages.
+      // Kept configurable (SMS_SYNC_MAX_MESSAGES) so it can be raised/removed.
+      if (result.length >= ApiConfig.smsSyncMaxMessages) {
+        debugPrint(
+            '[SmsInboxReader] Reached financial-message cap (${ApiConfig.smsSyncMaxMessages}). Stopping.');
         break;
       }
 

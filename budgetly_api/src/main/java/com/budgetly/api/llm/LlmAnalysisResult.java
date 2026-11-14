@@ -17,9 +17,12 @@ public class LlmAnalysisResult {
     private Double amount;
     private String transactionType;  // EXPENSE | INCOME
     private String rawTimestamp;
+    private String currency;         // ISO-4217 code, e.g. INR, USD (defaults to INR when absent)
     private String notes;
 
-    // Generated regex pattern
-    private String generatedRegex;
     private Map<String, String> extractionMap;  // group → field
+
+    // Token-based template
+    private String template;
 }
+

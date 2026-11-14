@@ -207,10 +207,9 @@ public abstract class BaseE2ETest {
     }
 
     /** Seed an SMS pattern document. Returns the pattern doc. */
-    protected SmsPatternDocument seedPattern(String sender, String regex, String sampleMessage) {
+    protected SmsPatternDocument seedPattern(String sender, String sampleMessage) {
         SmsPatternDocument pattern = SmsPatternDocument.builder()
                 .sender(sender)
-                .regex(regex)
                 .extractionMap(Map.of("amount", "amount", "merchant", "merchant", "timestamp", "timestamp"))
                 .sampleMessage(sampleMessage)
                 .usageCount(1)

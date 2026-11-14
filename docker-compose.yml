@@ -4,8 +4,25 @@ services:
   mongodb:
     image: mongo:7
     container_name: budgetly-mongo
+    entrypoint:
+      - bash
+      - -c
+      - |
+        mkdir -p /data/configdb
+        if [ ! -f /data/configdb/keyfile ]; then
+          # MongoDB keyfiles must be base64 (no hyphens) — generate one with
+          # openssl when available, else fall back to a fixed valid value.
+          if command -v openssl >/dev/null 2>&1; then
+            openssl rand -base64 756 > /data/configdb/keyfile
+          else
+            echo "ncH0fSROJoL4JtD8xWvwjIn2OKLpd05Xzaap7+/zTU1EP+VENjX5V6ly47JXOqW4" > /data/configdb/keyfile
+          fi
+          chmod 400 /data/configdb/keyfile
+          chown 999:999 /data/configdb/keyfile
+        fi
+        exec docker-entrypoint.sh mongod --replSet rs0 --bind_ip_all --keyFile /data/configdb/keyfile
     ports:
-      - "27017:27017"
+      - "${MONGO_HOST_PORT:-27018}:27017"
     volumes:
       - mongo_data:/data/db
     environment:
@@ -13,10 +30,22 @@ services:
       MONGO_INITDB_ROOT_PASSWORD: budgetly_secret
       MONGO_INITDB_DATABASE: budgetly
     healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      test: >
+        mongosh -u budgetly -p budgetly_secret --authenticationDatabase admin --eval "
+          try {
+            var st = rs.status();
+            if (st.ok === 1 && (st.myState === 1 || st.myState === 2)) quit(0);
+          } catch (e) {}
+          try {
+            var init = rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: 'mongodb:27017' }] });
+            if (init.ok === 1) quit(0);
+          } catch (e) {}
+          quit(1);
+        "
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
 
   budgetly-api:
     build: ./budgetly_api
@@ -27,10 +56,13 @@ services:
       mongodb:
         condition: service_healthy
     environment:
-      SPRING_DATA_MONGODB_URI: mongodb://budgetly:budgetly_secret@mongodb:27017/budgetly?authSource=admin
+      SPRING_DATA_MONGODB_URI: mongodb://budgetly:budgetly_secret@mongodb:27017/budgetly?authSource=admin&replicaSet=rs0
+      LLM_PROVIDER: ${LLM_PROVIDER:-openai}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-http://rpi.local:20129/v1}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_MODEL: ${OPENAI_MODEL:-auto/best-free}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-placeholder-client-id}
       JWT_SECRET: ${JWT_SECRET:-budgetly-super-secret-key-for-development-min-256-bits-long}
-      GEMINI_API_KEY: ${GEMINI_API_KEY:-placeholder-api-key}
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider http://localhost:8080/actuator/health || exit 1"]
       interval: 30s

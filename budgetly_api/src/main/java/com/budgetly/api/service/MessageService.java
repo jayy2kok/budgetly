@@ -1,20 +1,37 @@
 package com.budgetly.api.service;
 
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+
 import com.budgetly.api.document.MessageDocument;
-import com.budgetly.api.document.SmsPatternDocument;
 import com.budgetly.api.exception.ResourceNotFoundException;
-import com.budgetly.api.generated.model.*;
+import com.budgetly.api.generated.model.CreateTransactionRequest;
+import com.budgetly.api.generated.model.Message;
+import com.budgetly.api.generated.model.MessageStatus;
+import com.budgetly.api.generated.model.BulkMessageRequest;
+import com.budgetly.api.generated.model.BulkMessageResponse;
+import com.budgetly.api.generated.model.ParseSource;
+import com.budgetly.api.generated.model.ProcessMessageRequest;
+import com.budgetly.api.generated.model.ProcessMessageResponse;
+import com.budgetly.api.generated.model.Transaction;
+import com.budgetly.api.document.SmsPatternDocument;
+import com.budgetly.api.generated.model.TransactionType;
 import com.budgetly.api.llm.LlmAnalysisResult;
 import com.budgetly.api.llm.LlmProvider;
 import com.budgetly.api.repository.MessageRepository;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
+import org.springframework.scheduling.annotation.Async;
 
-import java.time.Instant;
-import java.time.ZoneOffset;
-import java.util.*;
-import java.util.stream.Collectors;
+import java.util.concurrent.CompletableFuture;
 
 @Slf4j
 @Service
@@ -25,8 +42,10 @@ public class MessageService {
     private final TransactionService transactionService;
     private final PatternRegistryService patternRegistryService;
     private final LlmProvider llmProvider;
+    private final TransactionDateParser transactionDateParser;
 
-    public ProcessMessageResponse processMessage(String userId, ProcessMessageRequest request) {
+    @Async
+    public CompletableFuture<ProcessMessageResponse> processMessage(String userId, ProcessMessageRequest request) {
         String familyGroupId = request.getFamilyGroupId();
         String sender = request.getSender();
         String rawText = request.getRawText();
@@ -39,66 +58,82 @@ public class MessageService {
                 .rawText(rawText)
                 .status("PENDING")
                 .parseSource("LLM_SERVER")
+                .source(MessageDocument.SOURCE_DIRECT)
                 .build();
         messageDoc = messageRepository.save(messageDoc);
 
         // 2. Invoke LLM
         LlmAnalysisResult llmResult = llmProvider.analyzeMessage(sender, rawText);
-        log.debug("LLM result for sender={}: financial={}, amount={}", sender, llmResult.isFinancial(), llmResult.getAmount());
+        log.debug("Async LLM result for sender={}: financial={}, amount={}", sender, llmResult.isFinancial(), llmResult.getAmount());
 
         ProcessMessageResponse response = new ProcessMessageResponse();
-        response.setIsFinancial(llmResult.isFinancial());
 
         if (!llmResult.isFinancial()) {
-            // Non-financial → IGNORED
             messageDoc.setStatus("IGNORED");
             messageRepository.save(messageDoc);
+
+            response.setIsFinancial(false);
             response.setMessage(toMessageDto(messageDoc));
-            return response;
+            return CompletableFuture.completedFuture(response);
         }
 
-        // 3. Build CreateTransactionRequest from LLM result
         CreateTransactionRequest txRequest = buildTransactionRequest(llmResult, familyGroupId);
-        response.setParsedData(txRequest);
 
-        // 4. Save pattern if regex was generated
+        // Save pattern if template was generated
         SmsPatternDocument savedPattern = null;
-        if (llmResult.getGeneratedRegex() != null) {
+        String template = llmResult.getTemplate();
+
+        if (template != null) {
             Map<String, String> em = llmResult.getExtractionMap() != null
                     ? llmResult.getExtractionMap()
                     : Map.of("amount", "amount", "merchant", "merchant", "timestamp", "timestamp");
 
             savedPattern = SmsPatternDocument.builder()
                     .sender(sender)
-                    .regex(llmResult.getGeneratedRegex())
+                    .template(template)
                     .extractionMap(em)
                     .sampleMessage(rawText)
                     .usageCount(1)
                     .active(true)
                     .build();
             savedPattern = patternRegistryService.savePattern(savedPattern);
-            response.setGeneratedPattern(patternRegistryService.toDto(savedPattern));
         }
 
-        // 5. Create transaction
+        // Create transaction
         Transaction createdTx = null;
         try {
             String patternId = savedPattern != null ? savedPattern.getId() : null;
             createdTx = transactionService.createTransactionInternal(
                     userId, familyGroupId, txRequest, "LLM_SERVER", rawText, patternId);
-            response.setTransactionId(createdTx.getId());
         } catch (Exception e) {
             log.warn("Failed to auto-create transaction from LLM result: {}", e.getMessage());
         }
 
-        // 6. Update message status
         messageDoc.setStatus(createdTx != null ? "CONFIRMED" : "PENDING");
         messageDoc.setLinkedTransactionId(createdTx != null ? createdTx.getId() : null);
+        messageDoc.setMatchedPatternId(savedPattern != null ? savedPattern.getId() : null);
         messageDoc.setParseSource("LLM_SERVER");
+
+        Map<String, Object> parsedDataMap = new HashMap<>();
+        if (llmResult.getAmount() != null) parsedDataMap.put("amount", llmResult.getAmount());
+        if (llmResult.getMerchant() != null) parsedDataMap.put("merchant", llmResult.getMerchant());
+        if (llmResult.getTransactionType() != null) parsedDataMap.put("transactionType", llmResult.getTransactionType());
+        messageDoc.setParsedTransactionData(parsedDataMap);
+
         messageDoc = messageRepository.save(messageDoc);
 
+        response.setIsFinancial(true);
+        if (createdTx != null) {
+            response.setTransactionId(createdTx.getId());
+        }
+        response.setParsedData(txRequest);
         response.setMessage(toMessageDto(messageDoc));
-        return response;
+
+        if (savedPattern != null) {
+            response.setGeneratedPattern(patternRegistryService.toDto(savedPattern));
+        }
+
+        return CompletableFuture.completedFuture(response);
     }
 
     public List<Message> getPendingMessages(String userId) {
@@ -107,8 +142,51 @@ public class MessageService {
     }
 
     public List<Message> getIgnoredMessages(String userId) {
+        // "Ignored" bucket = LLM-classified non-financial (IGNORED) + user-rejected
+        // (REJECTED). The client splits these into nonFinancial / deleted buckets.
         return messageRepository.findByUserIdAndStatusIn(userId, List.of("IGNORED", "REJECTED"))
                 .stream().map(this::toMessageDto).collect(Collectors.toList());
+    }
+
+    @Value("${budgetly.change-stream.max-batch-size:500}")
+    private int maxBatchSize;
+
+    public CompletableFuture<BulkMessageResponse> bulkInsertMessages(String userId, BulkMessageRequest request) {
+        if (request.getMessages() == null || request.getMessages().isEmpty()) {
+            throw new IllegalArgumentException("Messages list must not be empty");
+        }
+        if (request.getMessages().size() > maxBatchSize) {
+            throw new IllegalArgumentException("Batch size exceeds maximum limit of " + maxBatchSize);
+        }
+
+        List<MessageDocument> docs = request.getMessages().stream()
+                .map(req -> {
+                    MessageDocument.MessageDocumentBuilder b = MessageDocument.builder()
+                            .userId(userId)
+                            .familyGroupId(request.getFamilyGroupId())
+                            .sender(req.getSender())
+                            .rawText(req.getRawText())
+                            .status(MessageDocument.STATUS_PENDING)
+                            .parseSource("LLM_SERVER")
+                            .source(MessageDocument.SOURCE_BULK);
+                    // Preserve the real SMS timestamp so transactions get the
+                    // correct date; the builder default (now) applies if omitted.
+                    if (req.getReceivedAt() != null) {
+                        b.receivedAt(req.getReceivedAt().toInstant());
+                    }
+                    return b.build();
+                })
+                .collect(Collectors.toList());
+
+        List<MessageDocument> savedDocs = messageRepository.saveAll(docs);
+        
+        BulkMessageResponse response = new BulkMessageResponse();
+        response.setStatus("ACCEPTED");
+        response.setAcceptedCount(savedDocs.size());
+        response.setMessageIds(savedDocs.stream().map(MessageDocument::getMessageId).collect(Collectors.toList()));
+        response.setMessages(savedDocs.stream().map(this::toMessageDto).collect(Collectors.toList()));
+        
+        return CompletableFuture.completedFuture(response);
     }
 
     public Transaction confirmMessage(String userId, String messageId) {
@@ -147,14 +225,21 @@ public class MessageService {
                 .orElseThrow(() -> new ResourceNotFoundException("Message", messageId));
     }
 
-    private CreateTransactionRequest buildTransactionRequest(LlmAnalysisResult llm, String familyGroupId) {
+    private CreateTransactionRequest buildTransactionRequest(LlmAnalysisResult llmResult, String familyGroupId) {
         CreateTransactionRequest req = new CreateTransactionRequest();
-        req.setAmount(llm.getAmount() != null ? llm.getAmount() : 0.0);
-        req.setMerchant(llm.getMerchant() != null ? llm.getMerchant() : "Unknown");
+        req.setAmount(llmResult.getAmount() != null ? llmResult.getAmount() : 0.0);
+        req.setMerchant(llmResult.getMerchant() != null ? llmResult.getMerchant() : "Unknown");
         req.setType(TransactionType.fromValue(
-                "INCOME".equals(llm.getTransactionType()) ? "INCOME" : "EXPENSE"));
-        req.setTransactionDate(Instant.now().atOffset(ZoneOffset.UTC));
-        req.setCurrency("INR");
+                "INCOME".equals(llmResult.getTransactionType()) ? "INCOME" : "EXPENSE"));
+        // WORK-003: honor the SMS timestamp returned by the LLM so backfilled
+        // messages get their actual date instead of "now". The body timestamp
+        // has no offset; treat it as Indian local time (Asia/Kolkata).
+        req.setTransactionDate(transactionDateParser
+                .parseOrDefault(null, llmResult.getRawTimestamp(), java.time.ZoneId.of("Asia/Kolkata"))
+                .atOffset(ZoneOffset.UTC));
+        String llmCurrency = llmResult.getCurrency();
+        req.setCurrency(llmCurrency != null && !llmCurrency.isBlank()
+                ? llmCurrency.toUpperCase(java.util.Locale.ROOT) : "INR");
         return req;
     }
 

@@ -18,8 +18,8 @@ class PatternRegistryE2ETest extends BaseE2ETest {
     @Test
     void getPatterns_returnsActivePatterns() {
         UserDocument user = seedUser("g-pat-1", "Pat User", "pat1@test.com");
-        seedPattern("HDFCBK", "(?<amount>\\d+).*debited.*(?<merchant>\\w+)", "Rs.500 debited for Amazon");
-        seedPattern("SBIUPI", "(?<amount>\\d+).*sent.*(?<merchant>\\w+)", "Rs.200 sent to PhonePe");
+        seedPattern("HDFCBK", "Rs.500 debited for Amazon");
+        seedPattern("SBIUPI","Rs.200 sent to PhonePe");
 
         givenAuth(user.getId())
                 .get("/patterns")
@@ -38,7 +38,6 @@ class PatternRegistryE2ETest extends BaseE2ETest {
         // Create an old pattern directly with a past date
         SmsPatternDocument oldPattern = SmsPatternDocument.builder()
                 .sender("OLDBK")
-                .regex("old-regex")
                 .extractionMap(Map.of("amount", "amount"))
                 .sampleMessage("Old message")
                 .usageCount(1)
@@ -48,7 +47,7 @@ class PatternRegistryE2ETest extends BaseE2ETest {
         patternRegistryRepository.save(oldPattern);
 
         // Create a recent pattern
-        seedPattern("NEWBK", "new-regex", "New message");
+        seedPattern("NEWBK",  "New message");
 
         givenAuth(user.getId())
                 .queryParam("since", "2026-01-01T00:00:00Z")
@@ -64,9 +63,9 @@ class PatternRegistryE2ETest extends BaseE2ETest {
     @Test
     void getPatternSenders_returnsSenderCounts() {
         UserDocument user = seedUser("g-pat-3", "Sender User", "sender@test.com");
-        seedPattern("HDFCBK", "regex1", "sample1");
-        seedPattern("HDFCBK", "regex2", "sample2");
-        seedPattern("SBIUPI", "regex3", "sample3");
+        seedPattern("HDFCBK",  "sample1");
+        seedPattern("HDFCBK","sample2");
+        seedPattern("SBIUPI", "sample3");
 
         givenAuth(user.getId())
                 .get("/patterns/senders")
@@ -82,7 +81,7 @@ class PatternRegistryE2ETest extends BaseE2ETest {
     @Test
     void reportPattern_belowThreshold_notRemoved() {
         UserDocument user = seedUser("g-pat-4", "Report User", "report@test.com");
-        SmsPatternDocument pattern = seedPattern("BADPAT", "bad-regex", "bad sample");
+        SmsPatternDocument pattern = seedPattern("BADPAT","bad sample");
 
         givenAuth(user.getId())
                 .body(Map.of("reason", "Wrong extraction", "sampleMessage", "Actual SMS text"))
@@ -99,7 +98,7 @@ class PatternRegistryE2ETest extends BaseE2ETest {
     @Test
     void reportPattern_reachesThreshold_autoRemoved() {
         // report-threshold is set to 3 in application-test.yml
-        SmsPatternDocument pattern = seedPattern("THRESHOLD", "threshold-regex", "threshold sample");
+        SmsPatternDocument pattern = seedPattern("THRESHOLD","threshold sample");
 
         // Report from 3 different users (threshold = 3)
         for (int i = 0; i < 3; i++) {
@@ -123,8 +122,8 @@ class PatternRegistryE2ETest extends BaseE2ETest {
     @Test
     void getPatternStats_returnsCorrectCounts() {
         UserDocument user = seedUser("g-pat-6", "Stats User", "stats@test.com");
-        seedPattern("HDFCBK", "regex1", "sample1");
-        seedPattern("SBIUPI", "regex2", "sample2");
+        seedPattern("HDFCBK",  "sample1");
+        seedPattern("SBIUPI",  "sample2");
 
         givenAuth(user.getId())
                 .get("/patterns/stats")

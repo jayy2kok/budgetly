@@ -45,6 +45,16 @@ class MockMessageService implements MessageService {
   }
 
   @override
+  Future<int> bulkInsertMessages({
+    required String familyGroupId,
+    required List<Map<String, String>> messages,
+  }) async {
+    // Mock: acknowledge everything after a simulated server round-trip.
+    await Future.delayed(const Duration(milliseconds: 100));
+    return messages.length;
+  }
+
+  @override
   Future<Message> confirmMessage(String messageId) async {
     await Future.delayed(const Duration(milliseconds: 300));
     final msg = SampleData.messages.firstWhere((m) => m.id == messageId);

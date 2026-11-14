@@ -14,4 +14,5 @@ public interface MessageRepository extends MongoRepository<MessageDocument, Stri
     List<MessageDocument> findByFamilyGroupIdAndStatus(String familyGroupId, String status);
     Optional<MessageDocument> findByIdAndUserId(String id, String userId);
     long countByFamilyGroupIdAndStatus(String familyGroupId, String status);
+    Optional<MessageDocument> findByMessageId(String messageId);
 }

@@ -256,7 +256,11 @@ class SettingsScreen extends ConsumerWidget {
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
-                    smsState.smsPermissionGranted ? 'Granted' : 'Denied',
+                    smsState.smsPermissionGranted
+                        ? 'Granted'
+                        : (smsState.permissionPermanentlyDenied
+                            ? 'Permanently denied'
+                            : 'Denied'),
                     style: GoogleFonts.inter(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,

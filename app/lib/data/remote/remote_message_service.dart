@@ -33,6 +33,34 @@ class RemoteMessageService implements MessageService {
   }
 
   @override
+  Future<int> bulkInsertMessages({
+    required String familyGroupId,
+    required List<Map<String, String>> messages,
+  }) async {
+    if (messages.isEmpty) return 0;
+    // The change-stream listener processes these asynchronously (202 ACCEPTED).
+    final response = await _dio.post(
+      '/messages/bulk',
+      data: {
+        'familyGroupId': familyGroupId,
+        'messages': [
+          for (final m in messages)
+            {
+              'sender': m['sender'],
+              'rawText': m['rawText'],
+              if (m['receivedAt'] != null) 'receivedAt': m['receivedAt'],
+            },
+        ],
+      },
+    );
+    final body = response.data;
+    if (body is Map<String, dynamic>) {
+      return (body['acceptedCount'] as num?)?.toInt() ?? messages.length;
+    }
+    return messages.length;
+  }
+
+  @override
   Future<Message> confirmMessage(String messageId) async {
     final response = await _dio.post('/messages/$messageId/confirm');
     return Message.fromJson(response.data as Map<String, dynamic>);

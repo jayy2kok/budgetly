@@ -33,7 +33,7 @@ public class FamilyGroupDocument {
     private boolean expenseAlertsEnabled = true;
 
     @Builder.Default
-    private double monthlyBudgetLimit = 50000.0;
+    private double monthlyBudgetLimit = 0.0;
 
     private String createdByUserId;
 

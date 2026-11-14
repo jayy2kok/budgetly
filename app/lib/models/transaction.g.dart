@@ -10,7 +10,7 @@ Transaction _$TransactionFromJson(Map<String, dynamic> json) => Transaction(
   id: json['id'] as String,
   familyGroupId: json['familyGroupId'] as String,
   createdByUserId: json['createdByUserId'] as String,
-  categoryId: json['categoryId'] as String,
+  categoryId: json['categoryId'] as String?,
   amount: (json['amount'] as num).toDouble(),
   currency: json['currency'] as String? ?? 'INR',
   merchant: json['merchant'] as String,
