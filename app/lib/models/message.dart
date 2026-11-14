@@ -3,15 +3,26 @@ import 'package:json_annotation/json_annotation.dart';
 part 'message.g.dart';
 
 /// Status of a message in the SMS processing pipeline.
+///
+/// Mirrors the statuses emitted by the backend
+/// (`budgetly_api/.../document/MessageDocument.java`) including the
+/// change-stream consumer's `IN_PROGRESS`, `PROCESSED` and `FAILED` states so
+/// that any server `Message` payload round-trips without throwing.
 enum MessageStatus {
   @JsonValue('PENDING')
   pending,
+  @JsonValue('IN_PROGRESS')
+  inProgress,
+  @JsonValue('PROCESSED')
+  processed,
   @JsonValue('CONFIRMED')
   confirmed,
   @JsonValue('REJECTED')
   rejected,
   @JsonValue('IGNORED')
   ignored,
+  @JsonValue('FAILED')
+  failed,
 }
 
 /// How the message was parsed / classified.

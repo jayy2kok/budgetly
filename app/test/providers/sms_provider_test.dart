@@ -1,0 +1,493 @@
+import 'package:dio/dio.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:permission_handler_platform_interface/permission_handler_platform_interface.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'package:budgetly/data/message_service.dart';
+import 'package:budgetly/models/family_group.dart';
+import 'package:budgetly/models/message.dart';
+import 'package:budgetly/models/user.dart';
+import 'package:budgetly/providers/auth_provider.dart';
+import 'package:budgetly/providers/family_provider.dart';
+import 'package:budgetly/providers/message_provider.dart';
+import 'package:budgetly/providers/service_providers.dart';
+import 'package:budgetly/providers/sms_provider.dart';
+import 'package:budgetly/providers/transaction_provider.dart';
+import 'package:budgetly/services/pattern_cache_service.dart';
+import 'package:budgetly/services/sms_inbox_reader.dart';
+
+import '../helpers/inbox_fakes.dart';
+
+/// The checkpoint key written after each processed message.
+const kCheckpointKey = 'last_processed_sms_timestamp';
+
+// ── Fakes ─────────────────────────────────────────────────────────
+
+class FakePermissionHandler extends PermissionHandlerPlatform {
+  final PermissionStatus status;
+  FakePermissionHandler({required this.status});
+
+  @override
+  Future<PermissionStatus> checkPermissionStatus(Permission permission) async =>
+      status;
+
+  @override
+  Future<Map<Permission, PermissionStatus>> requestPermissions(
+    List<Permission> permissions,
+  ) async => {for (final p in permissions) p: status};
+}
+
+/// A [MessageService] that never touches the network and records submissions.
+class RecordingMessageService implements MessageService {
+  final List<Map<String, dynamic>> processCalls = [];
+  Map<String, dynamic> processResponse = {};
+
+  /// Bulk submissions, each recorded as
+  /// `{'familyGroupId': String, 'messages': [{'sender', 'rawText'}, ...]}`.
+  final List<Map<String, dynamic>> bulkCalls = [];
+
+  @override
+  Future<Map<String, dynamic>> processMessage(Map<String, dynamic> data) async {
+    processCalls.add(data);
+    return processResponse;
+  }
+
+  @override
+  Future<int> bulkInsertMessages({
+    required String familyGroupId,
+    required List<Map<String, String>> messages,
+  }) async {
+    bulkCalls.add({'familyGroupId': familyGroupId, 'messages': messages});
+    return messages.length;
+  }
+
+  @override
+  Future<List<Message>> getPendingMessages() async => [];
+
+  @override
+  Future<List<Message>> getIgnoredMessages() async => [];
+
+  @override
+  Future<Message> confirmMessage(String messageId) =>
+      throw UnimplementedError();
+
+  @override
+  Future<Message> rejectMessage(String messageId) =>
+      throw UnimplementedError();
+
+  @override
+  Future<Message> restoreMessage(String messageId) =>
+      throw UnimplementedError();
+}
+
+/// A [PatternCacheService] that records refreshPatterns() calls.
+class RecordingPatternCache extends PatternCacheService {
+  RecordingPatternCache() : super(dio: Dio());
+
+  int refreshCalls = 0;
+
+  @override
+  Future<void> loadPatterns() async {}
+
+  @override
+  Future<void> refreshPatterns() async {
+    refreshCalls++;
+  }
+}
+
+/// An [SmsInboxReader] that returns canned messages instead of the OS inbox.
+class CannedInboxReader extends SmsInboxReader {
+  List<Message> canned;
+  int readCalls = 0;
+
+  /// When true, [readInbox] throws — exercises the sync error path.
+  bool failRead = false;
+
+  CannedInboxReader(this.canned) : super(cache: FakePatternCache());
+
+  @override
+  Future<List<Message>> readInbox({
+    required String userId,
+    DateTime? since,
+    int limit = 500,
+  }) async {
+    readCalls++;
+    if (failRead) throw Exception('inbox read exploded');
+    return canned;
+  }
+}
+
+class FakeAuthNotifier extends AuthNotifier {
+  final User? user;
+  FakeAuthNotifier(this.user);
+
+  @override
+  AuthState build() => AuthState(
+        status: user == null
+            ? AuthStatus.unauthenticated
+            : AuthStatus.authenticated,
+        user: user,
+      );
+}
+
+class FakeFamilyNotifier extends FamilyNotifier {
+  final FamilyGroup? family;
+  FakeFamilyNotifier(this.family);
+
+  @override
+  FamilyState build() => FamilyState(currentFamily: family);
+}
+
+/// Records addTransaction calls; never touches the network.
+class RecordingTransactionNotifier extends TransactionNotifier {
+  final List<Map<String, dynamic>> addCalls = [];
+
+  @override
+  TransactionState build() => const TransactionState();
+
+  @override
+  Future<void> addTransaction(Map<String, dynamic> data) async {
+    addCalls.add(data);
+  }
+}
+
+/// MessageNotifier whose loadMessages is a no-op counter.
+class FakeMessageNotifier extends MessageNotifier {
+  int loadCalls = 0;
+
+  @override
+  MessageState build() => const MessageState();
+
+  @override
+  Future<void> loadMessages() async {
+    loadCalls++;
+    state = const MessageState();
+  }
+}
+
+// ── Fixtures ──────────────────────────────────────────────────────
+
+User kUser() => User(
+      id: 'u1',
+      googleId: 'google-u1',
+      displayName: 'Jay',
+      email: 'jay@budgetly.app',
+      createdAt: DateTime.utc(2026, 1, 1),
+    );
+
+FamilyGroup kFamily() => FamilyGroup(
+      id: 'fam-1',
+      name: 'Home',
+      monthlyBudgetLimit: 50000,
+      createdByUserId: 'u1',
+      createdAt: DateTime.utc(2026, 1, 1),
+    );
+
+Message smsMsg({
+  required int id,
+  String sender = 'HDFCBK',
+  required String body,
+  required DateTime at,
+  ParseSource? parseSource,
+  Map<String, String>? extractedData,
+  String? matchedPatternId,
+}) =>
+    Message(
+      id: 'sms_$id',
+      userId: 'u1',
+      sender: sender,
+      rawText: body,
+      status: MessageStatus.pending,
+      parseSource: parseSource,
+      extractedData: extractedData,
+      matchedPatternId: matchedPatternId,
+      receivedAt: at,
+    );
+
+Map<String, String> fullExtraction() => {
+      'amount': '500',
+      'merchant': 'Grocery Mart',
+      'timestamp': '01/10/2026',
+    };
+
+// ── Test rig ──────────────────────────────────────────────────────
+
+ProviderContainer buildContainer({
+  required CannedInboxReader reader,
+  required RecordingMessageService messageService,
+  required RecordingTransactionNotifier transactions,
+  required RecordingPatternCache cache,
+  User? user,
+  FamilyGroup? family,
+}) {
+  return ProviderContainer(
+    overrides: [
+      patternCacheServiceProvider.overrideWithValue(cache),
+      smsInboxReaderProvider.overrideWithValue(reader),
+      authProvider.overrideWith(() => FakeAuthNotifier(user)),
+      familyProvider.overrideWith(() => FakeFamilyNotifier(family)),
+      messageServiceProvider.overrideWithValue(messageService),
+      transactionProvider.overrideWith(() => transactions),
+      messageProvider.overrideWith(() => FakeMessageNotifier()),
+    ],
+  );
+}
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  late CannedInboxReader reader;
+  late RecordingMessageService messageService;
+  late RecordingTransactionNotifier transactions;
+  late RecordingPatternCache cache;
+  late ProviderContainer container;
+  final now = DateTime.utc(2026, 11, 1, 12);
+
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+    PermissionHandlerPlatform.instance =
+        FakePermissionHandler(status: PermissionStatus.granted);
+
+    reader = CannedInboxReader(const []);
+    messageService = RecordingMessageService();
+    transactions = RecordingTransactionNotifier();
+    cache = RecordingPatternCache();
+    container = buildContainer(
+      reader: reader,
+      messageService: messageService,
+      transactions: transactions,
+      cache: cache,
+      user: kUser(),
+      family: kFamily(),
+    );
+    addTearDown(container.dispose);
+  });
+
+  /// _init() is fire-and-forget from build(); settle until the async
+  /// permission check has landed so sync() saw the granted state.
+  Future<void> settleInit() async {
+    for (var i = 0; i < 100; i++) {
+      if (container.read(smsProvider).smsPermissionGranted) return;
+      await pumpEventQueue();
+    }
+    fail('SmsNotifier._init() never observed granted SMS permission');
+  }
+
+  Future<void> sync() async {
+    await settleInit();
+    await container.read(smsProvider.notifier).syncInboxMessages();
+  }
+
+  group('syncInboxMessages — regexLocal fully parsed', () {
+    test('turns the message into a transaction directly, no server call',
+        () async {
+      reader.canned = [
+        smsMsg(
+          id: 1,
+          body: 'Spent Rs 500 at Grocery Mart on 01/10/2026',
+          at: now,
+          parseSource: ParseSource.regexLocal,
+          extractedData: fullExtraction(),
+          matchedPatternId: 'p-hdfc',
+        ),
+      ];
+
+      await sync();
+
+      expect(transactions.addCalls, hasLength(1));
+      final tx = transactions.addCalls.single;
+      expect(tx['amount'], 500.0);
+      expect(tx['merchantName'], 'Grocery Mart');
+      expect(tx['type'], 'EXPENSE');
+
+      expect(messageService.processCalls, isEmpty);
+      expect(messageService.bulkCalls, isEmpty);
+      // No server-bound messages → no pattern refresh (avoids a wasted round-trip).
+      expect(cache.refreshCalls, 0);
+      expect(reader.readCalls, 1);
+    });
+  });
+
+  group('syncInboxMessages — regexLocal incomplete', () {
+    test('bulk-queues incomplete regex messages for the server', () async {
+      reader.canned = [
+        smsMsg(
+          id: 2,
+          body: 'Spent Rs 500 (bill on its way)',
+          at: now,
+          parseSource: ParseSource.regexLocal,
+          extractedData: {'amount': '500'}, // merchant + timestamp missing
+          matchedPatternId: 'p-hdfc',
+        ),
+      ];
+
+      await sync();
+
+      // No per-message LLM call anymore — goes through POST /messages/bulk.
+      expect(messageService.processCalls, isEmpty);
+      expect(messageService.bulkCalls, hasLength(1));
+      final call = messageService.bulkCalls.single;
+      expect(call['familyGroupId'], 'fam-1');
+      expect(call['messages'], [
+        {'sender': 'HDFCBK', 'rawText': 'Spent Rs 500 (bill on its way)'},
+      ]);
+      expect(transactions.addCalls, isEmpty);
+      // A submitted batch triggers one pattern refresh for the next sync.
+      expect(cache.refreshCalls, 1);
+    });
+  });
+
+  group('syncInboxMessages — unprocessed (queued for server)', () {
+    test('bulk-submits unmatched messages and refreshes patterns once',
+        () async {
+      reader.canned = [
+        smsMsg(
+          id: 3,
+          sender: 'SBIUPI',
+          body: 'Rs.750 debited from a/c 4321 for Swiggy.',
+          at: now,
+        ),
+      ];
+
+      await sync();
+
+      expect(messageService.processCalls, isEmpty);
+      expect(messageService.bulkCalls, hasLength(1));
+      final call = messageService.bulkCalls.single;
+      expect(call['familyGroupId'], 'fam-1');
+      expect(call['messages'], [
+        {
+          'sender': 'SBIUPI',
+          'rawText': 'Rs.750 debited from a/c 4321 for Swiggy.',
+        },
+      ]);
+      expect(transactions.addCalls, isEmpty);
+      // The server pipeline may have registered new patterns while processing
+      // the batch — the client refreshes its local cache once afterwards.
+      expect(cache.refreshCalls, 1);
+    });
+
+    test('chunks large inboxes into bulk batches of at most 500', () async {
+      reader.canned = [
+        for (var i = 0; i < 1001; i++)
+          smsMsg(
+            id: 1000 + i,
+            sender: 'AXISBK',
+            body: 'Dear customer, Rs.${i + 1} debited at Store $i.',
+            at: now,
+          ),
+      ];
+
+      await sync();
+
+      // 1001 > 2×500, so three requests: 500 + 500 + 1.
+      expect(messageService.bulkCalls, hasLength(3));
+      expect(messageService.bulkCalls[0]['messages'], hasLength(500));
+      expect(messageService.bulkCalls[1]['messages'], hasLength(500));
+      expect(messageService.bulkCalls[2]['messages'], hasLength(1));
+      // Exactly one pattern refresh for the whole sync, not per batch.
+      expect(cache.refreshCalls, 1);
+      expect(transactions.addCalls, isEmpty);
+    });
+  });
+
+  group('syncInboxMessages — abort guards', () {
+    test('unauthenticated user → no inbox read, no processing', () async {
+      final unauthed = buildContainer(
+        reader: reader,
+        messageService: messageService,
+        transactions: transactions,
+        cache: cache,
+        user: null,
+        family: kFamily(),
+      );
+      addTearDown(unauthed.dispose);
+      await settleInitFor(unauthed);
+      await unauthed.read(smsProvider.notifier).syncInboxMessages();
+
+      expect(reader.readCalls, 0);
+      expect(messageService.processCalls, isEmpty);
+      expect(messageService.bulkCalls, isEmpty);
+      expect(transactions.addCalls, isEmpty);
+      expect(unauthed.read(smsProvider).isSyncing, isFalse);
+    });
+
+    test('no family loaded → no inbox read, no processing', () async {
+      final noFamily = buildContainer(
+        reader: reader,
+        messageService: messageService,
+        transactions: transactions,
+        cache: cache,
+        user: kUser(),
+        family: null,
+      );
+      addTearDown(noFamily.dispose);
+      await settleInitFor(noFamily);
+      await noFamily.read(smsProvider.notifier).syncInboxMessages();
+
+      expect(reader.readCalls, 0);
+      expect(messageService.processCalls, isEmpty);
+      expect(messageService.bulkCalls, isEmpty);
+      expect(transactions.addCalls, isEmpty);
+      expect(noFamily.read(smsProvider).isSyncing, isFalse);
+    });
+  });
+
+  group('syncInboxMessages — checkpoint bookkeeping', () {
+    test('checkpoint advances to the newest processed message', () async {
+      final older = now.subtract(const Duration(days: 2));
+      reader.canned = [
+        smsMsg(
+          id: 10,
+          body: 'Spent Rs 100 at Store A on 01/10/2026',
+          at: now,
+          parseSource: ParseSource.regexLocal,
+          extractedData: fullExtraction(),
+        ),
+        smsMsg(
+          id: 11,
+          body: 'Spent Rs 200 at Store B on 01/10/2026',
+          at: older,
+          parseSource: ParseSource.regexLocal,
+          extractedData: fullExtraction(),
+        ),
+      ];
+
+      await sync();
+      await pumpEventQueue();
+
+      // readInbox returns newest first; sync processes oldest first, so the
+      // final checkpoint is the newest message's timestamp.
+      expect(transactions.addCalls, hasLength(2));
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getInt(kCheckpointKey), now.millisecondsSinceEpoch);
+      expect(container.read(smsProvider).lastProcessedSmsTimestamp,
+          now.millisecondsSinceEpoch);
+    });
+
+    test('isSyncing resets and messages reload even when the sync throws',
+        () async {
+      reader.failRead = true;
+
+      await sync();
+
+      expect(reader.readCalls, 1);
+      final state = container.read(smsProvider);
+      expect(state.isSyncing, isFalse);
+      // The finally block still reloads the message list on the failure path.
+      final fakeMsg =
+          container.read(messageProvider.notifier) as FakeMessageNotifier;
+      expect(fakeMsg.loadCalls, 1);
+    });
+  });
+}
+
+/// Perm-settle helper for separate containers (see [settleInit]).
+Future<void> settleInitFor(ProviderContainer c) async {
+  for (var i = 0; i < 100; i++) {
+    if (c.read(smsProvider).smsPermissionGranted) return;
+    await pumpEventQueue();
+  }
+  fail('SmsNotifier._init() never observed granted SMS permission');
+}

@@ -52,6 +52,8 @@ dev_dependencies:
 
   flutter_lints: ^6.0.0
   mocktail: ^1.0.4
+  # For faking permission state in tests (permission_handler's platform seam).
+  permission_handler_platform_interface: ^4.3.0
 
   # Code generation
   build_runner: ^2.4.14

@@ -21,6 +21,8 @@ import '../data/remote/remote_category_service.dart';
 import '../data/remote/remote_family_service.dart';
 import '../data/remote/remote_message_service.dart';
 import '../data/remote/remote_transaction_service.dart';
+import '../services/pattern_cache_service.dart';
+import '../services/sms_inbox_reader.dart';
 
 /// Toggle between mock and real API.
 ///
@@ -60,4 +62,17 @@ final messageServiceProvider = Provider<MessageService>((ref) {
 
 final budgetServiceProvider = Provider<BudgetService>((ref) {
   return useRealApi ? RemoteBudgetService() : MockBudgetService();
+});
+
+// ── SMS infrastructure ─────────────────────────────────────────
+
+/// Shared SMS pattern cache. Override in tests with a seeded fake cache.
+final patternCacheServiceProvider = Provider<PatternCacheService>((ref) {
+  return PatternCacheService();
+});
+
+/// SMS inbox reader wired to the shared pattern cache.
+/// Override in tests with a fake reader that returns canned messages.
+final smsInboxReaderProvider = Provider<SmsInboxReader>((ref) {
+  return SmsInboxReader(cache: ref.watch(patternCacheServiceProvider));
 });

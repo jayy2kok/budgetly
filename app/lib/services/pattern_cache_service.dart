@@ -1,10 +1,14 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import '../models/sms_pattern.dart';
 import '../data/remote/api_client.dart';
 
 /// Real pattern cache service that syncs SMS regex patterns with the server.
 class PatternCacheService {
-  final Dio _dio = ApiClient.instance.dio;
+  final Dio _dio;
+
+  PatternCacheService({Dio? dio}) : _dio = dio ?? ApiClient.instance.dio;
+
   List<SmsPattern> _patterns = [];
   DateTime? _lastSyncTime;
 
@@ -39,6 +43,12 @@ class PatternCacheService {
     } catch (e) {
       // Keep existing patterns if refresh fails
     }
+  }
+
+  /// Seeds the cache with a fixed pattern list (tests only).
+  @visibleForTesting
+  void debugSetPatterns(List<SmsPattern> patterns) {
+    _patterns = List.of(patterns);
   }
 
   /// Get patterns for a specific sender (case-insensitive).

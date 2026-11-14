@@ -80,10 +80,12 @@ class SmsState {
 
 class SmsNotifier extends Notifier<SmsState> {
   late final PatternCacheService _cache;
+  late final SmsInboxReader _reader;
 
   @override
   SmsState build() {
-    _cache = PatternCacheService();
+    _cache = ref.watch(patternCacheServiceProvider);
+    _reader = ref.watch(smsInboxReaderProvider);
     _init();
     return const SmsState();
   }
@@ -165,6 +167,17 @@ class SmsNotifier extends Notifier<SmsState> {
     );
   }
 
+  /// Persist the highest-processed message timestamp and mirror it to state.
+  Future<void> _checkpoint(Message msg, SharedPreferences prefs) async {
+    await prefs.setInt(
+      'last_processed_sms_timestamp',
+      msg.receivedAt.millisecondsSinceEpoch,
+    );
+    state = state.copyWith(
+      lastProcessedSmsTimestamp: msg.receivedAt.millisecondsSinceEpoch,
+    );
+  }
+
   /// Reads the on-device SMS inbox and merges results into the message pipeline.
   ///
   /// Only processes messages from senders in the pattern cache (known banks).
@@ -175,8 +188,7 @@ class SmsNotifier extends Notifier<SmsState> {
     final userId = ref.read(authProvider).user?.id;
     if (userId == null) return; // Not authenticated yet
 
-    final reader = SmsInboxReader(cache: _cache);
-    final messages = await reader.readInbox(userId: userId);
+    final messages = await _reader.readInbox(userId: userId);
 
     if (messages.isNotEmpty) {
       ref.read(messageProvider.notifier).mergeLocalMessages(messages);
@@ -215,54 +227,60 @@ class SmsNotifier extends Notifier<SmsState> {
         since = DateTime.now().subtract(const Duration(days: 30));
       }
 
-      final reader = SmsInboxReader(cache: _cache);
-      final messages = await reader.readInbox(userId: userId, since: since);
+      final messages = await _reader.readInbox(userId: userId, since: since);
 
       // readInbox returns newest first. We process oldest first (reversed)
       // to properly keep track of chronological progress if interrupted.
+      const maxBatchSize = 500; // backend budgetly.change-stream.max-batch-size
+      final serverQueue = <Message>[];
+
       for (final msg in messages.reversed) {
-        if (msg.parseSource == ParseSource.regexLocal) {
-          if (msg.isIncomplete) {
-            // Found via local regex but missing mandatory fields.
-            // Send to LLM to parse/save.
-            await ref.read(messageServiceProvider).processMessage({
-              'sender': msg.sender,
-              'rawText': msg.rawText,
-              'familyGroupId': familyId,
-            });
-          } else {
-            // Fully parsed locally! Convert to transaction immediately.
+        if (msg.parseSource == ParseSource.regexLocal && !msg.isIncomplete) {
+          // Fully parsed locally! Convert to transaction immediately.
           debugPrint('[SmsSync] Regex-parsed fully, creating transaction for msg id=${msg.id}');
-            final txData = {
-              'amount': double.parse(msg.extractedData!['amount']!),
-              'merchantName': msg.extractedData!['merchant'],
-              'transactionDate': msg.extractedData!['timestamp'] ??
-                  msg.receivedAt.toIso8601String(),
-              'type': msg.extractedData!['type']?.toUpperCase() ?? 'EXPENSE',
-              'description': 'Auto-parsed from SMS',
-            };
-            await ref.read(transactionProvider.notifier).addTransaction(txData);
-          }
+          final txData = {
+            'amount': double.parse(msg.extractedData!['amount']!),
+            'merchantName': msg.extractedData!['merchant'],
+            'transactionDate': msg.extractedData!['timestamp'] ??
+                msg.receivedAt.toIso8601String(),
+            'type': msg.extractedData!['type']?.toUpperCase() ?? 'EXPENSE',
+            'description': 'Auto-parsed from SMS',
+          };
+          await ref.read(transactionProvider.notifier).addTransaction(txData);
+
+          // Successfully processed this message. Save checkpoint.
+          await _checkpoint(msg, prefs);
         } else {
-          // No local match — send to backend LLM server.
-          debugPrint('[SmsSync] Submitting msg id=${msg.id} (sender=${msg.sender}) to backend LLM.');
-          final response = await ref.read(messageServiceProvider).processMessage({
-            'sender': msg.sender,
-            'rawText': msg.rawText,
-            'familyGroupId': familyId,
-          });
-
-          // If the LLM successfully generated a new pattern, reload the cache instantly.
-          if (response['generatedPattern'] != null) {
-            await refreshPatterns();
-          }
+          // Incomplete regex, or no local match — bulk-queue for the server
+          // change-stream pipeline (listener runs anchor-match/LLM).
+          serverQueue.add(msg);
         }
+      }
 
-        // Successfully processed this message. Save checkpoint.
-        prefs.setInt(
-            'last_processed_sms_timestamp', msg.receivedAt.millisecondsSinceEpoch);
-        state = state.copyWith(
-            lastProcessedSmsTimestamp: msg.receivedAt.millisecondsSinceEpoch);
+      // Batch-insert everything the server must look at, <=500 per request.
+      for (var i = 0; i < serverQueue.length; i += maxBatchSize) {
+        final end = (i + maxBatchSize < serverQueue.length)
+            ? i + maxBatchSize
+            : serverQueue.length;
+        final batch = serverQueue.sublist(i, end);
+        debugPrint('[SmsSync] Bulk-submitting ${batch.length} msgs to server (batch $i..$end).');
+        await ref.read(messageServiceProvider).bulkInsertMessages(
+              familyGroupId: familyId,
+              messages: [
+                for (final m in batch)
+                  {'sender': m.sender, 'rawText': m.rawText},
+              ],
+            );
+
+        // Checkpoint the newest message of this batch only after acceptance,
+        // so a failed batch is retried on the next sync.
+        await _checkpoint(batch.last, prefs);
+      }
+
+      // The listener may have registered new patterns while processing the
+      // batch — refresh once so the next sync can anchor-match locally.
+      if (serverQueue.isNotEmpty) {
+        await refreshPatterns();
       }
     } catch (e, stack) {
       debugPrint('[SmsSync] Error during sync: $e\n$stack');
