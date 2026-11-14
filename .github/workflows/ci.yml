@@ -9,7 +9,12 @@ on:
 jobs:
     backend:
         name: Backend — mvn verify
-        runs-on: ubuntu-latest
+        # Pin to Ubuntu 22.04: flapdoodle's embedded-Mongo package resolver
+        # (de.flapdoodle.os 1.9.0) only recognizes Ubuntu up to 25.10, and
+        # MongoDB 7.0.9 is only published for ubuntu2204 in its resolver. On
+        # ubuntu-latest (26.04) it detects bare "Ubuntu" and fails to resolve
+        # the mongod 7.0.9 binary.
+        runs-on: ubuntu-22.04
         defaults:
             run:
                 working-directory: budgetly_api
