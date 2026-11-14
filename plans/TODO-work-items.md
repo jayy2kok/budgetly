@@ -1,7 +1,7 @@
 # Budgetly — TODO Work Items for Subagents
 
 > Branch: `feature/token-template-sms-parsing` (over `main`).
-> Last verified state: `flutter test` 46/46 · `flutter analyze` clean · `mvn test` 90/90 (all green, 2026-11-14). App: models/parser/inbox-reader/provider (incl. bulk chunking); backend: e2e · AnchorParser parity · change-stream listener · source discriminator · TransactionDateParser.
+> Last verified state: `flutter test` 49/49 · `flutter analyze` clean · `mvn test` 91/91 (all green, 2026-11-14). App: models/parser/inbox-reader/provider (incl. bulk chunking, background-sync toggle/debounce); backend: e2e · AnchorParser parity · change-stream listener · source discriminator · TransactionDateParser · change-stream lag gauge.
 > Use `graft` for context before editing (see footer). Cite `file:` spans and update the graph with `graft build` after changes.
 
 ---
@@ -165,7 +165,9 @@ Legend: 🔴 P0 correctness/arch · 🟡 P1 testing/CI · 🟢 P2 product wiring
 
 ---
 
-## 🟢 WORK-203 — SMS consent + permission UX polish
+## 🟢 WORK-203 — SMS consent + permission UX polish ✅ DONE
+
+> Status: completed 2026-11-14. Background-toggle is now **persisted** (`background_sms_service_enabled`, loaded in `_init`, written by `toggleBackgroundService`). New `SmsNotifier.triggerBackgroundSync()` gates the background auto-sync: skipped when SMS permission is missing **or** the toggle is off, and **debounced** to once per 30s (`backgroundSyncMinInterval`); manual/on-demand sync still goes straight to `syncInboxMessages`. Dashboard + `SmsConsentDialog` now call `triggerBackgroundSync()`. Settings SMS-Permission badge shows "Permanently denied" (row on-tap already reopens system settings via `openAppSettings`). 3 new provider tests (persist/restore across containers, toggle-gated sync, debounce) — app suite 49/49, analyze clean. First-run consent prompt already persisted (`sms_consent_prompted`).
 
 **Files:** `app/lib/providers/sms_provider.dart:81-160` (permission state), `sms_inbox_reader.dart:25-27` (`hasPermission`), settings/shell screens that trigger permission.
 
@@ -175,7 +177,9 @@ Legend: 🔴 P0 correctness/arch · 🟡 P1 testing/CI · 🟢 P2 product wiring
 
 ---
 
-## ⚪ WORK-301 — Observability completeness
+## ⚪ WORK-301 — Observability completeness ✅ DONE
+
+> Status: completed 2026-11-14. `/actuator/prometheus` was **already exposed** (`management.endpoints.web.exposure.include: health, info, prometheus, metrics`). Added a **change-stream lag gauge** — `budgetly.message.change-stream.lag.milliseconds` = `now − message.createdAt`, refreshed on every successful event (AtomicLong registered in the listener constructor; grows while the consumer falls behind the insert rate). New unit test `exposesChangeStreamLagAfterSuccessfulProcessing` (claim a doc created 60s ago → gauge reports ~60s). `budgetly.change-stream.enabled` was already env-overridable (`${BUDGETLY_CHANGE_STREAM_ENABLED:true}`) and off in the test profile; the process endpoint + always-on listener coexist safely via the WORK-001 `source` discriminator, so the disable-where-process-used concern is moot by design.
 
 **Files:** `MessageChangeStreamListener.java:126,210-211,219` (manual `Metrics` counters), `MessageProcessorHealthIndicator.java`, `application.yml` (actuator endpoints), `docker-compose.yml`.
 
@@ -185,9 +189,11 @@ Legend: 🔴 P0 correctness/arch · 🟡 P1 testing/CI · 🟢 P2 product wiring
 
 ---
 
-## ⚪ WORK-302 — Load test bulk ingestion
+## ⚪ WORK-302 — Load test bulk ingestion 🔶 PARTIAL
 
-**Files (new):** `budgetly_api/src/loadtest/MessageLoadTest.java` or a script in `scripts/`.
+> Status: `scripts/load_test.sh` written (mints an HS256 access JWT from `BUDGETLY_JWT_SECRET`, fires `--messages`/≤`--batch`=500 bulks with `--concurrency` workers, polls `/actuator/prometheus` for `budgetly_message_processing_{started,success,failed}_total` + the WORK-301 lag gauge, prints per-`--poll` rows + totals). Verified `bash -n`; `/messages/bulk` confirmed to return `202 ACCEPTED`, matching the script's accepted-count logic. **Not yet executed** — a faithful run needs the compose stack up (Mongo rs0 + API) plus a seeded sender pattern (so anchor matching needs no LLM key) and the load user added to the family. When run, record numbers here.
+
+**Files (new):** `scripts/load_test.sh`.
 
 **Task:** Bulk-insert 1k–10k msgs/sec against the compose stack, measure consumer lag, verify `PROCESSED` completion rate and the resume-token restart path (kill consumer mid-stream).
 
@@ -195,7 +201,9 @@ Legend: 🔴 P0 correctness/arch · 🟡 P1 testing/CI · 🟢 P2 product wiring
 
 ---
 
-## ⚪ WORK-303 — Update planning docs to match reality
+## ⚪ WORK-303 — Update planning docs to match reality ✅ DONE
+
+> Status: completed 2026-11-14. `plans/token_template_sms_parsing.md` rewritten to describe the shipped literal-anchor algorithm (no regex), with the abandoned `TemplateRegexService` decision + rationale (§4) and parity-test references. `plans/bulk_insert_change_stream_plan.md` gained a "Status (2026-11-14)" overlay marking milestones 0–7 (incl. partials), the source-discriminator + anchor-fast-path divergences, and open risks → WORK links. `doc/adr/0003-bulk-insert-change-stream.md` gained a "Follow-up" section closing the app-on-bulk-path and duplicate-processing open items.
 
 **Files:** `plans/token_template_sms_parsing.md` (still describes `TemplateRegexService` + regex generation; implementation stores templates and uses literal anchor parsing — update), `plans/bulk_insert_change_stream_plan.md` (mark completed items, note WORK-001/002 gaps), `doc/adr/0003-bulk-insert-change-stream.md` (add open item: app not yet on bulk path + duplicate-processing race).
 
@@ -212,8 +220,10 @@ Legend: 🔴 P0 correctness/arch · 🟡 P1 testing/CI · 🟢 P2 product wiring
 3. **WORK-001 + WORK-102** ✅ — done (source discriminator + app bulk path; loading split into ≤500 batches).
 4. **WORK-002** ✅ then **WORK-003** ✅ — done (server anchor fast-path + TransactionDateParser).
 5. **WORK-104** ✅ — done (backend job + real flutter test gate in CI).
-6. **WORK-202/203/301/302/303** — remaining polish track:
-   - WORK-303 (docs) is doable without infra; WORK-301 (prometheus exposure + lag metric) needs a small backend change + tests; WORK-203 (consent UX) is app-side UI; WORK-202/302 need a device / compose stack.
+6. **WORK-202/203/301/302/303** — polish track:
+   - **WORK-301 ✅** (lag gauge), **WORK-303 ✅** (docs), **WORK-203 ✅** (consent/background UX, own tests).
+   - **WORK-302 🔶** (load test script written; not yet run — needs the Docker compose stack + real Mongo, numbers to be recorded when run).
+   - **WORK-202** still requires a device/emulator (trace pending/unprocessed buckets end-to-end against live endpoints).
 
 ---
 

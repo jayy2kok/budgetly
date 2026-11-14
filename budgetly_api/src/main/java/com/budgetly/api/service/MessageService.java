@@ -160,15 +160,22 @@ public class MessageService {
         }
 
         List<MessageDocument> docs = request.getMessages().stream()
-                .map(req -> MessageDocument.builder()
-                        .userId(userId)
-                        .familyGroupId(request.getFamilyGroupId())
-                        .sender(req.getSender())
-                        .rawText(req.getRawText())
-                        .status(MessageDocument.STATUS_PENDING)
-                        .parseSource("LLM_SERVER")
-                        .source(MessageDocument.SOURCE_BULK)
-                        .build())
+                .map(req -> {
+                    MessageDocument.MessageDocumentBuilder b = MessageDocument.builder()
+                            .userId(userId)
+                            .familyGroupId(request.getFamilyGroupId())
+                            .sender(req.getSender())
+                            .rawText(req.getRawText())
+                            .status(MessageDocument.STATUS_PENDING)
+                            .parseSource("LLM_SERVER")
+                            .source(MessageDocument.SOURCE_BULK);
+                    // Preserve the real SMS timestamp so transactions get the
+                    // correct date; the builder default (now) applies if omitted.
+                    if (req.getReceivedAt() != null) {
+                        b.receivedAt(req.getReceivedAt().toInstant());
+                    }
+                    return b.build();
+                })
                 .collect(Collectors.toList());
 
         List<MessageDocument> savedDocs = messageRepository.saveAll(docs);
@@ -225,11 +232,14 @@ public class MessageService {
         req.setType(TransactionType.fromValue(
                 "INCOME".equals(llmResult.getTransactionType()) ? "INCOME" : "EXPENSE"));
         // WORK-003: honor the SMS timestamp returned by the LLM so backfilled
-        // messages get their actual date instead of "now".
+        // messages get their actual date instead of "now". The body timestamp
+        // has no offset; treat it as Indian local time (Asia/Kolkata).
         req.setTransactionDate(transactionDateParser
-                .parseOrDefault(llmResult.getRawTimestamp(), Instant.now())
+                .parseOrDefault(null, llmResult.getRawTimestamp(), java.time.ZoneId.of("Asia/Kolkata"))
                 .atOffset(ZoneOffset.UTC));
-        req.setCurrency("INR");
+        String llmCurrency = llmResult.getCurrency();
+        req.setCurrency(llmCurrency != null && !llmCurrency.isBlank()
+                ? llmCurrency.toUpperCase(java.util.Locale.ROOT) : "INR");
         return req;
     }
 

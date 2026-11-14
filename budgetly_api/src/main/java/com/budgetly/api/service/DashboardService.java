@@ -1,6 +1,7 @@
 package com.budgetly.api.service;
 
 import com.budgetly.api.document.CategoryDocument;
+import com.budgetly.api.document.FamilyGroupDocument;
 import com.budgetly.api.document.TransactionDocument;
 import com.budgetly.api.exception.ForbiddenException;
 import com.budgetly.api.generated.model.*;
@@ -23,6 +24,8 @@ public class DashboardService {
     private final CategoryRepository categoryRepository;
     private final FamilyMemberRepository familyMemberRepository;
     private final MessageRepository messageRepository;
+    private final FamilyGroupRepository familyGroupRepository;
+    private final CurrencyConversionService currencyConversionService;
 
     public DashboardData getDashboard(String userId, String familyId, String month) {
         requireMember(userId, familyId);
@@ -34,12 +37,13 @@ public class DashboardService {
         List<TransactionDocument> allTx = transactionRepository.findByFamilyGroupIdAndDateRangeList(familyId, start, end);
         double totalSpent = allTx.stream()
                 .filter(t -> "EXPENSE".equals(t.getType()) || "SUBSCRIPTION".equals(t.getType()))
-                .mapToDouble(TransactionDocument::getAmount)
+                .mapToDouble(t -> currencyConversionService.convertToInr(t.getAmount(), t.getCurrency()))
                 .sum();
 
-        // Get family budget limit from family group (default 50000)
-        double monthlyBudgetLimit = 50000.0;
-        // Try to get from DB... for now use default
+        // Family budget limit comes from the family group; 0 means none was set.
+        double monthlyBudgetLimit = familyGroupRepository.findById(familyId)
+                .map(FamilyGroupDocument::getMonthlyBudgetLimit)
+                .orElse(0.0);
         double leftToSpend = Math.max(0, monthlyBudgetLimit - totalSpent);
 
         int daysInMonth = start.atZone(java.time.ZoneOffset.UTC).toLocalDate().lengthOfMonth();
@@ -117,7 +121,9 @@ public class DashboardService {
 
         BudgetSummary summary = new BudgetSummary();
         summary.setMonth(month);
-        summary.setOverallLimit(50000.0);
+        summary.setOverallLimit(familyGroupRepository.findById(familyId)
+                .map(FamilyGroupDocument::getMonthlyBudgetLimit)
+                .orElse(0.0));
         summary.setOverallSpent(overallSpent);
         summary.setCategoryBreakdowns(breakdowns);
         return summary;

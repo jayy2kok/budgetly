@@ -54,7 +54,7 @@ class SmsConsentDialog extends ConsumerWidget {
               if (context.mounted) {
                 Navigator.of(context).pop();
                 if (granted) {
-                  ref.read(smsProvider.notifier).syncInboxMessages();
+                  ref.read(smsProvider.notifier).triggerBackgroundSync();
                 }
               }
             },

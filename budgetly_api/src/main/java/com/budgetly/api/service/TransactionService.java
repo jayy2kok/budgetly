@@ -141,6 +141,37 @@ public class TransactionService {
 
     // ── Helpers ──────────────────────────────────────────────────
 
+    private static final java.util.regex.Pattern NON_ALPHA = java.util.regex.Pattern.compile("[^A-Za-z]");
+
+    /**
+     * Normalises a raw currency hint (e.g. "Rs.", "₹", "USD") to an ISO-4217
+     * code, or {@code null} when the text carries no recognisable currency.
+     * Used by the anchor fast-path, whose SMS bodies include the amount text.
+     */
+    public static String currencyFromText(String text) {
+        if (text == null || text.isBlank()) {
+            return null;
+        }
+        String up = text.toUpperCase(java.util.Locale.ROOT);
+        if (up.contains("RS.") || up.contains("RS ") || up.contains("INR") || up.contains("₹")) {
+            return "INR";
+        }
+        if (up.contains("USD") || up.contains("$")) {
+            return "USD";
+        }
+        if (up.contains("EUR") || up.contains("€")) {
+            return "EUR";
+        }
+        if (up.contains("GBP") || up.contains("£")) {
+            return "GBP";
+        }
+        String letters = NON_ALPHA.matcher(up).replaceAll("");
+        if (letters.matches("[A-Z]{3}")) {
+            return letters;
+        }
+        return null;
+    }
+
     private void requireMember(String userId, String familyId) {
         if (!familyMemberRepository.existsByUserIdAndFamilyGroupId(userId, familyId)) {
             throw new ForbiddenException("Not a member of this family");

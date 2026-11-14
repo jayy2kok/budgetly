@@ -569,7 +569,7 @@ class _FeedTile extends StatelessWidget {
               TextSpan(
                 children: [
                   TextSpan(
-                    text: '₹',
+                    text: transaction.currencySymbol,
                     style: GoogleFonts.inter(
                       fontSize: 15,
                       fontWeight: FontWeight.w400,

@@ -3,6 +3,7 @@ package com.budgetly.api.service;
 import com.budgetly.api.document.MessageDocument;
 import com.budgetly.api.llm.LlmAnalysisResult;
 import com.budgetly.api.llm.LlmProvider;
+import com.budgetly.api.generated.model.BulkMessageItem;
 import com.budgetly.api.generated.model.BulkMessageRequest;
 import com.budgetly.api.generated.model.BulkMessageResponse;
 import com.budgetly.api.generated.model.ProcessMessageRequest;
@@ -96,6 +97,26 @@ class MessageServiceTest {
     }
 
     @Test
+    void bulkInsertCarriesReceivedAtThrough() {
+        when(messageRepository.saveAll(anyIterable()))
+                .thenAnswer(inv -> inv.getArgument(0, List.class));
+
+        BulkMessageRequest req = new BulkMessageRequest();
+        req.setFamilyGroupId("fam-1");
+        BulkMessageItem item = msg("HDFCBK", "Spent Rs 500 at Grocery Mart");
+        item.setReceivedAt(java.time.OffsetDateTime.parse("2026-10-18T09:30:00+05:30"));
+        req.setMessages(List.of(item));
+
+        service.bulkInsertMessages("u1", req).join();
+
+        ArgumentCaptor<List<MessageDocument>> captor = ArgumentCaptor.forClass(List.class);
+        verify(messageRepository).saveAll(captor.capture());
+        MessageDocument doc = captor.getValue().get(0);
+        // The SMS's real timestamp must be preserved (not the server's receipt time).
+        assertThat(doc.getReceivedAt()).isEqualTo(java.time.Instant.parse("2026-10-18T04:00:00Z"));
+    }
+
+    @Test
     void bulkInsertValidatesEmptyAndOversizedBatches() {
         BulkMessageRequest empty = new BulkMessageRequest();
         empty.setFamilyGroupId("fam-1");
@@ -147,11 +168,10 @@ class MessageServiceTest {
                 .receivedAt(in.getReceivedAt()).createdAt(in.getCreatedAt()).build();
     }
 
-    private ProcessMessageRequest msg(String sender, String rawText) {
-        ProcessMessageRequest r = new ProcessMessageRequest();
+    private BulkMessageItem msg(String sender, String rawText) {
+        BulkMessageItem r = new BulkMessageItem();
         r.setSender(sender);
         r.setRawText(rawText);
-        r.setFamilyGroupId("fam-1");
         return r;
     }
 }

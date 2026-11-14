@@ -36,6 +36,35 @@ class FamilyGroupE2ETest extends BaseE2ETest {
                 .body("id", notNullValue());
     }
 
+    // ── Get My Family (auto-create on first login) ──────────────
+
+    @Test
+    void getMyFamily_firstLogin_autoCreatesFamilyWithNoBudget() {
+        UserDocument user = seedUser("g-fam-fresh", "Fresh User", "fresh@family.com");
+
+        // First login with no family auto-creates one — and it must NOT
+        // receive a default budget (regression: it used to be 50000).
+        String familyId = givenAuth(user.getId())
+                .get("/families/my")
+                .then()
+                .statusCode(200)
+                .body("monthlyBudgetLimit", equalTo(0.0F))
+                .extract().path("id");
+
+        // Dashboard and budget summary must reflect the stored budget.
+        givenAuth(user.getId())
+                .get("/families/" + familyId + "/dashboard")
+                .then()
+                .statusCode(200)
+                .body("monthlyBudgetLimit", equalTo(0.0F));
+
+        givenAuth(user.getId())
+                .get("/families/" + familyId + "/budget/summary")
+                .then()
+                .statusCode(200)
+                .body("overallLimit", equalTo(0.0F));
+    }
+
     // ── Get Family ──────────────────────────────────────────────
 
     @Test

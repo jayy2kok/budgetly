@@ -50,7 +50,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             builder: (ctx) => const SmsConsentDialog(),
           );
         } else if (smsState.smsPermissionGranted) {
-          ref.read(smsProvider.notifier).syncInboxMessages();
+          // Background auto-sync: honours the toggle + debounce (WORK-203).
+          ref.read(smsProvider.notifier).triggerBackgroundSync();
         }
       });
     });
@@ -747,7 +748,7 @@ class _ActivityTile extends StatelessWidget {
               TextSpan(
                 children: [
                   TextSpan(
-                    text: '₹',
+                    text: transaction.currencySymbol,
                     style: GoogleFonts.inter(
                       fontSize: 15,
                       fontWeight: FontWeight.w400,

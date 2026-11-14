@@ -9,10 +9,41 @@ This design decouples request latency from heavy LLM processing and eliminates t
 
 ---
 
+## Status (2026-11-14)
+
+The pipeline is **implemented and verified** (backend `mvn test` 90/90 green, embedded Mongo):
+
+- ✅ **Milestone 0** – Mongo replica set: Docker Compose runs Mongo with a replica set for change streams.
+- ✅ **Milestone 1** – Data model: `MessageDocument.status` + `messageId`, `parseSource`, `parsedTransactionData`, `processedAt`, `source`.
+- ✅ **Milestone 2** – Bulk insert API `POST /messages/bulk` (≤`maxBatchSize=500`, `202 ACCEPTED`, returns `acceptedCount`) + client `bulkInsertMessages` (WORK-102).
+- ✅ **Milestone 3** – `MessageChangeStreamListener`: change-stream filter `insert AND status=PENDING AND source=BULK`; atomic claim PENDING→IN_PROGRESS; **anchor fast-path before the LLM** (WORK-002); PROCESSED/FAILED terminal transitions; graceful shutdown.
+- ✅ **Milestone 4** – Resume-token persistence in `change_stream_tokens` (persisted iff supplied; used on restart).
+- ✅ **Milestone 5 (partial)** – Metrics `budgetly.message.processing.{started,success,failed}` + `budgetly.message.pattern.cache-hit` and `MessageProcessorHealthIndicator` exist. *Remaining:* `/actuator/prometheus` exposure + change-stream **lag** metric → WORK-301.
+- ✅ **Milestone 6 (partial)** – Unit tests (state transitions, metrics, fast-path, source filter) + e2e. *Remaining:* restart resume-token IT against live Mongo, load test 1k–10k/s, chaos kill → WORK-302.
+- ✅ **Milestone 7** – ADR-0003 updated + inline docs.
+
+### Key divergences from the original plan (all deliberate)
+- **Duplicate processing is NOT accepted-for-now** — WORK-001 added a `source` discriminator:
+  `POST /messages/bulk` stamps `source=BULK`, the legacy synchronous `POST /messages/process`
+  stamps `source=DIRECT` and processes inline; the listener's filter + `isEligibleForStream()`
+  only claim `BULK+PENDING`, so the two paths can never process the same document.
+- **Pattern registry is consulted on the server** (WORK-002) — the listener tries literal-anchor
+  matching against the sender's active templates before invoking the LLM, so known senders are
+  processed with zero LLM calls.
+
+### Open risks → WORK links
+- Restart path (resume-token *used on `start()`*) needs live Mongo → problematic for CI; covered
+  at unit level only → **WORK-302 / WORK-103 note**.
+- Change-stream lag & prometheus scraping not yet exposed → **WORK-301**.
+- CI runs the change-stream **disabled** (test profile), so live-stream behavior is unit-proven,
+  not stream-e2e-proven → **WORK-104** (CI) + **WORK-302** (load).
+
+---
+
 ## Assumptions
 - For development, we will configure a single‑node MongoDB replica set via Docker Compose; in production assume a properly configured replica set with change streams enabled.
 - The existing `Message` repository/model can be extended with a `status` field.
-- Duplicate processing due to multiple consumer instances is accepted for now (to be improved later).
+- ~~Duplicate processing due to multiple consumer instances is accepted for now~~ — **resolved (WORK-001)**: `source` discriminator + atomic `findAndModify` claim make double-processing impossible regardless of instance count.
 - Security context is not needed in the background worker; any required tenant/app identifiers are stored in the message document at insert time.
 - No prototype phase; we go straight to implementation.
 

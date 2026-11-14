@@ -28,7 +28,7 @@ class Transaction {
   final String id;
   final String familyGroupId;
   final String createdByUserId;
-  final String categoryId;
+  final String? categoryId;
   final double amount;
   final String currency;
   final String merchant;
@@ -45,7 +45,7 @@ class Transaction {
     required this.id,
     required this.familyGroupId,
     required this.createdByUserId,
-    required this.categoryId,
+    this.categoryId,
     required this.amount,
     this.currency = 'INR',
     required this.merchant,
@@ -74,4 +74,21 @@ class Transaction {
   bool get isSmsParsed =>
       sourceType == SourceType.regexLocal ||
       sourceType == SourceType.llmServer;
+
+  /// Display symbol for this transaction's [currency] (₹, $, €, £), falling
+  /// back to the ISO code for anything else.
+  String get currencySymbol {
+    switch (currency.toUpperCase()) {
+      case 'INR':
+        return '₹';
+      case 'USD':
+        return '\$';
+      case 'EUR':
+        return '€';
+      case 'GBP':
+        return '£';
+      default:
+        return '$currency ';
+    }
+  }
 }

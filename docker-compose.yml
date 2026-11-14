@@ -10,7 +10,13 @@ services:
       - |
         mkdir -p /data/configdb
         if [ ! -f /data/configdb/keyfile ]; then
-          echo "budgetly-cluster-secret-key-material-for-replica-set" > /data/configdb/keyfile
+          # MongoDB keyfiles must be base64 (no hyphens) — generate one with
+          # openssl when available, else fall back to a fixed valid value.
+          if command -v openssl >/dev/null 2>&1; then
+            openssl rand -base64 756 > /data/configdb/keyfile
+          else
+            echo "ncH0fSROJoL4JtD8xWvwjIn2OKLpd05Xzaap7+/zTU1EP+VENjX5V6ly47JXOqW4" > /data/configdb/keyfile
+          fi
           chmod 400 /data/configdb/keyfile
           chown 999:999 /data/configdb/keyfile
         fi

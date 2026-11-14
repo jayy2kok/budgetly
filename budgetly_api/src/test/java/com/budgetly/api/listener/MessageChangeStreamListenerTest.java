@@ -14,9 +14,12 @@ import com.budgetly.api.service.TransactionService;
 import com.budgetly.api.generated.model.CreateTransactionRequest;
 import com.budgetly.api.generated.model.Transaction;
 import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.Metrics;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.bson.BsonDocument;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -184,6 +187,29 @@ class MessageChangeStreamListenerTest {
     }
 
     @Test
+    void exposesChangeStreamLagAfterSuccessfulProcessing() {
+        // Simulate a message that was bulk-inserted 60s before now and only
+        // now finalized — the lag gauge should report that ~60s wait.
+        Instant createdAt = Instant.now().minusSeconds(60);
+        MessageDocument claimed = pendingDoc();
+        claimed.setCreatedAt(createdAt);
+        claimIngress(claimed);
+        when(llmProvider.analyzeMessage(any(), any()))
+                .thenReturn(LlmAnalysisResult.builder().financial(false).build());
+
+        listener.processEventInternal(pendingDoc(), new BsonDocument());
+
+        verify(messageRepository).save(any());
+
+        Gauge lag = Metrics.globalRegistry
+                .find("budgetly.message.change-stream.lag.milliseconds").gauge();
+        assertThat(lag).isNotNull();
+        assertThat(lag.value()).isBetween(
+                (double) Duration.ofSeconds(30).toMillis(),
+                (double) Duration.ofSeconds(90).toMillis());
+    }
+
+    @Test
     void processedWhenFinancialButTransactionCreationFails() {
         claimIngress(pendingDoc());
         when(llmProvider.analyzeMessage(any(), any()))
@@ -285,8 +311,10 @@ class MessageChangeStreamListenerTest {
         // The LLM must never be reached for a fully-anchored known template.
         verify(llmProvider, never()).analyzeMessage(any(), any());
 
-        // Transaction created from the anchor fields → REGEX_LOCAL, with the
-        // SMS's own timestamp (01/10/2026) honored (WORK-003).
+        // Transaction created from the anchor fields → REGEX_LOCAL. With no
+        // receivedAt, the SMS body's date (01/10/2026) is used; it carries no
+        // offset, so it is interpreted as Indian local time (Asia/Kolkata,
+        // UTC+05:30) → 2026-09-30T18:30:00Z (WORK-003 / timezone fix).
         var txCaptor = ArgumentCaptor.forClass(CreateTransactionRequest.class);
         var sourceCaptor = ArgumentCaptor.forClass(String.class);
         verify(transactionService).createTransactionInternal(
@@ -294,7 +322,8 @@ class MessageChangeStreamListenerTest {
         assertThat(sourceCaptor.getValue()).isEqualTo("REGEX_LOCAL");
         assertThat(txCaptor.getValue().getAmount()).isEqualTo(500.0);
         assertThat(txCaptor.getValue().getTransactionDate().toInstant())
-                .isEqualTo(java.time.LocalDate.of(2026, 10, 1).atStartOfDay().toInstant(java.time.ZoneOffset.UTC));
+                .isEqualTo(java.time.LocalDate.of(2026, 10, 1).atStartOfDay(
+                        java.time.ZoneId.of("Asia/Kolkata")).toInstant());
 
         // Pattern usage bumped through the registry (3 → 4).
         ArgumentCaptor<SmsPatternDocument> patCaptor = ArgumentCaptor.forClass(SmsPatternDocument.class);

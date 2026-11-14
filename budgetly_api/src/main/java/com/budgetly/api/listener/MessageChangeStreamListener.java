@@ -27,11 +27,13 @@ import com.budgetly.api.document.SmsPatternDocument;
 import com.budgetly.api.generated.model.CreateTransactionRequest;
 import com.budgetly.api.generated.model.Transaction;
 import com.budgetly.api.generated.model.TransactionType;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Slf4j
 @Component
@@ -50,6 +52,14 @@ public class MessageChangeStreamListener {
     private final String tokenCollectionName;
 
     private MessageListenerContainer container;
+
+    /**
+     * Change-stream lag in milliseconds = how long a bulk-inserted message
+     * waited before the consumer finalized it (now − message.createdAt,
+     * refreshed on every successful event). Grows while the consumer falls
+     * behind the insert rate and those events are queued unread.
+     */
+    private final AtomicLong changeStreamLagMillis = new AtomicLong();
 
     public boolean isRunning() {
         return container != null && container.isRunning();
@@ -76,6 +86,8 @@ public class MessageChangeStreamListener {
         this.transactionDateParser = transactionDateParser;
         this.collectionName = collectionName;
         this.tokenCollectionName = tokenCollectionName;
+        io.micrometer.core.instrument.Metrics.gauge(
+                "budgetly.message.change-stream.lag.milliseconds", changeStreamLagMillis);
     }
 
     @PostConstruct
@@ -189,7 +201,13 @@ public class MessageChangeStreamListener {
 
             // Log metric: success
             io.micrometer.core.instrument.Metrics.counter("budgetly.message.processing", "status", "success").increment();
-            io.micrometer.core.instrument.Metrics.timer("budgetly.message.processing.latency").record(java.time.Duration.ofMillis(System.currentTimeMillis() - startTime));
+            io.micrometer.core.instrument.Metrics.timer("budgetly.message.processing.latency").record(Duration.ofMillis(System.currentTimeMillis() - startTime));
+
+            // Log metric: change-stream lag (time this message waited to be finalized).
+            Instant createdAt = updatedDoc.getCreatedAt();
+            if (createdAt != null) {
+                changeStreamLagMillis.set(Math.max(0, Duration.between(createdAt, Instant.now()).toMillis()));
+            }
 
         } catch (Exception e) {
             updatedDoc.setStatus(MessageDocument.STATUS_FAILED);
@@ -233,23 +251,30 @@ public class MessageChangeStreamListener {
         final String timestampRaw = fieldOf(parsed, em, "timestamp");
         final String typeRaw = fieldOf(parsed, em, "type");
 
-        if (amount == null || merchant == null || timestampRaw == null) {
+        if (amount == null || merchant == null) {
             // Anchors matched but the pattern cannot extract all mandatory
             // fields for a transaction → treat like the app does: LLM fallback.
-            log.info("Anchor match incomplete for message {} (missing amount/merchant/timestamp) — LLM fallback.", doc.getMessageId());
+            log.info("Anchor match incomplete for message {} (missing amount/merchant) — LLM fallback.", doc.getMessageId());
             return false;
         }
 
-        Instant txDate = transactionDateParser.parseOrDefault(
-                timestampRaw,
-                doc.getReceivedAt() != null ? doc.getReceivedAt() : Instant.now());
+        // Use the SMS's authoritative receivedAt (correct UTC instant); fall back
+        // to the body timestamp only when it is absent.
+        Instant txDate = doc.getReceivedAt() != null
+                ? doc.getReceivedAt()
+                : transactionDateParser
+                        .parse(timestampRaw, java.time.ZoneId.of("Asia/Kolkata"))
+                        .orElse(Instant.now());
+        // Currency lives in the amount text (e.g. "Rs.", "USD"); the pattern
+        // usually omits a dedicated {currency} token.
+        String currency = TransactionService.currencyFromText(doc.getRawText());
 
         CreateTransactionRequest txRequest = new CreateTransactionRequest();
         txRequest.setAmount(amount);
         txRequest.setMerchant(merchant);
         txRequest.setType("INCOME".equalsIgnoreCase(typeRaw) ? TransactionType.INCOME : TransactionType.EXPENSE);
         txRequest.setTransactionDate(txDate.atOffset(ZoneOffset.UTC));
-        txRequest.setCurrency("INR");
+        txRequest.setCurrency(currency != null ? currency : "INR");
 
         matched.setUsageCount(matched.getUsageCount() + 1);
         matched = patternRegistryService.savePattern(matched);
@@ -309,10 +334,10 @@ public class MessageChangeStreamListener {
         txRequest.setMerchant(llmResult.getMerchant() != null ? llmResult.getMerchant() : "Unknown");
         txRequest.setType("INCOME".equals(llmResult.getTransactionType()) ? TransactionType.INCOME : TransactionType.EXPENSE);
         txRequest.setTransactionDate(transactionDateParser
-                .parseOrDefault(llmResult.getRawTimestamp(),
-                        doc.getReceivedAt() != null ? doc.getReceivedAt() : Instant.now())
+                .parseOrDefault(doc.getReceivedAt(), llmResult.getRawTimestamp(), java.time.ZoneId.of("Asia/Kolkata"))
                 .atOffset(ZoneOffset.UTC));
-        txRequest.setCurrency("INR");
+        String llmCurrency = llmResult.getCurrency();
+        txRequest.setCurrency(llmCurrency != null && !llmCurrency.isBlank() ? llmCurrency.toUpperCase(java.util.Locale.ROOT) : "INR");
 
         SmsPatternDocument savedPattern = null;
         String template = llmResult.getTemplate();

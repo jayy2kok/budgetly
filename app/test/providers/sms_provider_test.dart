@@ -44,7 +44,7 @@ class RecordingMessageService implements MessageService {
   Map<String, dynamic> processResponse = {};
 
   /// Bulk submissions, each recorded as
-  /// `{'familyGroupId': String, 'messages': [{'sender', 'rawText'}, ...]}`.
+  /// `{'familyGroupId': String, 'messages': [{'sender', 'rawText', 'receivedAt'}, ...]}`.
   final List<Map<String, dynamic>> bulkCalls = [];
 
   @override
@@ -330,7 +330,11 @@ void main() {
       final call = messageService.bulkCalls.single;
       expect(call['familyGroupId'], 'fam-1');
       expect(call['messages'], [
-        {'sender': 'HDFCBK', 'rawText': 'Spent Rs 500 (bill on its way)'},
+        {
+          'sender': 'HDFCBK',
+          'rawText': 'Spent Rs 500 (bill on its way)',
+          'receivedAt': now.toIso8601String(),
+        },
       ]);
       expect(transactions.addCalls, isEmpty);
       // A submitted batch triggers one pattern refresh for the next sync.
@@ -360,6 +364,7 @@ void main() {
         {
           'sender': 'SBIUPI',
           'rawText': 'Rs.750 debited from a/c 4321 for Swiggy.',
+          'receivedAt': now.toIso8601String(),
         },
       ]);
       expect(transactions.addCalls, isEmpty);
@@ -479,6 +484,66 @@ void main() {
       final fakeMsg =
           container.read(messageProvider.notifier) as FakeMessageNotifier;
       expect(fakeMsg.loadCalls, 1);
+    });
+  });
+
+  group('syncInboxMessages — background sync toggle (WORK-203)', () {
+    test('toggle persists the preference and is restored on next launch',
+        () async {
+      // Default is enabled.
+      await settleInit();
+      expect(container.read(smsProvider).backgroundServiceEnabled, isTrue);
+
+      await container.read(smsProvider.notifier).toggleBackgroundService();
+      expect(container.read(smsProvider).backgroundServiceEnabled, isFalse);
+
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getBool('background_sms_service_enabled'), isFalse);
+
+      // A fresh container (same persisted prefs) restores the off state.
+      final restarted = buildContainer(
+        reader: reader,
+        messageService: messageService,
+        transactions: transactions,
+        cache: cache,
+        user: kUser(),
+        family: kFamily(),
+      );
+      addTearDown(restarted.dispose);
+      await settleInitFor(restarted);
+      expect(restarted.read(smsProvider).backgroundServiceEnabled, isFalse);
+    });
+
+    test('background sync is skipped while the toggle is off', () async {
+      await settleInit();
+      await container.read(smsProvider.notifier).toggleBackgroundService();
+
+      await container.read(smsProvider.notifier).triggerBackgroundSync();
+
+      // Toggle-gated: no inbox read, no bulk submission.
+      expect(reader.readCalls, 0);
+      expect(messageService.bulkCalls, isEmpty);
+    });
+
+    test('background sync is debounced to one run per 30s', () async {
+      await settleInit();
+      reader.canned = [
+        smsMsg(
+          id: 20,
+          sender: 'SBIUPI',
+          body: 'Rs.750 debited from a/c 4321.',
+          at: now,
+        ),
+      ];
+
+      final notifier = container.read(smsProvider.notifier);
+      await notifier.triggerBackgroundSync();
+      await notifier.triggerBackgroundSync();
+      await notifier.triggerBackgroundSync();
+
+      // First call ran the sync; the next two were debounced.
+      expect(reader.readCalls, 1);
+      expect(messageService.bulkCalls, hasLength(1));
     });
   });
 }

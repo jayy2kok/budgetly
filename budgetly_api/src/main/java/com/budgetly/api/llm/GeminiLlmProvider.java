@@ -36,7 +36,7 @@ public class GeminiLlmProvider implements LlmProvider {
             You are a financial SMS parser for Indian bank messages. Given an SMS from bank sender "%s":
             
             1. Determine if this SMS is a FINANCIAL transaction (debit/credit bank transaction).
-            2. If financial, extract: amount (number only), merchant/payee name, transaction type (EXPENSE for debit, INCOME for credit), raw timestamp string.
+            2. If financial, extract: amount (number only), merchant/payee name, transaction type (EXPENSE for debit, INCOME for credit), raw timestamp string, currency (ISO-4217 code such as INR, USD, EUR, GBP; default to INR when the SMS is an Indian-rupee transaction or the code is not explicit).
             3. Create a template string from the raw SMS by replacing variable parts with token placeholders in curly braces:
                - Rules:
                  * Use tokens: {amount}, {merchant}, {timestamp}, and optionally {accountLast4}.
@@ -48,6 +48,7 @@ public class GeminiLlmProvider implements LlmProvider {
                - merchant: string (null if not financial)
                - transactionType: "EXPENSE" or "INCOME" (null if not financial)
                - rawTimestamp: string (null if not financial)
+               - currency: string (ISO-4217 code, e.g. "INR" or "USD"; null if not financial)
                - notes: string (brief explanation)
                - template: string (the SMS text with {} token placeholders, null if not financial)
                - extractionMap: object mapping token name to target field {"amount": "amount", "merchant": "merchant", "timestamp": "timestamp"}

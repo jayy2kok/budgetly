@@ -980,7 +980,6 @@ components:
         monthlyBudgetLimit:
           type: number
           format: double
-          default: 50000
 
     UpdateFamilyRequest:
       type: object
@@ -1299,7 +1298,22 @@ components:
         messages:
           type: array
           items:
-            $ref: "#/components/schemas/ProcessMessageRequest"
+            $ref: "#/components/schemas/BulkMessageItem"
+
+    BulkMessageItem:
+      type: object
+      required: [sender, rawText]
+      properties:
+        sender:
+          type: string
+          description: SMS sender ID (e.g. "HDFCBK", "SBIUPI")
+        rawText:
+          type: string
+          description: Full raw SMS text
+        receivedAt:
+          type: string
+          format: date-time
+          description: Actual SMS received timestamp (with offset). Falls back to server receipt time if omitted.
 
     BulkMessageResponse:
       type: object

@@ -88,7 +88,7 @@ class TransactionDetailScreen extends ConsumerWidget {
                     TextSpan(
                       children: [
                         TextSpan(
-                          text: '₹',
+                          text: txn.currencySymbol,
                           style: GoogleFonts.jetBrainsMono(
                             fontSize: 40,
                             fontWeight: FontWeight.w400,
@@ -248,7 +248,7 @@ class TransactionDetailScreen extends ConsumerWidget {
     );
   }
 
-  String _categoryName(String id) {
+  String _categoryName(String? id) {
     if (id == 'uncategorized') return 'Uncategorized';
     const labels = {
       'cat_001': 'Groceries',

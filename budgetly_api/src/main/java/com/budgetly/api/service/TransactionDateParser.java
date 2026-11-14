@@ -40,10 +40,30 @@ public class TransactionDateParser {
     );
 
     /**
-     * @return the parsed instant, or {@link Optional#empty()} when the value is
-     *         null/blank or not in a supported format.
+     * Parse a zoned message timestamp. Uses the authoritative {@code receivedAt}
+     * (always a UTC instant) when present; otherwise falls back to the SMS-body
+     * timestamp string, which is assumed to be in {@code defaultZone} because it
+     * carries no offset (Indian bank SMS report local wall-clock time). Either
+     * way the result is a correct absolute instant — never "now" unless nothing
+     * is available.
      */
-    public java.util.Optional<Instant> parse(String rawTimestamp) {
+    public Instant parseOrDefault(Instant receivedAt, String rawTimestamp,
+                                  java.time.ZoneId defaultZone) {
+        if (receivedAt != null) {
+            return receivedAt;
+        }
+        if (rawTimestamp == null || rawTimestamp.isBlank()) {
+            return Instant.now();
+        }
+        return parse(rawTimestamp, defaultZone).orElse(Instant.now());
+    }
+
+    /**
+     * @return the parsed instant, or {@link Optional#empty()} when the value is
+     *         null/blank or not in a supported format. Zone-less date-times are
+     *         resolved against {@code defaultZone}.
+     */
+    public java.util.Optional<Instant> parse(String rawTimestamp, java.time.ZoneId defaultZone) {
         if (rawTimestamp == null || rawTimestamp.isBlank()) {
             return java.util.Optional.empty();
         }
@@ -59,23 +79,33 @@ public class TransactionDateParser {
         } catch (DateTimeParseException ignored) {
         }
 
-        // Date + time, no zone → UTC.
+        // Date + time, no zone → defaultZone.
         for (DateTimeFormatter f : DATE_TIME_FORMATS) {
             try {
                 return java.util.Optional.of(
-                        LocalDateTime.parse(t, f).toInstant(ZoneOffset.UTC));
+                        LocalDateTime.parse(t, f).atZone(defaultZone).toInstant());
             } catch (DateTimeParseException ignored) {
             }
         }
 
-        // Date only → start of day UTC.
+        // Date only → start of day in defaultZone.
         for (DateTimeFormatter f : DATE_FORMATS) {
             try {
-                return java.util.Optional.of(LocalDate.parse(t, f).atStartOfDay().toInstant(ZoneOffset.UTC));
+                return java.util.Optional.of(
+                        LocalDate.parse(t, f).atStartOfDay(defaultZone).toInstant());
             } catch (DateTimeParseException ignored) {
             }
         }
         return java.util.Optional.empty();
+    }
+
+    /**
+     * @return the parsed instant, or {@link Optional#empty()} when the value is
+     *         null/blank or not in a supported format. Zone-less values are
+     *         treated as UTC.
+     */
+    public java.util.Optional<Instant> parse(String rawTimestamp) {
+        return parse(rawTimestamp, ZoneOffset.UTC);
     }
 
     /**

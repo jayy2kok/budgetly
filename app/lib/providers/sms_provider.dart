@@ -82,6 +82,15 @@ class SmsNotifier extends Notifier<SmsState> {
   late final PatternCacheService _cache;
   late final SmsInboxReader _reader;
 
+  /// Minimum gap between automatic (background) inbox syncs. Manual syncs and
+  /// the consent-granted sync are not debounced.
+  static const Duration backgroundSyncMinInterval = Duration(seconds: 30);
+
+  /// Key under which the background-service toggle is persisted.
+  static const String backgroundServicePrefsKey = 'background_sms_service_enabled';
+
+  DateTime? _lastBackgroundSyncAt;
+
   @override
   SmsState build() {
     _cache = ref.watch(patternCacheServiceProvider);
@@ -99,6 +108,8 @@ class SmsNotifier extends Notifier<SmsState> {
     final prefs = await SharedPreferences.getInstance();
     final prompted = prefs.getBool('sms_consent_prompted') ?? false;
     final lastTimestamp = prefs.getInt('last_processed_sms_timestamp');
+    final backgroundEnabled =
+        prefs.getBool(backgroundServicePrefsKey) ?? true;
 
     state = state.copyWith(
       smsPermissionGranted: status.isGranted,
@@ -107,6 +118,7 @@ class SmsNotifier extends Notifier<SmsState> {
       lastSyncTime: _cache.lastSyncTime,
       hasPromptedForConsent: prompted,
       lastProcessedSmsTimestamp: lastTimestamp,
+      backgroundServiceEnabled: backgroundEnabled,
     );
   }
 
@@ -117,11 +129,31 @@ class SmsNotifier extends Notifier<SmsState> {
   }
 
 
-  /// Toggle background SMS service.
-  void toggleBackgroundService() {
+  /// Toggle background SMS service (persisted across launches).
+  Future<void> toggleBackgroundService() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(
+        backgroundServicePrefsKey, !state.backgroundServiceEnabled);
     state = state.copyWith(
       backgroundServiceEnabled: !state.backgroundServiceEnabled,
     );
+  }
+
+  /// Background-triggered inbox sync, safe to call from launch/return-to-app
+  /// flows. Respects the toggle, debounces to [backgroundSyncMinInterval],
+  /// and skips entirely when SMS permission is not granted. On-demand syncs
+  /// should call [syncInboxMessages] directly (no debounce, no toggle gate).
+  Future<void> triggerBackgroundSync() async {
+    if (!state.smsPermissionGranted || !state.backgroundServiceEnabled) return;
+
+    final last = _lastBackgroundSyncAt;
+    if (last != null &&
+        DateTime.now().difference(last) < backgroundSyncMinInterval) {
+      debugPrint('[SmsSync] Background sync skipped (debounced).');
+      return;
+    }
+    _lastBackgroundSyncAt = DateTime.now();
+    await syncInboxMessages();
   }
 
   /// Request SMS permission from the OS.
@@ -241,8 +273,11 @@ class SmsNotifier extends Notifier<SmsState> {
           final txData = {
             'amount': double.parse(msg.extractedData!['amount']!),
             'merchantName': msg.extractedData!['merchant'],
-            'transactionDate': msg.extractedData!['timestamp'] ??
-                msg.receivedAt.toIso8601String(),
+            // Prefer the SMS's authoritative receivedAt (a correct absolute
+            // instant). The extracted timestamp is only a fallback: it carries
+            // no offset and would be misread, and the backend rejects its
+            // non-ISO date formats (e.g. "14-11-2026 19:32:24").
+            'transactionDate': msg.receivedAt.toUtc().toIso8601String(),
             'type': msg.extractedData!['type']?.toUpperCase() ?? 'EXPENSE',
             'description': 'Auto-parsed from SMS',
           };
@@ -268,7 +303,11 @@ class SmsNotifier extends Notifier<SmsState> {
               familyGroupId: familyId,
               messages: [
                 for (final m in batch)
-                  {'sender': m.sender, 'rawText': m.rawText},
+                  {
+                    'sender': m.sender,
+                    'rawText': m.rawText,
+                    'receivedAt': m.receivedAt.toUtc().toIso8601String(),
+                  },
               ],
             );
 

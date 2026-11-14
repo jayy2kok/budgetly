@@ -82,8 +82,7 @@ public class MessageDocument {
     @Builder.Default
     private Instant createdAt = Instant.now();
 
-    @Builder.Default
-    private Instant receivedAt = Instant.now();
+    private Instant receivedAt;
 
     private Instant processingStartedAt;
 

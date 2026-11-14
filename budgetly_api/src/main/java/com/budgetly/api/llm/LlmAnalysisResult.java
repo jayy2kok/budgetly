@@ -17,6 +17,7 @@ public class LlmAnalysisResult {
     private Double amount;
     private String transactionType;  // EXPENSE | INCOME
     private String rawTimestamp;
+    private String currency;         // ISO-4217 code, e.g. INR, USD (defaults to INR when absent)
     private String notes;
 
     private Map<String, String> extractionMap;  // group → field

@@ -44,7 +44,12 @@ class RemoteMessageService implements MessageService {
       data: {
         'familyGroupId': familyGroupId,
         'messages': [
-          for (final m in messages) {'sender': m['sender'], 'rawText': m['rawText']},
+          for (final m in messages)
+            {
+              'sender': m['sender'],
+              'rawText': m['rawText'],
+              if (m['receivedAt'] != null) 'receivedAt': m['receivedAt'],
+            },
         ],
       },
     );
