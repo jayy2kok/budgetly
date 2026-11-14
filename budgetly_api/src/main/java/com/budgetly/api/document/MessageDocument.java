@@ -34,6 +34,16 @@ public class MessageDocument {
     public static final String STATUS_REJECTED = "REJECTED";
     public static final String STATUS_IGNORED = "IGNORED";
 
+    /**
+     * Ingestion sources. The change-stream listener only claims PENDING docs
+     * created via {@code SOURCE_BULK}; docs from the legacy {@code /messages/process}
+     * endpoint ({@code SOURCE_DIRECT}) are processed synchronously by that
+     * endpoint itself so the listener must never touch them (duplicate LLM /
+     * transaction race, see WORK-001).
+     */
+    public static final String SOURCE_BULK = "BULK";
+    public static final String SOURCE_DIRECT = "DIRECT";
+
     @Id
     private String id;
 
@@ -49,6 +59,10 @@ public class MessageDocument {
 
     private String sender;
     private String rawText;
+
+    @Indexed
+    @Builder.Default
+    private String source = SOURCE_DIRECT;  // BULK | DIRECT — listener claims BULK only
 
     @Indexed
     @Builder.Default

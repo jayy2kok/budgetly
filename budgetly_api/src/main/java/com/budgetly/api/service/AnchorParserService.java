@@ -31,6 +31,12 @@ public class AnchorParserService {
         }
         literals.add(template.substring(lastEnd));
 
+        // A template without {tokens} cannot extract anything — treat as a
+        // non-match (parity with Dart SmsParserService._parseAnchorTemplate).
+        if (tokens.isEmpty()) {
+            return null;
+        }
+
         Map<String, String> results = new LinkedHashMap<>();
         int currentIndex = 0;
 

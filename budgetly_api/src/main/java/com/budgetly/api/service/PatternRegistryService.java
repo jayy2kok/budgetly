@@ -112,6 +112,12 @@ public class PatternRegistryService {
         return patternRepository.save(doc);
     }
 
+    /** Active templates registered for a sender, in registration order. */
+    public List<SmsPatternDocument> findActiveBySender(String sender) {
+        if (sender == null) return List.of();
+        return patternRepository.findBySenderAndActiveTrue(sender);
+    }
+
     public SmsPattern toDto(SmsPatternDocument doc) {
         SmsPattern dto = new SmsPattern();
         dto.setId(doc.getId());

@@ -42,6 +42,7 @@ public class MessageService {
     private final TransactionService transactionService;
     private final PatternRegistryService patternRegistryService;
     private final LlmProvider llmProvider;
+    private final TransactionDateParser transactionDateParser;
 
     @Async
     public CompletableFuture<ProcessMessageResponse> processMessage(String userId, ProcessMessageRequest request) {
@@ -57,6 +58,7 @@ public class MessageService {
                 .rawText(rawText)
                 .status("PENDING")
                 .parseSource("LLM_SERVER")
+                .source(MessageDocument.SOURCE_DIRECT)
                 .build();
         messageDoc = messageRepository.save(messageDoc);
 
@@ -140,7 +142,9 @@ public class MessageService {
     }
 
     public List<Message> getIgnoredMessages(String userId) {
-        return messageRepository.findByUserIdAndStatus(userId, "IGNORED")
+        // "Ignored" bucket = LLM-classified non-financial (IGNORED) + user-rejected
+        // (REJECTED). The client splits these into nonFinancial / deleted buckets.
+        return messageRepository.findByUserIdAndStatusIn(userId, List.of("IGNORED", "REJECTED"))
                 .stream().map(this::toMessageDto).collect(Collectors.toList());
     }
 
@@ -163,6 +167,7 @@ public class MessageService {
                         .rawText(req.getRawText())
                         .status(MessageDocument.STATUS_PENDING)
                         .parseSource("LLM_SERVER")
+                        .source(MessageDocument.SOURCE_BULK)
                         .build())
                 .collect(Collectors.toList());
 
@@ -219,7 +224,11 @@ public class MessageService {
         req.setMerchant(llmResult.getMerchant() != null ? llmResult.getMerchant() : "Unknown");
         req.setType(TransactionType.fromValue(
                 "INCOME".equals(llmResult.getTransactionType()) ? "INCOME" : "EXPENSE"));
-        req.setTransactionDate(Instant.now().atOffset(ZoneOffset.UTC));
+        // WORK-003: honor the SMS timestamp returned by the LLM so backfilled
+        // messages get their actual date instead of "now".
+        req.setTransactionDate(transactionDateParser
+                .parseOrDefault(llmResult.getRawTimestamp(), Instant.now())
+                .atOffset(ZoneOffset.UTC));
         req.setCurrency("INR");
         return req;
     }
