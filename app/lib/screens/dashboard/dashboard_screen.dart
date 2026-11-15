@@ -61,6 +61,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   Widget build(BuildContext context) {
     final budget = ref.watch(budgetProvider);
     final txnState = ref.watch(transactionProvider);
+    final categories = ref.watch(categoryProvider).categories;
+    final catMap = {for (final c in categories) c.id: c.name};
 
     return Scaffold(
       body: CustomScrollView(
@@ -196,6 +198,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   final txn = txnState.transactions[index];
                   return _ActivityTile(
                     transaction: txn,
+                    categoryName: catMap[txn.categoryId],
                     onTap: () => context.push(
                       '${AppRoutes.transactionDetail}/${txn.id}',
                     ),
@@ -601,9 +604,14 @@ class _MiniStatCard extends StatelessWidget {
 // ─── Activity Tile ───
 class _ActivityTile extends StatelessWidget {
   final Transaction transaction;
+  final String? categoryName;
   final VoidCallback? onTap;
 
-  const _ActivityTile({required this.transaction, this.onTap});
+  const _ActivityTile({
+    required this.transaction,
+    this.categoryName,
+    this.onTap,
+  });
 
   static const _categoryIcons = {
     'cat_001': Icons.shopping_bag,
@@ -625,6 +633,9 @@ class _ActivityTile extends StatelessWidget {
   }
 
   String _categoryLabel(String? categoryId) {
+    if (categoryName != null && categoryName!.isNotEmpty) {
+      return categoryName!;
+    }
     const labels = {
       'cat_001': 'Groceries',
       'cat_002': 'Dining',

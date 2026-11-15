@@ -32,6 +32,7 @@ SmsPattern _$SmsPatternFromJson(Map<String, dynamic> json) => SmsPattern(
     json['extractionMap'] as Map<String, dynamic>,
   ),
   sampleMessage: json['sampleMessage'] as String,
+  categoryName: json['categoryName'] as String?,
   usageCount: (json['usageCount'] as num?)?.toInt() ?? 0,
   createdAt: DateTime.parse(json['createdAt'] as String),
 );
@@ -43,6 +44,7 @@ Map<String, dynamic> _$SmsPatternToJson(SmsPattern instance) =>
       'template': instance.template,
       'extractionMap': instance.extractionMap,
       'sampleMessage': instance.sampleMessage,
+      'categoryName': instance.categoryName,
       'usageCount': instance.usageCount,
       'createdAt': instance.createdAt.toIso8601String(),
     };

@@ -55,4 +55,14 @@ public class PatternRegistryController implements PatternRegistryApi {
     public ResponseEntity<PatternStatsResponse> getPatternStats() {
         return ResponseEntity.ok(patternRegistryService.getStats());
     }
+
+    @PatchMapping("/patterns/{id}/category")
+    public ResponseEntity<SmsPattern> updatePatternCategory(
+            @PathVariable("id") String id,
+            @RequestBody(required = false) Map<String, Object> body) {
+        String categoryName = body != null && body.get("categoryName") != null
+                ? String.valueOf(body.get("categoryName"))
+                : null;
+        return ResponseEntity.ok(patternRegistryService.updatePatternCategory(id, categoryName));
+    }
 }

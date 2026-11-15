@@ -51,6 +51,9 @@ class SmsPattern {
   /// The original SMS that generated this pattern.
   final String sampleMessage;
 
+  /// User-overridden category name (resolved per-family when creating a transaction).
+  final String? categoryName;
+
   /// Global counter of successful matches across all users.
   final int usageCount;
 
@@ -62,6 +65,7 @@ class SmsPattern {
     required this.template,
     required this.extractionMap,
     required this.sampleMessage,
+    this.categoryName,
     this.usageCount = 0,
     required this.createdAt,
   });

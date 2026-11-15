@@ -1,5 +1,7 @@
 package com.budgetly.api.e2e;
 
+import java.util.List;
+
 import com.budgetly.api.llm.LlmAnalysisResult;
 import com.budgetly.api.llm.LlmProvider;
 
@@ -29,7 +31,7 @@ public class TestLlmProvider implements LlmProvider {
     }
 
     @Override
-    public LlmAnalysisResult analyzeMessage(String sender, String rawText) {
+    public LlmAnalysisResult analyzeMessage(String sender, String rawText, List<String> categories) {
         return nextResult;
     }
 }

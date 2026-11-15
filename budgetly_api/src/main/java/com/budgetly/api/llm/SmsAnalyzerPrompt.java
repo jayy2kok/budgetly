@@ -3,6 +3,8 @@ package com.budgetly.api.llm;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.stream.Collectors;
 
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
@@ -26,14 +28,21 @@ public class SmsAnalyzerPrompt {
     }
 
     /**
-     * Renders the shared prompt with the given sender and raw SMS text.
+     * Renders the shared prompt with the given sender, raw SMS text and the
+     * category list the LLM should classify financial messages into.
      *
-     * @param sender  SMS sender ID (e.g. "HDFCBK")
-     * @param rawText full raw SMS text
+     * @param sender     SMS sender ID (e.g. "HDFCBK")
+     * @param rawText    full raw SMS text
+     * @param categories ordered category names the LLM may pick from
      * @return the fully-rendered prompt
      */
-    public String format(String sender, String rawText) {
-        return String.format(template, sender, rawText.replace("\"", "'"));
+    public String format(String sender, String rawText, List<String> categories) {
+        String categoryList = categories == null || categories.isEmpty()
+                ? "uncategorized"
+                : categories.stream()
+                        .filter(c -> c != null && !c.isBlank())
+                        .collect(Collectors.joining(", "));
+        return String.format(template, sender, categoryList, rawText.replace("\"", "'"));
     }
 
     private static String loadPrompt() {

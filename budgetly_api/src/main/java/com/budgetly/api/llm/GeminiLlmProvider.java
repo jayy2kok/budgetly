@@ -35,8 +35,8 @@ public class GeminiLlmProvider implements LlmProvider {
     private final SmsAnalyzerPrompt smsAnalyzerPrompt;
 
     @Override
-    public LlmAnalysisResult analyzeMessage(String sender, String rawText) {
-        String prompt = smsAnalyzerPrompt.format(sender, rawText);
+    public LlmAnalysisResult analyzeMessage(String sender, String rawText, List<String> categories) {
+        String prompt = smsAnalyzerPrompt.format(sender, rawText, categories);
 
         Map<String, Object> requestBody = Map.of(
                 "contents", List.of(

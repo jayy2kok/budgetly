@@ -11,6 +11,7 @@ import '../../providers/transaction_provider.dart';
 import '../../providers/family_provider.dart';
 import '../../providers/category_provider.dart';
 import '../../models/category.dart';
+import '../../widgets/category_icon.dart';
 
 /// Add Expense screen — Amount input, payer, category.
 class AddExpenseScreen extends ConsumerStatefulWidget {
@@ -377,9 +378,12 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                                       : null,
                                 ),
                                 child: Center(
-                                  child: Text(
-                                    cat.icon,
-                                    style: TextStyle(fontSize: 24),
+                                  child: CategoryIcon(
+                                    icon: cat.icon,
+                                    size: 24,
+                                    color: isSelected
+                                        ? Colors.white
+                                        : context.colors.textMain,
                                   ),
                                 ),
                               ),

@@ -10,6 +10,7 @@ import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import com.budgetly.api.document.CategoryDocument;
 import com.budgetly.api.document.MessageDocument;
 import com.budgetly.api.exception.ResourceNotFoundException;
 import com.budgetly.api.generated.model.CreateTransactionRequest;
@@ -43,6 +44,7 @@ public class MessageService {
     private final PatternRegistryService patternRegistryService;
     private final LlmProvider llmProvider;
     private final TransactionDateParser transactionDateParser;
+    private final CategoryResolver categoryResolver;
 
     @Async
     public CompletableFuture<ProcessMessageResponse> processMessage(String userId, ProcessMessageRequest request) {
@@ -62,9 +64,12 @@ public class MessageService {
                 .build();
         messageDoc = messageRepository.save(messageDoc);
 
-        // 2. Invoke LLM
-        LlmAnalysisResult llmResult = llmProvider.analyzeMessage(sender, rawText);
-        log.debug("Async LLM result for sender={}: financial={}, amount={}", sender, llmResult.isFinancial(), llmResult.getAmount());
+        // 2. Invoke LLM with the family's category list (default list when none)
+        List<CategoryDocument> familyCategories = categoryResolver.familyCategories(familyGroupId);
+        List<String> categoryNames = categoryResolver.namesForPrompt(familyCategories);
+        LlmAnalysisResult llmResult = llmProvider.analyzeMessage(sender, rawText, categoryNames);
+        log.debug("Async LLM result for sender={}: financial={}, amount={}, category={}",
+                sender, llmResult.isFinancial(), llmResult.getAmount(), llmResult.getCategory());
 
         ProcessMessageResponse response = new ProcessMessageResponse();
 
@@ -78,6 +83,10 @@ public class MessageService {
         }
 
         CreateTransactionRequest txRequest = buildTransactionRequest(llmResult, familyGroupId);
+        String categoryId = categoryResolver.categoryIdFor(familyCategories, llmResult.getCategory());
+        if (categoryId != null && !categoryId.isBlank()) {
+            txRequest.setCategoryId(categoryId);
+        }
 
         // Save pattern if template was generated
         SmsPatternDocument savedPattern = null;
@@ -118,6 +127,7 @@ public class MessageService {
         if (llmResult.getAmount() != null) parsedDataMap.put("amount", llmResult.getAmount());
         if (llmResult.getMerchant() != null) parsedDataMap.put("merchant", llmResult.getMerchant());
         if (llmResult.getTransactionType() != null) parsedDataMap.put("transactionType", llmResult.getTransactionType());
+        if (llmResult.getCategory() != null && !llmResult.getCategory().isBlank()) parsedDataMap.put("category", llmResult.getCategory());
         messageDoc.setParsedTransactionData(parsedDataMap);
 
         messageDoc = messageRepository.save(messageDoc);
@@ -250,6 +260,14 @@ public class MessageService {
             Map<String, Object> data = msg.getParsedTransactionData();
             if (data.containsKey("amount")) req.setAmount(((Number) data.get("amount")).doubleValue());
             if (data.containsKey("merchant")) req.setMerchant((String) data.get("merchant"));
+            if (data.containsKey("category")) {
+                String categoryId = categoryResolver.categoryIdFor(
+                        categoryResolver.familyCategories(msg.getFamilyGroupId()),
+                        (String) data.get("category"));
+                if (categoryId != null && !categoryId.isBlank()) {
+                    req.setCategoryId(categoryId);
+                }
+            }
         }
         if (req.getAmount() == null) req.setAmount(0.0);
         if (req.getMerchant() == null) req.setMerchant("Unknown");

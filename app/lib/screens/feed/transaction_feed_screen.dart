@@ -6,8 +6,10 @@ import 'package:intl/intl.dart';
 
 import '../../config/theme.dart';
 import '../../config/routes.dart';
-import '../../providers/transaction_provider.dart';
 import '../../models/transaction.dart';
+import '../../providers/category_provider.dart';
+import '../../providers/family_provider.dart';
+import '../../providers/transaction_provider.dart';
 
 /// Transaction Feed — Date-grouped list with filter chips.
 class TransactionFeedScreen extends ConsumerStatefulWidget {
@@ -30,6 +32,10 @@ class _TransactionFeedScreenState extends ConsumerState<TransactionFeedScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(transactionProvider.notifier).loadTransactions();
+      final familyId = ref.read(familyProvider).currentFamily?.id;
+      if (familyId != null) {
+        ref.read(categoryProvider.notifier).loadCategories(familyId);
+      }
     });
   }
 
@@ -145,6 +151,8 @@ class _TransactionFeedScreenState extends ConsumerState<TransactionFeedScreen> {
     List<String> sortedKeys,
     Map<String, List<Transaction>> grouped,
   ) {
+    final categories = ref.watch(categoryProvider).categories;
+    final catMap = {for (final c in categories) c.id: c.name};
     final slivers = <Widget>[];
     for (final dateLabel in sortedKeys) {
       final txns = grouped[dateLabel]!;
@@ -174,6 +182,7 @@ class _TransactionFeedScreenState extends ConsumerState<TransactionFeedScreen> {
               final txn = txns[index];
               return _FeedTile(
                 transaction: txn,
+                categoryName: catMap[txn.categoryId],
                 onTap: () =>
                     context.push('${AppRoutes.transactionDetail}/${txn.id}'),
               );
@@ -425,9 +434,10 @@ class _HeaderIconButton extends StatelessWidget {
 // ─── Feed Transaction Tile ───
 class _FeedTile extends StatelessWidget {
   final Transaction transaction;
+  final String? categoryName;
   final VoidCallback? onTap;
 
-  const _FeedTile({required this.transaction, this.onTap});
+  const _FeedTile({required this.transaction, this.categoryName, this.onTap});
 
   static const _categoryIcons = {
     'cat_001': Icons.shopping_bag,
@@ -462,7 +472,7 @@ class _FeedTile extends StatelessWidget {
     final isIncome = transaction.type == TransactionType.income;
     final icon = _categoryIcons[transaction.categoryId] ?? Icons.receipt;
     final payer = _payerNames[transaction.createdByUserId] ?? 'Unknown';
-    final category = _categoryLabels[transaction.categoryId] ?? 'Other';
+    final category = categoryName ?? _categoryLabels[transaction.categoryId] ?? 'Other';
 
     return GestureDetector(
       onTap: onTap,

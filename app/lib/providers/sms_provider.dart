@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../providers/auth_provider.dart';
+import '../providers/category_provider.dart';
 import '../providers/message_provider.dart';
 import '../services/pattern_cache_service.dart';
 import '../services/sms_inbox_reader.dart';
@@ -270,9 +271,28 @@ class SmsNotifier extends Notifier<SmsState> {
         if (msg.parseSource == ParseSource.regexLocal && !msg.isIncomplete) {
           // Fully parsed locally! Convert to transaction immediately.
           debugPrint('[SmsSync] Regex-parsed fully, creating transaction for msg id=${msg.id}');
+
+          // Resolve the template's user-overridden category (if any) to this
+          // family's category id so future transactions inherit the override.
+          String? resolvedCategoryId;
+          final matchedPattern = _cache.patternById(msg.matchedPatternId);
+          final overrideName = matchedPattern?.categoryName?.trim();
+          if (overrideName != null && overrideName.isNotEmpty) {
+            final name = overrideName.toLowerCase();
+            final familyCategories = ref.read(categoryProvider).categories;
+            for (final c in familyCategories) {
+              if (c.name.trim().toLowerCase() == name) {
+                resolvedCategoryId = c.id;
+                break;
+              }
+            }
+          }
+
           final txData = {
-            'amount': double.parse(msg.extractedData!['amount']!),
-            'merchantName': msg.extractedData!['merchant'],
+            'amount': double.parse(
+              msg.extractedData!['amount']!.replaceAll(',', '').trim(),
+            ),
+            'merchant': msg.extractedData!['merchant'],
             // Prefer the SMS's authoritative receivedAt (a correct absolute
             // instant). The extracted timestamp is only a fallback: it carries
             // no offset and would be misread, and the backend rejects its
@@ -280,6 +300,10 @@ class SmsNotifier extends Notifier<SmsState> {
             'transactionDate': msg.receivedAt.toUtc().toIso8601String(),
             'type': msg.extractedData!['type']?.toUpperCase() ?? 'EXPENSE',
             'description': 'Auto-parsed from SMS',
+            'sourceType': 'REGEX_LOCAL',
+            'sourceRawText': msg.rawText,
+            'matchedPatternId': msg.matchedPatternId,
+            'categoryId': ?resolvedCategoryId,
           };
           await ref.read(transactionProvider.notifier).addTransaction(txData);
 

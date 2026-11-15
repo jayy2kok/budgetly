@@ -1,5 +1,6 @@
 package com.budgetly.api.listener;
 
+import com.budgetly.api.document.CategoryDocument;
 import com.budgetly.api.document.ChangeStreamTokenDocument;
 import com.budgetly.api.document.MessageDocument;
 import com.budgetly.api.document.SmsPatternDocument;
@@ -8,6 +9,7 @@ import com.budgetly.api.llm.LlmProvider;
 import com.budgetly.api.repository.ChangeStreamTokenRepository;
 import com.budgetly.api.repository.MessageRepository;
 import com.budgetly.api.service.AnchorParserService;
+import com.budgetly.api.service.CategoryResolver;
 import com.budgetly.api.service.PatternRegistryService;
 import com.budgetly.api.service.TransactionDateParser;
 import com.budgetly.api.service.TransactionService;
@@ -32,6 +34,7 @@ import org.springframework.data.mongodb.core.query.Update;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
@@ -59,6 +62,7 @@ class MessageChangeStreamListenerTest {
     private LlmProvider llmProvider;
     private TransactionService transactionService;
     private PatternRegistryService patternRegistryService;
+    private CategoryResolver categoryResolver;
 
     private MessageChangeStreamListener listener;
 
@@ -78,12 +82,13 @@ class MessageChangeStreamListenerTest {
         llmProvider = mock(LlmProvider.class);
         transactionService = mock(TransactionService.class);
         patternRegistryService = mock(PatternRegistryService.class);
+        categoryResolver = mock(CategoryResolver.class);
 
         listener = new MessageChangeStreamListener(
                 mongoTemplate, messageRepository, tokenRepository,
                 llmProvider, transactionService, patternRegistryService,
                 new AnchorParserService(), new TransactionDateParser(),
-                "messages", "tokens"
+                categoryResolver, "messages", "tokens"
         );
     }
 
@@ -98,6 +103,10 @@ class MessageChangeStreamListenerTest {
                 .status(MessageDocument.STATUS_PENDING)
                 .source(MessageDocument.SOURCE_BULK)
                 .build();
+    }
+
+    private CategoryDocument category(String id, String name) {
+        return CategoryDocument.builder().id(id).name(name).build();
     }
 
     /** Stub the atomic claim so the returned doc represents the state after claim. */
@@ -119,7 +128,7 @@ class MessageChangeStreamListenerTest {
     @Test
     void ignoredWhenLlmClassifiesNonFinancial() {
         claimIngress(pendingDoc());
-        when(llmProvider.analyzeMessage(any(), any()))
+        when(llmProvider.analyzeMessage(any(), any(), any()))
                 .thenReturn(LlmAnalysisResult.builder().financial(false).build());
 
         listener.processEventInternal(pendingDoc(), new BsonDocument());
@@ -142,7 +151,7 @@ class MessageChangeStreamListenerTest {
     void confirmedWhenFinancialAndTransactionCreated() {
         MessageDocument claimed = pendingDoc();
         claimIngress(claimed);
-        when(llmProvider.analyzeMessage(any(), any()))
+        when(llmProvider.analyzeMessage(any(), any(), any()))
                 .thenReturn(LlmAnalysisResult.builder()
                         .financial(true)
                         .amount(500.0)
@@ -186,6 +195,109 @@ class MessageChangeStreamListenerTest {
         assertThat(counter("success").count()).isEqualTo(1.0);
     }
 
+    // ── WORK-006: LLM category → transaction categoryId ──────────
+
+    @Test
+    void confirmedWhenFinancialAndCategoryResolved() {
+        MessageDocument claimed = pendingDoc();
+        claimIngress(claimed);
+        when(categoryResolver.familyCategories("fam-1"))
+                .thenReturn(List.of(category("cat-1", "Groceries")));
+        when(categoryResolver.namesForPrompt(anyList())).thenReturn(List.of("Groceries"));
+        when(categoryResolver.categoryIdFor(anyList(), eq("Groceries"))).thenReturn("cat-1");
+        when(llmProvider.analyzeMessage(any(), any(), any()))
+                .thenReturn(LlmAnalysisResult.builder()
+                        .financial(true)
+                        .amount(500.0)
+                        .merchant("Grocery Mart")
+                        .transactionType("EXPENSE")
+                        .category("Groceries")
+                        .build());
+        Transaction tx = new Transaction();
+        tx.setId("tx-1");
+        when(transactionService.createTransactionInternal(any(), any(), any(), any(), any(), any()))
+                .thenReturn(tx);
+
+        listener.processEventInternal(pendingDoc(), new BsonDocument());
+
+        ArgumentCaptor<CreateTransactionRequest> txCaptor = ArgumentCaptor.forClass(CreateTransactionRequest.class);
+        verify(transactionService).createTransactionInternal(
+                eq("u1"), eq("fam-1"), txCaptor.capture(), anyString(), anyString(), any());
+        assertThat(txCaptor.getValue().getCategoryId()).isEqualTo("cat-1");
+    }
+
+    @Test
+    void leavesCategoryNullForUncategorizedLlmResult() {
+        claimIngress(pendingDoc());
+        when(categoryResolver.familyCategories("fam-1"))
+                .thenReturn(List.of(category("cat-1", "Groceries")));
+        when(categoryResolver.namesForPrompt(anyList())).thenReturn(List.of("Groceries"));
+        when(categoryResolver.categoryIdFor(anyList(), eq("uncategorized"))).thenReturn(null);
+        when(llmProvider.analyzeMessage(any(), any(), any()))
+                .thenReturn(LlmAnalysisResult.builder()
+                        .financial(true)
+                        .amount(500.0)
+                        .merchant("Grocery Mart")
+                        .transactionType("EXPENSE")
+                        .category("uncategorized")
+                        .build());
+        Transaction tx = new Transaction();
+        tx.setId("tx-1");
+        when(transactionService.createTransactionInternal(any(), any(), any(), any(), any(), any()))
+                .thenReturn(tx);
+
+        listener.processEventInternal(pendingDoc(), new BsonDocument());
+
+        ArgumentCaptor<CreateTransactionRequest> txCaptor = ArgumentCaptor.forClass(CreateTransactionRequest.class);
+        verify(transactionService).createTransactionInternal(
+                eq("u1"), eq("fam-1"), txCaptor.capture(), anyString(), anyString(), any());
+        assertThat(txCaptor.getValue().getCategoryId()).isNull();
+    }
+
+    @Test
+    void leavesCategoryNullWhenLlmReturnsUnknownCategory() {
+        claimIngress(pendingDoc());
+        when(categoryResolver.familyCategories("fam-1"))
+                .thenReturn(List.of(category("cat-1", "Groceries")));
+        when(categoryResolver.namesForPrompt(anyList())).thenReturn(List.of("Groceries"));
+        when(categoryResolver.categoryIdFor(anyList(), eq("Mystery"))).thenReturn(null);
+        when(llmProvider.analyzeMessage(any(), any(), any()))
+                .thenReturn(LlmAnalysisResult.builder()
+                        .financial(true)
+                        .amount(500.0)
+                        .merchant("Grocery Mart")
+                        .transactionType("EXPENSE")
+                        .category("Mystery")
+                        .build());
+        Transaction tx = new Transaction();
+        tx.setId("tx-1");
+        when(transactionService.createTransactionInternal(any(), any(), any(), any(), any(), any()))
+                .thenReturn(tx);
+
+        listener.processEventInternal(pendingDoc(), new BsonDocument());
+
+        ArgumentCaptor<CreateTransactionRequest> txCaptor = ArgumentCaptor.forClass(CreateTransactionRequest.class);
+        verify(transactionService).createTransactionInternal(
+                eq("u1"), eq("fam-1"), txCaptor.capture(), anyString(), anyString(), any());
+        assertThat(txCaptor.getValue().getCategoryId()).isNull();
+    }
+
+    @Test
+    void usesDefaultCategoryListWhenFamilyHasNoCategories() {
+        claimIngress(pendingDoc());
+        when(categoryResolver.familyCategories("fam-1")).thenReturn(List.of());
+        when(categoryResolver.namesForPrompt(anyList())).thenReturn(CategoryResolver.DEFAULT_CATEGORIES);
+        when(llmProvider.analyzeMessage(any(), any(), any()))
+                .thenReturn(LlmAnalysisResult.builder().financial(false).build());
+
+        listener.processEventInternal(pendingDoc(), new BsonDocument());
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<String>> captor = ArgumentCaptor.forClass(List.class);
+        verify(llmProvider).analyzeMessage(eq("HDFCBK"), anyString(), captor.capture());
+        assertThat(captor.getValue()).isEqualTo(CategoryResolver.DEFAULT_CATEGORIES);
+    }
+
     @Test
     void exposesChangeStreamLagAfterSuccessfulProcessing() {
         // Simulate a message that was bulk-inserted 60s before now and only
@@ -194,7 +306,7 @@ class MessageChangeStreamListenerTest {
         MessageDocument claimed = pendingDoc();
         claimed.setCreatedAt(createdAt);
         claimIngress(claimed);
-        when(llmProvider.analyzeMessage(any(), any()))
+        when(llmProvider.analyzeMessage(any(), any(), any()))
                 .thenReturn(LlmAnalysisResult.builder().financial(false).build());
 
         listener.processEventInternal(pendingDoc(), new BsonDocument());
@@ -212,7 +324,7 @@ class MessageChangeStreamListenerTest {
     @Test
     void processedWhenFinancialButTransactionCreationFails() {
         claimIngress(pendingDoc());
-        when(llmProvider.analyzeMessage(any(), any()))
+        when(llmProvider.analyzeMessage(any(), any(), any()))
                 .thenReturn(LlmAnalysisResult.builder()
                         .financial(true).amount(500.0).merchant("Grocery Mart").build());
         when(transactionService.createTransactionInternal(any(), any(), any(), any(), any(), any()))
@@ -232,7 +344,7 @@ class MessageChangeStreamListenerTest {
     @Test
     void failedWhenLlmThrows() {
         claimIngress(pendingDoc());
-        when(llmProvider.analyzeMessage(any(), any()))
+        when(llmProvider.analyzeMessage(any(), any(), any()))
                 .thenThrow(new RuntimeException("LLM outage"));
 
         listener.processEventInternal(pendingDoc(), new BsonDocument());
@@ -309,7 +421,7 @@ class MessageChangeStreamListenerTest {
         listener.processEventInternal(pendingDoc(), new BsonDocument());
 
         // The LLM must never be reached for a fully-anchored known template.
-        verify(llmProvider, never()).analyzeMessage(any(), any());
+        verify(llmProvider, never()).analyzeMessage(any(), any(), any());
 
         // Transaction created from the anchor fields → REGEX_LOCAL. With no
         // receivedAt, the SMS body's date (01/10/2026) is used; it carries no
@@ -351,12 +463,13 @@ class MessageChangeStreamListenerTest {
         // no merchant/timestamp → treated as incomplete, like the app does.
         when(patternRegistryService.findActiveBySender("HDFCBK")).thenReturn(List.of(
                 patternDoc("Rs.{amount} debited", Map.of("amount", "amount"))));
-        when(llmProvider.analyzeMessage(any(), any()))
+        when(llmProvider.analyzeMessage(any(), any(), any()))
                 .thenReturn(LlmAnalysisResult.builder().financial(false).build());
 
         listener.processEventInternal(pendingDoc(), new BsonDocument());
 
-        verify(llmProvider).analyzeMessage("HDFCBK", "Spent Rs 500 at Grocery Mart on 01/10/2026");
+        verify(llmProvider).analyzeMessage(
+                        eq("HDFCBK"), eq("Spent Rs 500 at Grocery Mart on 01/10/2026"), anyList());
         verify(transactionService, never()).createTransactionInternal(any(), any(), any(), any(), any(), any());
         assertThat(Metrics.globalRegistry.find("budgetly.message.pattern.cache-hit").counter()).isNull();
     }
@@ -365,12 +478,12 @@ class MessageChangeStreamListenerTest {
     void noRegisteredPatternFallsBackToLlm() {
         claimIngress(pendingDoc());
         when(patternRegistryService.findActiveBySender("HDFCBK")).thenReturn(List.of());
-        when(llmProvider.analyzeMessage(any(), any()))
+        when(llmProvider.analyzeMessage(any(), any(), any()))
                 .thenReturn(LlmAnalysisResult.builder().financial(false).build());
 
         listener.processEventInternal(pendingDoc(), new BsonDocument());
 
-        verify(llmProvider).analyzeMessage(eq("HDFCBK"), anyString());
+        verify(llmProvider).analyzeMessage(eq("HDFCBK"), anyString(), anyList());
         verify(transactionService, never()).createTransactionInternal(any(), any(), any(), any(), any(), any());
     }
 
@@ -379,7 +492,7 @@ class MessageChangeStreamListenerTest {
     @Test
     void persistsResumeTokenWhenProvided() {
         claimIngress(pendingDoc());
-        when(llmProvider.analyzeMessage(any(), any()))
+        when(llmProvider.analyzeMessage(any(), any(), any()))
                 .thenReturn(LlmAnalysisResult.builder().financial(false).build());
         BsonDocument token = BsonDocument.parse("{ \"token\": 123 }");
 
@@ -396,7 +509,7 @@ class MessageChangeStreamListenerTest {
     @Test
     void doesNotPersistTokenWhenNoneInChangeStreamEvent() {
         claimIngress(pendingDoc());
-        when(llmProvider.analyzeMessage(any(), any()))
+        when(llmProvider.analyzeMessage(any(), any(), any()))
                 .thenReturn(LlmAnalysisResult.builder().financial(false).build());
 
         listener.processEventInternal(pendingDoc(), null);
