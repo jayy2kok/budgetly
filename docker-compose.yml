@@ -56,7 +56,7 @@ services:
       mongodb:
         condition: service_healthy
     environment:
-      SPRING_DATA_MONGODB_URI: mongodb://budgetly:budgetly_secret@mongodb:27017/budgetly?authSource=admin&replicaSet=rs0
+      SPRING_MONGODB_URI: mongodb://budgetly:budgetly_secret@mongodb:27017/budgetly?authSource=admin&replicaSet=rs0
       LLM_PROVIDER: ${LLM_PROVIDER:-openai}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-http://rpi.local:20129/v1}
       OPENAI_API_KEY: ${OPENAI_API_KEY}

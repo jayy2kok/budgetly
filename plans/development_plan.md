@@ -14,7 +14,7 @@ graph TB
     end
 
     subgraph "Business Logic Layer — Spring Boot (Docker)"
-        B[Spring Boot REST API<br/>Java 17+ / Swagger-Bootstrapped<br/>Raw Google OAuth 2.0 + JWT]
+        B[Spring Boot REST API<br/>Java 25 / Swagger-Bootstrapped<br/>Raw Google OAuth 2.0 + JWT]
         L[LLM Provider<br/>Gemini API — Interface-based]
     end
 
@@ -32,7 +32,7 @@ graph TB
 | Layer | Technology | Hosting |
 |---|---|---|
 | **Presentation** | Flutter (Dart), Material 3, dark theme, Riverpod | Android / iOS device |
-| **Business Logic** | Java 17+, Spring Boot 3.x, Swagger/OpenAPI 3 | Docker container |
+| **Business Logic** | Java 25, Spring Boot 4.x, Swagger/OpenAPI 3 | Docker container |
 | **Database** | MongoDB 7.x | Docker container |
 
 ---
