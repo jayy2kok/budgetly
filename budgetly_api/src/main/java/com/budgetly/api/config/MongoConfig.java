@@ -6,6 +6,6 @@ import org.springframework.data.mongodb.config.EnableMongoAuditing;
 @Configuration
 @EnableMongoAuditing
 public class MongoConfig {
-    // MongoDB is configured via application.yml (spring.data.mongodb.uri)
+    // MongoDB is configured via application.yml (spring.mongodb.uri)
     // Auditing enabled for @CreatedDate, @LastModifiedDate support if needed
 }
