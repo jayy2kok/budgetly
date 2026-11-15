@@ -1,0 +1,609 @@
+{
+  "description": "100 Synthetic Android SMS inbox messages captured for Budgetly test fixtures.",
+  "capturedAt": "2026-11-15T12:20:20+00:00",
+  "device": "Vivo V2515i (model V2515)",
+  "source": "adb shell content query --uri content://sms/ --projection address:body:date:type (type=1 inbox)",
+  "count": 100,
+  "messages": [
+    {
+      "id": 1,
+      "sender": "JD-INDUSB-S",
+      "body": "You're eligible: INR 6930 credit Card outstanding can now be converted into Easy EMIs here: https://indusbk.in/INDUSB/eO1xbOQ - IndusInd Bank",
+      "dateSent": 1794715723365
+    },
+    {
+      "id": 2,
+      "sender": "VA-HSBCIM-S",
+      "body": "HSBC's Repo Linked Lending Rate (RLLR) has increased from 5.25% p.a. to 5.50% p.a. from 2November2026. Interest rate on your Home Loan/LAP a/c 111-999XXX-221 has increased from 7.25% to 7.50% p.a. Your remaining tenure has increased and EMI is unchanged. To increase EMI and keep tenure unchanged, contact us by 16December2026. Details sent to your registered email address.",
+      "dateSent": 1794684132963
+    },
+    {
+      "id": 3,
+      "sender": "VM-HSBCIM-S",
+      "body": "HSBC's Repo Linked Lending Rate (RLLR) has increased from 5.25% p.a. to 5.50% p.a. from 2November2026. Interest rate on your Home Loan/LAP a/c 111-999XXX-220 has increased from 7.25% to 7.50% p.a. Your remaining tenure has increased and EMI is unchanged. To increase EMI and keep tenure unchanged, contact us by 16December2026. Details sent to your registered email address.",
+      "dateSent": 1794684084598
+    },
+    {
+      "id": 4,
+      "sender": "VA-HSBCIM-S",
+      "body": "HSBC's Repo Linked Lending Rate (RLLR) has increased from 5.25% p.a. to 5.50% p.a. from 2November2026. Interest rate on your Home Loan/LAP a/c 111-999XXX-001 has increased from 7.45% to 7.70% p.a. Your remaining tenure has increased and EMI is unchanged. To increase EMI and keep tenure unchanged, contact us by 16December2026. Details sent to your registered email address.",
+      "dateSent": 1794684080985
+    },
+    {
+      "id": 5,
+      "sender": "BP-Pluxee-S",
+      "body": "Rs. 217.00 spent from Pluxee  Meal Card wallet, card no.xx1414 on 14-11-2026 19:32:24 at SWIGGY . Avl bal Rs.1057.68. Not you call 18002106919",
+      "dateSent": 1794664950694
+    },
+    {
+      "id": 6,
+      "sender": "JM-HSBCIN-S",
+      "body": "HSBC Credit Card xx4343 used at DEEPSEEK for USD 21.20 on 14/11/26. Avl limit INR 2269298.16; due INR 2701.84. Call +911234567890 to report fraud.",
+      "dateSent": 1794646243882
+    },
+    {
+      "id": 7,
+      "sender": "TZ-BATAIn-S",
+      "body": "Hi Bata Member, Thank you for being a valuable customer. Use 350 bonus points on Rs. 1500 bill till 15 Nov. at store. T&C",
+      "dateSent": 1794633266755
+    },
+    {
+      "id": 8,
+      "sender": "TX-INDUSB-S",
+      "body": "Important: Convert INR 6930 Credit Card outstanding into manageable EMIs. Start here: https://indusbk.in/INDUSB/eO1xbOQ - IndusInd Bank",
+      "dateSent": 1794629505356
+    },
+    {
+      "id": 9,
+      "sender": "BP-ICICIT-S",
+      "body": "Payment of Rs 13,521.20 has been received on your ICICI Bank Credit Card XX1010 through Bharat Bill Payment System on 14-NOV-26.",
+      "dateSent": 1794628306159
+    },
+    {
+      "id": 10,
+      "sender": "BP-ICICIT-S",
+      "body": "INR 4,710.00 spent using ICICI Bank Card XX1010 on 14-Nov-26 on AMAZON PAY IN U. Avl Limit: INR 2,65,290.00. If not you, call 1800 2662/SMS BLOCK 1010 to 9215676766.",
+      "dateSent": 1794627875344
+    },
+    {
+      "id": 11,
+      "sender": "AX-ICICIO-T",
+      "body": "867281 is One-Time Password for INR 4710.00 transaction towards AMAZON using ICICI Bank Credit Card XX1010. OTPs are SECRET. DO NOT disclose",
+      "dateSent": 1794627856910
+    },
+    {
+      "id": 12,
+      "sender": "AX-AXISBK-S",
+      "body": "Due to scheduled maintenance, txns. with Axis Bank Credit Card on 17-11-26, 01:00 AM - 01:50 AM IST will be paused. Inconvenience caused is regretted.",
+      "dateSent": 1794625334209
+    },
+    {
+      "id": 13,
+      "sender": "JM-Pluxee-S",
+      "body": "Rs. 299.00 spent from Pluxee  Meal Card wallet, card no.xx1414 on 13-11-2026 20:33:40 at SWIGGY . Avl bal Rs.1274.68. Not you call 18002106919",
+      "dateSent": 1794582225232
+    },
+    {
+      "id": 14,
+      "sender": "CP-PRMILK-S",
+      "body": "Dear John Doe, We have deducted Rs. 95.00 from your wallet for Charged for buyOnce - 13-11-2026. Your updated wallet balance is Rs. 2207.00. Team Provilac",
+      "dateSent": 1794570850836
+    },
+    {
+      "id": 15,
+      "sender": "CP-PRMILK-S",
+      "body": "Dear John Doe, We have deducted Rs. 190.00 from your wallet for Charged for buyOnce - 13-11-2026. Your updated wallet balance is Rs. 2302.00. Team Provilac",
+      "dateSent": 1794570824462
+    },
+    {
+      "id": 16,
+      "sender": "CP-PRMILK-S",
+      "body": "Dear John Doe, We have deducted Rs. 95.00 from your wallet for Charged for buyOnce - 13-11-2026. Your updated wallet balance is Rs. 2492.00. Team Provilac",
+      "dateSent": 1794570800721
+    },
+    {
+      "id": 17,
+      "sender": "CP-PRMILK-S",
+      "body": "Dear John Doe, We have deducted Rs. 190.00 from your wallet for Charged for buyOnce - 13-11-2026. Your updated wallet balance is Rs. 2587.00. Team Provilac",
+      "dateSent": 1794570785687
+    },
+    {
+      "id": 18,
+      "sender": "BG-ICICIT-S",
+      "body": "Rs.95 paid at PatasPlaza for MH12ZZ0202 on 13-11-2026 16:37:51 with ICICI Bank FASTag. Bal Rs.741. Call 18002100104 for dispute",
+      "dateSent": 1794568128611
+    },
+    {
+      "id": 19,
+      "sender": "CP-PMCUPD-S",
+      "body": "आता महापालिकेच्या सुविधांचा लाभ घ्या घरबसल्या! आजच डाऊनलोड करा PMC CARE App: https://fxurl.co/PMCUPD/PMCCARE",
+      "dateSent": 1794566110042
+    },
+    {
+      "id": 20,
+      "sender": "AX-ICICIT-S",
+      "body": "Rs.100 paid at SardewadiPlaza for MH12ZZ0202 on 13-11-2026 14:15:33 with ICICI Bank FASTag. Bal Rs.836. Call 18002100104 for dispute",
+      "dateSent": 1794559572618
+    },
+    {
+      "id": 21,
+      "sender": "AD-ICICIT-S",
+      "body": "Rs.80 paid at VarwadeTollPlaza for MH12ZZ0202 on 13-11-2026 13:49:41 with ICICI Bank FASTag. Bal Rs.936. Call 18002100104 for dispute",
+      "dateSent": 1794558018647
+    },
+    {
+      "id": 22,
+      "sender": "AX-AYVENS-S",
+      "body": "Dear Customer, \nHappy Diwali from Ayvens!  We had emailed you our Annual Customer Survey from customerfeedback@ayvens.com on Nov 9. \nYour feedback is extremely valuable and helps us improve our services. We would greatly appreciate it if you could spare few minutes to complete the survey. \nThank you for your support and for choosing Ayvens. -AYVENS INDIA PRIVATE LIMITED",
+      "dateSent": 1794557903415
+    },
+    {
+      "id": 23,
+      "sender": "BG-ICICIT-S",
+      "body": "Rs.80 paid at SawaleshwarTollPlaza for MH12ZZ0202 on 13-11-2026 13:10:50 with ICICI Bank FASTag. Bal Rs.1016. Call 18002100104 for dispute",
+      "dateSent": 1794555691383
+    },
+    {
+      "id": 24,
+      "sender": "56161965",
+      "body": "Deutsche Bank Alert Service\n\nMicrosoft Outlook is experiencing a street wide outage, therefore DB emails are experiencing disruption. MS Teams is working. Microsoft is working on the resolution. ETA is not known at this point.  Kindly contact your line managers through MS teams for any help.",
+      "dateSent": 1794547044886
+    },
+    {
+      "id": 25,
+      "sender": "56161965",
+      "body": "Deutsche Bank Alert Service\n\nWe are experiencing street wide outage affecting Microsoft Outlook that is impacting the ability to send and receive emails. Additionally some users may experience performance issues with Sharepoint Online and Co-Pilot. Microsoft has confirmed this is a widespread global issue on their end.  The ETA of full recovery remains unknown.  Teams is functioning normally.  Business must use alternative approved communication channels to sustain the operation. Please refer to DB homepage for details.",
+      "dateSent": 1794544840432
+    },
+    {
+      "id": 26,
+      "sender": "JD-INDUSB-S",
+      "body": "Account Alert: Convert INR 6910 Credit Card outstanding into easy EMIs at https://indusbk.in/INDUSB/eO1xbOQ. Manage repayments conveniently. - IndusInd Bank",
+      "dateSent": 1794543024883
+    },
+    {
+      "id": 27,
+      "sender": "JM-IDFCFB-S",
+      "body": "Your monthly installment of Rs. 2,000.00 has been debited from a/c XXXXX282828 on 13/11/26 at 04:37 and credited to RD a/c XXXXX391559. New bal is Rs. 28,926.00. IDFC FIRST Bank",
+      "dateSent": 1794524859124
+    },
+    {
+      "id": 28,
+      "sender": "JM-IDFCFB-S",
+      "body": "Your monthly installment of Rs. 1,500.00 has been debited from a/c XXXXX575757 on 13/11/26 at 04:37 and credited to RD a/c XXXXX391649. New bal is Rs. 21,694.00. IDFC FIRST Bank",
+      "dateSent": 1794524843857
+    },
+    {
+      "id": 29,
+      "sender": "BG-dbAlrt-S",
+      "body": "Dear Customer, Due to a planned maintenance activity, the db Online banking, MyBank India App, db WealthPro, UPI, IVR and debit card services will not be available on 14-11-2026 from 01:00 AM to 05:00 AM IST and on 15-11-2026 from 12:00 AM to 05:00 AM IST. Please plan your transactions accordingly. We regret the inconvenience caused. -Deutsche Bank AG",
+      "dateSent": 1794489579012
+    },
+    {
+      "id": 30,
+      "sender": "CP-BLSTN-S",
+      "body": "OTP is 3203 to login to your account at BlueStone.\nOTP is valid till 16:52:33\nPlease don't share it with anyone.",
+      "dateSent": 1794481654494
+    },
+    {
+      "id": 31,
+      "sender": "AD-FTALRT-S",
+      "body": "To view the statement for your transaction in Folio XXXXX831, pls click the link https://cams.co.in/FTALRT/4Jgkzbn6p2b & enter PAN (Caps) / Folio - Franklin Templeton",
+      "dateSent": 1794455776879
+    },
+    {
+      "id": 32,
+      "sender": "JX-INDUSB-S",
+      "body": "You're eligible: INR 6910 credit Card outstanding can now be converted into Easy EMIs here: https://indusbk.in/INDUSB/eO1xbOQ - IndusInd Bank",
+      "dateSent": 1794455729983
+    },
+    {
+      "id": 33,
+      "sender": "AD-FTALRT-S",
+      "body": "To view the statement for your transaction in Folio XXXXX831, pls click the link https://cams.co.in/FTALRT/4ioqqFHRYtq & enter PAN (Caps) / Folio - Franklin Templeton",
+      "dateSent": 1794450452236
+    },
+    {
+      "id": 34,
+      "sender": "AX-IDFCFB-S",
+      "body": "Your A/C XXXXX575757 is credited with INR 300.00 on 11/11/26 23:17. Your new balance is INR 34,071.21. Team IDFC FIRST Bank",
+      "dateSent": 1794419231320
+    },
+    {
+      "id": 35,
+      "sender": "AX-IDFCFB-T",
+      "body": "Your A/c XX7070 debited by Rs. 300.00 on 11/11/26; FUND IDFC FIRST ACCO credited. RRN 631537237895. Available balance Rs. 4,02,261.60. Team IDFC FIRST Bank",
+      "dateSent": 1794419223906
+    },
+    {
+      "id": 36,
+      "sender": "AD-IDFCFB-S",
+      "body": "Your SiHub ID YkMVvHcdCK of INR 15000.00 for MOONSHOTAIPTELTD on your IDFC FIRST Bank Credit Card 6161 is cancelled. Manage SI- https://idfcfr.in/IDFCFB/9ZFxVZ",
+      "dateSent": 1794418973342
+    },
+    {
+      "id": 37,
+      "sender": "VA-IDFCFB-S",
+      "body": "<#>399211 is the OTP to complete your internet banking transaction. It is valid for 5 minutes. Please do not share with anyone. Team IDFC FIRST Bank 292YJNB8Ty1",
+      "dateSent": 1794418967141
+    },
+    {
+      "id": 38,
+      "sender": "AX-IDFCFB-S",
+      "body": "Your SiHub ID X2ZWehVV3V of INR 199999.00 for LinkedIn on your IDFC FIRST Bank Credit Card 6161 is cancelled. Manage SI- https://idfcfr.in/IDFCFB/q1PWJ1",
+      "dateSent": 1794418951415
+    },
+    {
+      "id": 39,
+      "sender": "JM-IDFCFB-S",
+      "body": "<#>994968 is the OTP to complete your internet banking transaction. It is valid for 5 minutes. Please do not share with anyone. Team IDFC FIRST Bank 292YJNB8Ty1",
+      "dateSent": 1794418942339
+    },
+    {
+      "id": 40,
+      "sender": "JX-ICICIT-S",
+      "body": "Important update regarding changes to the features and charges of your ICICI Bank Credit Card XX1010. Visit icici.co/ICICIT/k/DUvOdDSPDM1 for details.",
+      "dateSent": 1794407697663
+    },
+    {
+      "id": 41,
+      "sender": "JX-INDUSB-S",
+      "body": "Need flexibility? Split INR 6910 Credit Card outstanding into Easy EMIs at: https://indusbk.in/INDUSB/eO1xbOQ - IndusInd Bank",
+      "dateSent": 1794396092142
+    },
+    {
+      "id": 42,
+      "sender": "JM-IDFCFB-S",
+      "body": "Happy Shopping! INR 22094.00 spent on your IDFC FIRST Bank Credit Card ending XX6161 at Tata Unistore LTD on 11 NOV 2026 at 12:25 PM Avbl Limit: INR 502051.72 If not done by you, call 180010888 for dispute or to block your card SMS CCBLOCK 6161 to 5676732",
+      "dateSent": 1794380136865
+    },
+    {
+      "id": 43,
+      "sender": "VA-IDFCFB-T",
+      "body": "882259 is the OTP for INR 22094.00 txn at Tata Unist on IDFC FIRST Bank Credit Card 6161. Do not share with anyone. Not You? Call 1800 10 888",
+      "dateSent": 1794380113796
+    },
+    {
+      "id": 44,
+      "sender": "AX-IDFCFB-S",
+      "body": "Dear Cardmember, the Standing Instruction (SI) mandate on your IDFC FIRST Bank Credit Card 6161 is now active.\nMerchant: MOONSHOTAIPTELTD,\nMax Amt: INR 15000.00,\nFrequency: monthly,\nStart: 11/11/2026,\nEnd: 11/11/2046,\nClick here to manage your SI using Mandate ID YkMVvHcdCK https://idfcfr.in/IDFCFB/Sgjvmz",
+      "dateSent": 1794372244604
+    },
+    {
+      "id": 45,
+      "sender": "BT-IDFCFB-S",
+      "body": "Transaction Successful! INR 1854.28 spent on your IDFC FIRST Bank Credit Card ending XX6161 at MOONSHOT AI on 11 NOV 2026 at 10:11 AM Avbl Limit: INR 524145.72 If not done by you, call 180010888 for dispute or to block your card SMS CCBLOCK 6161 to 5676732",
+      "dateSent": 1794372092959
+    },
+    {
+      "id": 46,
+      "sender": "VA-IDFCFB-T",
+      "body": "961622 is the OTP for INR 1854.28 txn at MOONSHOT A on IDFC FIRST Bank Credit Card 6161. Do not share with anyone. Not You? Call 1800 10 888",
+      "dateSent": 1794372052871
+    },
+    {
+      "id": 47,
+      "sender": "AD-IDFCFB-S",
+      "body": "As per your request, your transaction mode or limit preferences have been updated successfully for your IDFC FIRST Bank Credit Card ending XX6161. Click to manage your preferences: https://idfcfr.in/IDFCFB/hNV9D4. Not you? SMS CCBLOCK 6161 to 5676732 or call 180010888.",
+      "dateSent": 1794372007208
+    },
+    {
+      "id": 48,
+      "sender": "AX-FTALRT-S",
+      "body": "Purchase in your folio *****831 has been processed. SOA will reach you shortly. For queries contact your advisor if any or call us at 18002584255 -Franklin Templeton",
+      "dateSent": 1794286144832
+    },
+    {
+      "id": 49,
+      "sender": "JX-INDUSB-S",
+      "body": "Profile update: EMI conversion enabled for your INR  6910 Credit Card outstanding. Convert here: https://indusbk.in/INDUSB/eO1xbOQ - IndusInd Bank",
+      "dateSent": 1794284024105
+    },
+    {
+      "id": 50,
+      "sender": "JM-HSBCIN-S",
+      "body": "HSBC Credit Card xx4343 used at RAMESH BHARAT FATTEWAL for INR 275.00 on 09/11/26. Avl limit INR 2179799.28; due INR 92200.72. Call +911234567890 to report fraud.",
+      "dateSent": 1794243398955
+    },
+    {
+      "id": 51,
+      "sender": "CP-KUVERA-S",
+      "body": "<#> Your OTP to set up a SIP on Kuvera is 962363. Please do not share it with anyone. OTP is valid for 15 minutes. \nxq9K+tSeT68",
+      "dateSent": 1794239616357
+    },
+    {
+      "id": 52,
+      "sender": "VA-HSBCIM-S",
+      "body": "HSBC Credit Card ending 4358 : Total due: 91925.72, minimum due: 919.26; pay by 26-Nov-26. Payment modes- https://gs.im/HSBCIM/e/FLWtJCU0FC0. Ignore if paid.",
+      "dateSent": 1794228748619
+    },
+    {
+      "id": 53,
+      "sender": "BP-ICICIT-S",
+      "body": "INR 289.20 spent using ICICI Bank Card XX1010 on 09-Nov-26 on AMAZON PAY IN E. Avl Limit: INR 2,56,478.80. If not you, call 1800 2662/SMS BLOCK 1010 to 9215676766.",
+      "dateSent": 1794202485089
+    },
+    {
+      "id": 54,
+      "sender": "AX-ICICIO-T",
+      "body": "538928 is One-Time Password for INR 289.20 transaction towards AMAZON using ICICI Bank Credit Card XX1010. OTPs are SECRET. DO NOT disclose",
+      "dateSent": 1794202464940
+    },
+    {
+      "id": 55,
+      "sender": "AX-IDFCFB-T",
+      "body": "Your A/c XX7070 debited by Rs. 91,923.72 on 09/11/26; SAVESAGE SOLUTIONS P credited. RRN 667978372139. Available balance Rs. 4,02,561.60. Team IDFC FIRST Bank",
+      "dateSent": 1794200786901
+    },
+    {
+      "id": 56,
+      "sender": "JD-INDUSB-S",
+      "body": "Need flexibility? Split INR 6910 Credit Card outstanding into Easy EMIs at: https://indusbk.in/INDUSB/6Dsl7Wo - IndusInd Bank",
+      "dateSent": 1794197828251
+    },
+    {
+      "id": 57,
+      "sender": "BG-HSBCIM-S",
+      "body": "Your e-mandate MIN - HSWXHf2a77 on your\nHSBC card ending 4358 is cancelled:\nMerchant: GOOGLEPLAY\nMax Amount (Rs): 1950\nFrequency: monthly\nStart date: 7/10/2026\nEnd date: 8/11/2026",
+      "dateSent": 1794149955620
+    },
+    {
+      "id": 58,
+      "sender": "AX-IDFCFB-T",
+      "body": "Your A/c XX7070 debited by Rs. 1,00,000.00 on 08/11/26; Kuvera RZP credited. RRN 667841525453. Available balance Rs. 4,94,485.32. Team IDFC FIRST Bank",
+      "dateSent": 1794130794742
+    },
+    {
+      "id": 59,
+      "sender": "CP-KUVERA-S",
+      "body": "<#> Your OTP to buy Mutual Fund on Kuvera is 389877. Please do not share it with anyone. OTP is valid for 15 minutes. \nxq9K+tSeT68",
+      "dateSent": 1794130765442
+    },
+    {
+      "id": 60,
+      "sender": "TX-INDUSB-S",
+      "body": "Service Alert: INR 6910 outstanding on your IndusInd Bank Credit Card can be split into EMIs. Convert now: https://indusbk.in/INDUSB/6Dsl7Wo - IndusInd Bank",
+      "dateSent": 1794111338042
+    },
+    {
+      "id": 61,
+      "sender": "AX-IDFCFB-S",
+      "body": "Interest Amt. of Rs. 296.00 earned on Your FD a/c XXXXX636363 has been credited to Your a/c XXXXX777777 on 08/11/26 at 05:29. New bal is Rs. 80,242.27. IDFC FIRST Bank",
+      "dateSent": 1794095969398
+    },
+    {
+      "id": 62,
+      "sender": "JM-HSBCIN-S",
+      "body": "INR 16754.50 is paid from HSBC account XXXXXX4444 to SAVESAGE SOLUTIONS PRIVATE LIMITED on 07-Nov-26 with ref 132517708912. If this is not done by you, call 18002673456 to report.",
+      "dateSent": 1794046877231
+    },
+    {
+      "id": 63,
+      "sender": "JZ-ISATHI-G",
+      "body": "Want to know number of SIMs in your name? Download Sanchar Saathi to check : Android : https://t.jio/ISATHI/MWxHL9 iOS : https://t.jio/ISATHI/ios Dept of Telecom, Govt of India",
+      "dateSent": 1794045476970
+    },
+    {
+      "id": 64,
+      "sender": "VA-dbAlrt-S",
+      "body": "Dear Customer, We are pleased to inform you that the issue pertaining to Online Banking services has now been resolved. We thank for your patience and understanding. -Deutsche Bank AG",
+      "dateSent": 1794027498027
+    },
+    {
+      "id": 65,
+      "sender": "VM-BATAIn-S",
+      "body": "Hi Bata Member, Thank you for being a valuable customer. Use 350 bonus points on Rs. 1500 bill till 08 Nov. at store. T&C",
+      "dateSent": 1794026222718
+    },
+    {
+      "id": 66,
+      "sender": "AX-INDUSB-S",
+      "body": "Account Update: Small instalments, less stress. Convert INR 6810 Credit Card outstanding to Easy EMIs at: https://indusbk.in/INDUSB/6Dsl7Wo - IndusInd Bank",
+      "dateSent": 1794024637986
+    },
+    {
+      "id": 67,
+      "sender": "VA-dbAlrt-S",
+      "body": "Dear Customer, our db OnlineBanking services are unavailable. We are working on the issue and will provide an update shortly. We regret the inconvenience caused. -Deutsche Bank AG",
+      "dateSent": 1794022295990
+    },
+    {
+      "id": 68,
+      "sender": "JM-MYSBIC-S",
+      "body": "E-statement of SBI Credit Card ending XX55 dated 05/11/2026 has been mailed. If not received, SMS ENRS to 5676791. Total Amt Due Rs 16760; Min Amt Due Rs 335; Payable by 25/11/2026. Click https://sbicard.com/quickpaynet to pay your bill  \n",
+      "dateSent": 1794009378623
+    },
+    {
+      "id": 69,
+      "sender": "JM-HSBCIN-S",
+      "body": "HSBC Credit Card xx4343 used at CONNPLEX CINEMAS LIMIT for INR 750.00 on 06/11/26. Avl limit INR 2180074.28; due INR 91925.72. Call +911234567890 to report fraud.",
+      "dateSent": 1793987597323
+    },
+    {
+      "id": 70,
+      "sender": "JM-HSBCIN-S",
+      "body": "HSBC Credit Card xx4343 used at PAY*BOOKMYSHOW COM for INR 1512.70 on 06/11/26. Avl limit INR 2180824.28; due INR 91175.72. Call +911234567890 to report fraud.",
+      "dateSent": 1793966055099
+    },
+    {
+      "id": 71,
+      "sender": "JZ-TRAIND-G",
+      "body": "स्पॅम कॉल्समुळे त्रस्त आहात का? TRAI DND ॲपवर स्पॅमची तक्रार नोंदवा. TRAI DND ॲपवर तक्रार नोंदवणे सोपे आणि जलद आहे. आजच इंस्टॉल करा. अँड्रॉइड: https://link.trai.gov.in/98e95436 आयओएस: https://link.trai.gov.in/c95bcef1",
+      "dateSent": 1793951204083
+    },
+    {
+      "id": 72,
+      "sender": "JD-BOIIND-S",
+      "body": "Dear Customer, ROI on your loan Ac xx0101 has been revised to 7.35% w.e.f. 05-08-2026.For further details contact your BOI Branch.",
+      "dateSent": 1793949275513
+    },
+    {
+      "id": 73,
+      "sender": "JD-INDUSB-S",
+      "body": "Service Alert: INR 6790 outstanding on your IndusInd Bank Credit Card can be split into EMIs. Convert now: https://indusbk.in/INDUSB/6Dsl7Wo - IndusInd Bank",
+      "dateSent": 1793938611282
+    },
+    {
+      "id": 74,
+      "sender": "AX-NPSCRA-S",
+      "body": "PRAN XX3651: Units for (OCT-2026) contribution of Rs.39900.00 credited with NAV of 05/11/26 -Protean",
+      "dateSent": 1793923886344
+    },
+    {
+      "id": 75,
+      "sender": "JD-Mcdlvy-S",
+      "body": "Your order 262655931 was delivered at 08:19PM, please leave your feedback at mcdonalds.fast-insight.com/voc/in/en?CODE=SOM-DL-05-11-2026-262655931 .-McDelivery",
+      "dateSent": 1793890160076
+    },
+    {
+      "id": 76,
+      "sender": "BT-Mcdlvy-S",
+      "body": "Your order 262655931 for Rs.820.0, placed at Solapur Oasis Mall.Track here: https://mcdelivery.co.in/my-orders - McDelivery",
+      "dateSent": 1793888430106
+    },
+    {
+      "id": 77,
+      "sender": "JM-Pluxee-S",
+      "body": "Rs. 820.00 spent from Pluxee  Meal Card wallet, card no.xx1414 on 5-11-2026 19:50:20 at MC DONALDS  . Avl bal Rs.1573.68. Not you call 18002106919",
+      "dateSent": 1793888426280
+    },
+    {
+      "id": 78,
+      "sender": "AX-INDUSB-S",
+      "body": "INR 100.00 spent on IndusInd Card XX4444 on 05-11-2026 06:12:19 pm at UPI MVF43EE3Y. Avl Lmt: INR 493,090.00. To dispute, call 18602677777/SMS BLOCK 4476 to 5676757",
+      "dateSent": 1793882541223
+    },
+    {
+      "id": 79,
+      "sender": "VA-BATAIn-S",
+      "body": "Hi Bata Member, Thank you for being a valuable customer. Use 350 bonus points on Rs. 1500 bill till 08 Nov. at store. T&C",
+      "dateSent": 1793880972161
+    },
+    {
+      "id": 80,
+      "sender": "TX-HSBCIM-S",
+      "body": "Dear Customer, your HSBC Credit Card ending with 7979 has not been used for over 3 months. Kindly transact on your card to enjoy seamless services.",
+      "dateSent": 1793869413762
+    },
+    {
+      "id": 81,
+      "sender": "JX-INDUSB-S",
+      "body": "Need flexibility? Split INR 6790 Credit Card outstanding into Easy EMIs at: https://indusbk.in/INDUSB/6Dsl7Wo - IndusInd Bank",
+      "dateSent": 1793852193703
+    },
+    {
+      "id": 82,
+      "sender": "JK-BOBSMS-S",
+      "body": "You have not registered nominee/s in your deposit account(s). For smooth transfer of assets, pl nominate using Mobile/Net Banking or visit nearest branch-BOB",
+      "dateSent": 1793840281385
+    },
+    {
+      "id": 83,
+      "sender": "JM-HSBCIN-S",
+      "body": "HSBC Credit Card xx4343 used at PUSHPA ENTERPRISES for INR 575.00 on 04/11/26. Avl limit INR 2183108.08; due INR 88891.92. Call +911234567890 to report fraud.",
+      "dateSent": 1793805203609
+    },
+    {
+      "id": 84,
+      "sender": "JM-HSBCIN-S",
+      "body": "HSBC Credit Card xx4343 used at ARDRA CORPORATION PRIV for INR 5890.00 on 04/11/26. Avl limit INR 2183683.08; due INR 88316.92. Call +911234567890 to report fraud.",
+      "dateSent": 1793797343197
+    },
+    {
+      "id": 85,
+      "sender": "AX-SWIGGY-S",
+      "body": "PLEASE SHARE THIS CODE AFTER CHECKING ALL THE ITEMS IN THE DELIVERED ORDER : 0984. Swiggy Order 252750643197510 from Sweet Truth - Cake and Desserts",
+      "dateSent": 1793782663396
+    },
+    {
+      "id": 86,
+      "sender": "JD-INDUSB-S",
+      "body": "Account Alert: Convert INR 6790 Credit Card outstanding into easy EMIs at https://indusbk.in/INDUSB/6Dsl7Wo. Manage repayments conveniently. - IndusInd Bank",
+      "dateSent": 1793765474336
+    },
+    {
+      "id": 87,
+      "sender": "JM-HSBCIN-S",
+      "body": "Your HSBC Acc XXXXXX4444 is credited for INR 30000.00 on 03-Nov-26 from simransingh37634@okhdfcbank. UPI Ref No 132316502623",
+      "dateSent": 1793719049051
+    },
+    {
+      "id": 88,
+      "sender": "BP-ICICIT-S",
+      "body": "INR 581.00 spent using ICICI Bank Card XX1010 on 03-Nov-26 on AMAZON PAY IN G. Avl Limit: INR 2,56,768.00. If not you, call 1800 2662/SMS BLOCK 1010 to 9215676766.",
+      "dateSent": 1793718263984
+    },
+    {
+      "id": 89,
+      "sender": "BT-dbAlrt-S",
+      "body": "Dear Customer, invest in Deutsche Bank Fixed Deposit for >1-year at 7.00%p.a.* and grow steadily. For rates on long-term tenures, please contact your Relationship Manager or SMS FD to 561615. For booking FD, login to MyBank India app or db OnlineBanking or visit https://www.deutsche.bank.in. Terms and Conditions apply.",
+      "dateSent": 1793707692609
+    },
+    {
+      "id": 90,
+      "sender": "BP-ICICIT-S",
+      "body": "Rs.80 paid at SawaleshwarTollPlaza for MH12ZZ0202 on 03-11-2026 17:31:33 with ICICI Bank FASTag. Bal Rs.1096. Call 18002100104 for dispute",
+      "dateSent": 1793707497251
+    },
+    {
+      "id": 91,
+      "sender": "JX-TATALI-S",
+      "body": "Dear Customer, as mandated under AML/CFT regulations, please review your KYC details for Tata AIA Life Insurance Policy C056573989 by clicking https://cka.nu/TATALI/N0P02ZmK If any changes are required, please update them via My DigiAccount https://wwk.nu/TATALI/pBSi6Z3I In case no response is received within 2 weeks, your existing KYC details will be considered unchanged.",
+      "dateSent": 1793706482652
+    },
+    {
+      "id": 92,
+      "sender": "BP-ICICIT-S",
+      "body": "Rs.80 paid at VarwadeTollPlaza for MH12ZZ0202 on 03-11-2026 16:55:24 with ICICI Bank FASTag. Bal Rs.1176. Call 18002100104 for dispute",
+      "dateSent": 1793705291719
+    },
+    {
+      "id": 93,
+      "sender": "BP-ICICIT-S",
+      "body": "Rs.100 paid at SardewadiPlaza for MH12ZZ0202 on 03-11-2026 16:33:08 with ICICI Bank FASTag. Bal Rs.1256. Call 18002100104 for dispute",
+      "dateSent": 1793703958585
+    },
+    {
+      "id": 94,
+      "sender": "BP-ICICIT-S",
+      "body": "Rs.95 paid at PatasPlaza for MH12ZZ0202 on 03-11-2026 15:36:30 with ICICI Bank FASTag. Bal Rs.1356. Call 18002100104 for dispute",
+      "dateSent": 1793700734567
+    },
+    {
+      "id": 95,
+      "sender": "BP-ICICIT-S",
+      "body": "Recharge of Rs. 1000.00 for ICICI Bank FASTag linked veh. no. MH12ZZ0202 is processed on 03/11/2026 15:40:09 . Balance is Rs. 1450.88 .",
+      "dateSent": 1793700616786
+    },
+    {
+      "id": 96,
+      "sender": "JM-HSBCIN-S",
+      "body": "INR 1000.00 is paid from HSBC account XXXXXX4444 to rambabunamdeo2@okaxis on 03-Nov-26 with ref 630701009232. If this is not done by you, call 18002673456 to report.",
+      "dateSent": 1793689230806
+    },
+    {
+      "id": 97,
+      "sender": "+911234567890",
+      "body": "Dear Customer, You have a missed call from +911234567890 The last missed call was at 12:17 PM on 03-Nov-2026 Thankyou, Team Jio.",
+      "dateSent": 1793688484969
+    },
+    {
+      "id": 98,
+      "sender": "JD-INDUSB-S",
+      "body": "Profile update: EMI conversion enabled for your INR  6790 Credit Card outstanding. Convert here: https://indusbk.in/INDUSB/6Dsl7Wo - IndusInd Bank",
+      "dateSent": 1793678864388
+    },
+    {
+      "id": 99,
+      "sender": "AD-HSBCIN-S",
+      "body": "HSBC Credit Card xx4343 used at PTM*ZOMATO LIMITED for INR 2062.95 on 02/11/26. Avl limit INR 2190554.08; due INR 81445.92. Call +911234567890 to report fraud.",
+      "dateSent": 1793636236423
+    },
+    {
+      "id": 100,
+      "sender": "JX-ZOMATO-S",
+      "body": "Zomato Dining: Slot booked for 09:30PM, 02 Nov, for 4 people.\n\nCheck out booking details: zoma.to/ZOMATO/zm/do/98547891912 -ZOMATO",
+      "dateSent": 1793633526301
+    }
+  ]
+}
