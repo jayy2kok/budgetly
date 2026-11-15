@@ -281,6 +281,17 @@ public class MessageChangeStreamListener {
         txRequest.setTransactionDate(txDate.atOffset(ZoneOffset.UTC));
         txRequest.setCurrency(currency != null ? currency : "INR");
 
+        // Apply a user-overridden category from the template, resolved to this
+        // family's category id. No override → left uncategorized (no LLM here).
+        if (matched.getCategoryName() != null && !matched.getCategoryName().isBlank()) {
+            String overrideCategoryId = categoryResolver.categoryIdFor(
+                    categoryResolver.familyCategories(doc.getFamilyGroupId()),
+                    matched.getCategoryName());
+            if (overrideCategoryId != null && !overrideCategoryId.isBlank()) {
+                txRequest.setCategoryId(overrideCategoryId);
+            }
+        }
+
         matched.setUsageCount(matched.getUsageCount() + 1);
         matched = patternRegistryService.savePattern(matched);
 
@@ -357,6 +368,7 @@ public class MessageChangeStreamListener {
                     ? llmResult.getExtractionMap()
                     : Map.of("amount", "amount", "merchant", "merchant", "timestamp", "timestamp");
 
+            String llmCategory = llmResult.getCategory();
             savedPattern = SmsPatternDocument.builder()
                     .sender(doc.getSender())
                     .template(template)
@@ -364,6 +376,9 @@ public class MessageChangeStreamListener {
                     .sampleMessage(doc.getRawText())
                     .usageCount(1)
                     .active(true)
+                    .categoryName(llmCategory != null && !llmCategory.isBlank()
+                            && !CategoryResolver.UNCATEGORIZED.equalsIgnoreCase(llmCategory)
+                            ? llmCategory.trim() : null)
                     .build();
             savedPattern = patternRegistryService.savePattern(savedPattern);
         }

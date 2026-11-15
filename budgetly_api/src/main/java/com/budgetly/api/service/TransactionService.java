@@ -72,7 +72,9 @@ public class TransactionService {
                 .type(request.getType() != null ? request.getType().getValue() : "EXPENSE")
                 .splitMethod(request.getSplitMethod() != null ? request.getSplitMethod().getValue() : "PERSONAL")
                 .splitConfig(request.getSplitConfig() != null ? castSplitConfig(request.getSplitConfig()) : null)
-                .sourceType("MANUAL")
+                .sourceType(request.getSourceType() != null ? request.getSourceType().getValue() : "MANUAL")
+                .sourceRawText(request.getSourceRawText())
+                .matchedPatternId(request.getMatchedPatternId())
                 .notes(request.getNotes())
                 .transactionDate(request.getTransactionDate() != null
                         ? request.getTransactionDate().toInstant() : Instant.now())
@@ -97,7 +99,9 @@ public class TransactionService {
         if (request.getMerchant() != null) doc.setMerchant(request.getMerchant());
         if (request.getDescription() != null) doc.setDescription(request.getDescription());
         if (request.getType() != null) doc.setType(request.getType().getValue());
-        if (request.getCategoryId() != null) doc.setCategoryId(request.getCategoryId());
+        if (request.getCategoryId() != null) {
+            doc.setCategoryId(request.getCategoryId().isBlank() ? null : request.getCategoryId());
+        }
         if (request.getSplitMethod() != null) doc.setSplitMethod(request.getSplitMethod().getValue());
         if (request.getSplitConfig() != null) doc.setSplitConfig(castSplitConfig(request.getSplitConfig()));
         if (request.getNotes() != null) doc.setNotes(request.getNotes());

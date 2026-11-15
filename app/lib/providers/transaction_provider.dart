@@ -122,6 +122,19 @@ class TransactionNotifier extends Notifier<TransactionState> {
       state = state.copyWith(error: e.toString());
     }
   }
+
+  Future<void> updateTransaction(String id, Map<String, dynamic> data) async {
+    try {
+      final updated = await _service.updateTransaction(_familyId(), id, data);
+      state = state.copyWith(
+        transactions: state.transactions
+            .map((t) => t.id == id ? updated : t)
+            .toList(),
+      );
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+    }
+  }
 }
 
 final transactionProvider =

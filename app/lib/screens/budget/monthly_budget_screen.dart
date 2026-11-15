@@ -11,6 +11,7 @@ import '../../providers/family_provider.dart';
 import '../../providers/category_provider.dart';
 import '../../providers/transaction_provider.dart';
 import '../../models/family_member.dart';
+import '../../widgets/category_icon.dart';
 
 /// Monthly Budget — Overall progress + per-category breakdown.
 class MonthlyBudgetScreen extends ConsumerWidget {
@@ -775,11 +776,15 @@ class MonthlyBudgetScreen extends ConsumerWidget {
                             ),
                             SizedBox(height: 4),
                             Text(
-                              '₹${NumberFormat('#,##,###').format(totalBudget.toInt())}',
+                              totalBudget > 0
+                                  ? '₹${NumberFormat('#,##,###').format(totalBudget.toInt())}'
+                                  : 'No budget set',
                               style: GoogleFonts.jetBrainsMono(
                                 fontSize: 24,
                                 fontWeight: FontWeight.w700,
-                                color: context.colors.textMain,
+                                color: totalBudget > 0
+                                    ? context.colors.textMain
+                                    : context.colors.textDim,
                               ),
                             ),
                           ],
@@ -791,22 +796,28 @@ class MonthlyBudgetScreen extends ConsumerWidget {
                           ),
                           decoration: BoxDecoration(
                             color:
-                                (isOver
-                                        ? context.colors.accentCoral
-                                        : context.colors.accentMint)
-                                    .withValues(alpha: 0.1),
+                                (totalBudget <= 0
+                                        ? context.colors.surfaceHighlight
+                                        : (isOver
+                                                ? context.colors.accentCoral
+                                                : context.colors.accentMint))
+                                    .withValues(alpha: 0.5),
                             borderRadius: BorderRadius.circular(
                               BudgetlyTheme.radiusPill,
                             ),
                           ),
                           child: Text(
-                            '${(spentPercent * 100).toStringAsFixed(0)}% used',
+                            totalBudget <= 0
+                                ? 'No budget'
+                                : '${(spentPercent * 100).toStringAsFixed(0)}% used',
                             style: GoogleFonts.inter(
                               fontSize: 12,
                               fontWeight: FontWeight.w700,
-                              color: isOver
-                                  ? context.colors.accentCoral
-                                  : context.colors.accentMint,
+                              color: totalBudget <= 0
+                                  ? context.colors.textDim
+                                  : (isOver
+                                      ? context.colors.accentCoral
+                                      : context.colors.accentMint),
                             ),
                           ),
                         ),
@@ -878,13 +889,17 @@ class MonthlyBudgetScreen extends ConsumerWidget {
                           ),
                         ),
                         Text(
-                          '₹${NumberFormat('#,##,###').format((totalBudget - totalSpent).abs().toInt())} ${isOver ? "over" : "remaining"}',
+                          totalBudget > 0
+                              ? '₹${NumberFormat('#,##,###').format((totalBudget - totalSpent).abs().toInt())} ${isOver ? "over" : "remaining"}'
+                              : 'Set a budget to track',
                           style: GoogleFonts.inter(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
-                            color: isOver
-                                ? context.colors.accentCoral
-                                : context.colors.accentMint,
+                            color: totalBudget <= 0
+                                ? context.colors.textDim
+                                : (isOver
+                                    ? context.colors.accentCoral
+                                    : context.colors.accentMint),
                           ),
                         ),
                       ],
@@ -1001,9 +1016,10 @@ class _CategoryBudgetCard extends StatelessWidget {
   });
 
   double get budgetLimit => category.budgetLimit.toDouble();
+  bool get _hasBudget => budgetLimit > 0;
   double get _percent =>
-      budgetLimit > 0 ? (spent / budgetLimit).clamp(0.0, 1.0) : 0;
-  bool get _isOver => spent > budgetLimit;
+      _hasBudget ? (spent / budgetLimit).clamp(0.0, 1.0) : 0;
+  bool get _isOver => _hasBudget && spent > budgetLimit;
 
   @override
   Widget build(BuildContext context) {
@@ -1024,7 +1040,11 @@ class _CategoryBudgetCard extends StatelessWidget {
           // Top row
           Row(
             children: [
-              Text(category.icon, style: TextStyle(fontSize: 22)),
+              CategoryIcon(
+                icon: category.icon,
+                size: 22,
+                color: context.colors.textMain,
+              ),
               SizedBox(width: 12),
               Expanded(
                 child: Text(
@@ -1074,7 +1094,9 @@ class _CategoryBudgetCard extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    'of ₹${NumberFormat('#,##,###').format(budgetLimit.toInt())}',
+                    _hasBudget
+                        ? 'of ₹${NumberFormat('#,##,###').format(budgetLimit.toInt())}'
+                        : 'No limit',
                     style: GoogleFonts.inter(
                       fontSize: 11,
                       color: context.colors.textDim,

@@ -1187,6 +1187,12 @@ components:
           $ref: "#/components/schemas/TransactionType"
         categoryId:
           type: string
+        sourceType:
+          $ref: "#/components/schemas/SourceType"
+        sourceRawText:
+          type: string
+        matchedPatternId:
+          type: string
         familyGroupId:
           type: string
         splitMethod:
@@ -1382,6 +1388,9 @@ components:
           type: integer
           format: int64
           description: Global counter of successful matches across all users
+        categoryName:
+          type: string
+          description: User-overridden category name for transactions parsed by this template (resolved per family)
         createdAt:
           type: string
           format: date-time

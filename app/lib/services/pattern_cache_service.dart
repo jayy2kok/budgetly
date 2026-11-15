@@ -57,4 +57,27 @@ class PatternCacheService {
         .where((p) => p.sender.toUpperCase() == sender.toUpperCase())
         .toList();
   }
+
+  /// Finds a cached pattern by id, or null if not present.
+  SmsPattern? patternById(String? id) {
+    if (id == null) return null;
+    for (final p in _patterns) {
+      if (p.id == id) return p;
+    }
+    return null;
+  }
+
+  /// Updates the category override for a template on the server and in cache.
+  Future<void> updatePatternCategory(String patternId, String? categoryName) async {
+    try {
+      final response = await _dio.patch(
+        '/patterns/$patternId/category',
+        data: {'categoryName': categoryName},
+      );
+      final updated = SmsPattern.fromJson(response.data as Map<String, dynamic>);
+      _patterns = _patterns.map((p) => p.id == patternId ? updated : p).toList();
+    } catch (e) {
+      // Keep existing cache if the update fails.
+    }
+  }
 }

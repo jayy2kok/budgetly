@@ -31,6 +31,9 @@ public class SmsPatternDocument {
 
     private String sampleMessage;
 
+    /** User-overridden category name (resolved per-family at transaction time). */
+    private String categoryName;
+
     @Builder.Default
     private long usageCount = 0;
 

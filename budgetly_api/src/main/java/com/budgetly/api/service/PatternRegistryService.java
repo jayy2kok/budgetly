@@ -112,6 +112,18 @@ public class PatternRegistryService {
         return patternRepository.save(doc);
     }
 
+    /**
+     * Persists a user's category override on a template. A blank or {@code null}
+     * name clears the override so future matches fall back to uncategorized.
+     */
+    public SmsPattern updatePatternCategory(String patternId, String categoryName) {
+        SmsPatternDocument pattern = patternRepository.findById(patternId)
+                .orElseThrow(() -> new ResourceNotFoundException("SmsPattern", patternId));
+        pattern.setCategoryName(categoryName == null || categoryName.isBlank() ? null : categoryName.trim());
+        pattern.setUpdatedAt(Instant.now());
+        return toDto(patternRepository.save(pattern));
+    }
+
     /** Active templates registered for a sender, in registration order. */
     public List<SmsPatternDocument> findActiveBySender(String sender) {
         if (sender == null) return List.of();
@@ -125,6 +137,7 @@ public class PatternRegistryService {
         dto.setTemplate(doc.getTemplate());
         dto.setSampleMessage(doc.getSampleMessage());
         dto.setUsageCount(doc.getUsageCount());
+        dto.setCategoryName(doc.getCategoryName());
         if (doc.getCreatedAt() != null) dto.setCreatedAt(doc.getCreatedAt().atOffset(ZoneOffset.UTC));
 
         if (doc.getExtractionMap() != null) {

@@ -5,10 +5,13 @@ import 'package:permission_handler_platform_interface/permission_handler_platfor
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:budgetly/data/message_service.dart';
+import 'package:budgetly/models/category.dart';
 import 'package:budgetly/models/family_group.dart';
 import 'package:budgetly/models/message.dart';
+import 'package:budgetly/models/sms_pattern.dart';
 import 'package:budgetly/models/user.dart';
 import 'package:budgetly/providers/auth_provider.dart';
+import 'package:budgetly/providers/category_provider.dart';
 import 'package:budgetly/providers/family_provider.dart';
 import 'package:budgetly/providers/message_provider.dart';
 import 'package:budgetly/providers/service_providers.dart';
@@ -83,9 +86,12 @@ class RecordingMessageService implements MessageService {
 
 /// A [PatternCacheService] that records refreshPatterns() calls.
 class RecordingPatternCache extends PatternCacheService {
-  RecordingPatternCache() : super(dio: Dio());
+  RecordingPatternCache({this.matchedPattern}) : super(dio: Dio());
 
   int refreshCalls = 0;
+
+  /// Optional pattern returned by [patternById] (simulates a cached template).
+  SmsPattern? matchedPattern;
 
   @override
   Future<void> loadPatterns() async {}
@@ -94,6 +100,9 @@ class RecordingPatternCache extends PatternCacheService {
   Future<void> refreshPatterns() async {
     refreshCalls++;
   }
+
+  @override
+  SmsPattern? patternById(String? id) => matchedPattern;
 }
 
 /// An [SmsInboxReader] that returns canned messages instead of the OS inbox.
@@ -137,6 +146,14 @@ class FakeFamilyNotifier extends FamilyNotifier {
 
   @override
   FamilyState build() => FamilyState(currentFamily: family);
+}
+
+class FakeCategoryNotifier extends CategoryNotifier {
+  final List<Category> categories;
+  FakeCategoryNotifier(this.categories);
+
+  @override
+  CategoryState build() => CategoryState(categories: categories);
 }
 
 /// Records addTransaction calls; never touches the network.
@@ -211,6 +228,29 @@ Map<String, String> fullExtraction() => {
       'timestamp': '01/10/2026',
     };
 
+SmsPattern kPattern({String? categoryName}) => SmsPattern(
+      id: 'p-hdfc',
+      sender: 'HDFCBK',
+      template: 'Spent Rs {amount} at {merchant} on {timestamp}',
+      extractionMap: const ExtractionMap(
+        amount: 'amount',
+        merchant: 'merchant',
+        timestamp: 'timestamp',
+      ),
+      sampleMessage: 'Spent Rs 500 at Grocery Mart on 01/10/2026',
+      categoryName: categoryName,
+      createdAt: DateTime.utc(2026, 1, 1),
+    );
+
+Category kCategory({required String id, required String name}) => Category(
+      id: id,
+      familyGroupId: 'fam-1',
+      name: name,
+      icon: '🛒',
+      budgetLimit: 0,
+      color: '#5B5EF4',
+    );
+
 // ── Test rig ──────────────────────────────────────────────────────
 
 ProviderContainer buildContainer({
@@ -220,6 +260,7 @@ ProviderContainer buildContainer({
   required RecordingPatternCache cache,
   User? user,
   FamilyGroup? family,
+  List<Category>? categories,
 }) {
   return ProviderContainer(
     overrides: [
@@ -227,6 +268,7 @@ ProviderContainer buildContainer({
       smsInboxReaderProvider.overrideWithValue(reader),
       authProvider.overrideWith(() => FakeAuthNotifier(user)),
       familyProvider.overrideWith(() => FakeFamilyNotifier(family)),
+      categoryProvider.overrideWith(() => FakeCategoryNotifier(categories ?? [])),
       messageServiceProvider.overrideWithValue(messageService),
       transactionProvider.overrideWith(() => transactions),
       messageProvider.overrideWith(() => FakeMessageNotifier()),
@@ -298,14 +340,52 @@ void main() {
       expect(transactions.addCalls, hasLength(1));
       final tx = transactions.addCalls.single;
       expect(tx['amount'], 500.0);
-      expect(tx['merchantName'], 'Grocery Mart');
+      expect(tx['merchant'], 'Grocery Mart');
       expect(tx['type'], 'EXPENSE');
+      expect(tx['sourceType'], 'REGEX_LOCAL');
+      expect(tx['sourceRawText'], 'Spent Rs 500 at Grocery Mart on 01/10/2026');
+      expect(tx['matchedPatternId'], 'p-hdfc');
+      // No category override on the pattern → no categoryId key.
+      expect(tx.containsKey('categoryId'), isFalse);
 
       expect(messageService.processCalls, isEmpty);
       expect(messageService.bulkCalls, isEmpty);
       // No server-bound messages → no pattern refresh (avoids a wasted round-trip).
       expect(cache.refreshCalls, 0);
       expect(reader.readCalls, 1);
+    });
+
+    test('resolves the template categoryName override to a family category id',
+        () async {
+      cache.matchedPattern = kPattern(categoryName: 'Groceries');
+
+      final overrideContainer = buildContainer(
+        reader: reader,
+        messageService: messageService,
+        transactions: transactions,
+        cache: cache,
+        user: kUser(),
+        family: kFamily(),
+        categories: [kCategory(id: 'cat-1', name: 'Groceries')],
+      );
+      addTearDown(overrideContainer.dispose);
+
+      reader.canned = [
+        smsMsg(
+          id: 1,
+          body: 'Spent Rs 500 at Grocery Mart on 01/10/2026',
+          at: now,
+          parseSource: ParseSource.regexLocal,
+          extractedData: fullExtraction(),
+          matchedPatternId: 'p-hdfc',
+        ),
+      ];
+
+      await settleInitFor(overrideContainer);
+      await overrideContainer.read(smsProvider.notifier).syncInboxMessages();
+
+      expect(transactions.addCalls, hasLength(1));
+      expect(transactions.addCalls.single['categoryId'], 'cat-1');
     });
   });
 

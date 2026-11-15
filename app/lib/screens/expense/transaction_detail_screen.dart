@@ -10,6 +10,8 @@ import '../../models/transaction.dart';
 
 import '../../providers/category_provider.dart';
 import '../../providers/transaction_provider.dart';
+import '../../providers/service_providers.dart';
+import '../../widgets/category_icon.dart';
 
 /// Transaction Detail — Full info, source SMS.
 class TransactionDetailScreen extends ConsumerWidget {
@@ -157,6 +159,7 @@ class TransactionDetailScreen extends ConsumerWidget {
                         label: 'Category',
                         value: _categoryName(txn.categoryId, categories),
                         icon: Icons.label_outline,
+                        onTap: () => _showCategoryPicker(context, ref, txn),
                       ),
                       _DetailRow(
                         label: 'Date',
@@ -277,6 +280,79 @@ class TransactionDetailScreen extends ConsumerWidget {
     };
     return names[userId] ?? 'Unknown';
   }
+
+  void _showCategoryPicker(BuildContext context, WidgetRef ref, Transaction txn) {
+    final categories = ref.read(categoryProvider).categories;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: context.colors.cardSurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetCtx) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
+              child: Text(
+                'Category',
+                style: GoogleFonts.ibmPlexSans(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: context.colors.textMain,
+                ),
+              ),
+            ),
+            ListTile(
+              leading: Icon(Icons.label_off_outlined, color: context.colors.textDim),
+              title: Text(
+                'Uncategorized',
+                style: GoogleFonts.inter(color: context.colors.textMain),
+              ),
+              trailing: (txn.categoryId == null || txn.categoryId!.isEmpty)
+                  ? Icon(Icons.check, color: context.colors.primary)
+                  : null,
+              onTap: () {
+                Navigator.pop(sheetCtx);
+                _applyCategory(ref, txn, null);
+              },
+            ),
+            for (final c in categories)
+              ListTile(
+                leading: CategoryIcon(
+                  icon: c.icon,
+                  size: 20,
+                  color: context.colors.textMain,
+                ),
+                title: Text(
+                  c.name,
+                  style: GoogleFonts.inter(color: context.colors.textMain),
+                ),
+                trailing: c.id == txn.categoryId
+                    ? Icon(Icons.check, color: context.colors.primary)
+                    : null,
+                onTap: () {
+                  Navigator.pop(sheetCtx);
+                  _applyCategory(ref, txn, c);
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _applyCategory(WidgetRef ref, Transaction txn, Category? category) async {
+    await ref.read(transactionProvider.notifier).updateTransaction(txn.id, {
+      'categoryId': category?.id ?? '',
+    });
+    if (txn.matchedPatternId != null) {
+      await ref
+          .read(patternCacheServiceProvider)
+          .updatePatternCategory(txn.matchedPatternId!, category?.name);
+    }
+  }
 }
 
 // ─── Detail Card ───
@@ -328,45 +404,54 @@ class _DetailRow extends StatelessWidget {
   final String label;
   final String value;
   final IconData icon;
+  final VoidCallback? onTap;
 
   const _DetailRow({
     required this.label,
     required this.value,
     required this.icon,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          Icon(icon, size: 16, color: context.colors.textDim),
-          SizedBox(width: 12),
-          SizedBox(
-            width: 90,
-            child: Text(
-              label,
-              style: GoogleFonts.inter(
-                fontSize: 14,
-                color: context.colors.textDim,
+    return GestureDetector(
+      onTap: onTap,
+      child: Padding(
+        padding: EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          children: [
+            Icon(icon, size: 16, color: context.colors.textDim),
+            SizedBox(width: 12),
+            SizedBox(
+              width: 90,
+              child: Text(
+                label,
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  color: context.colors.textDim,
+                ),
               ),
             ),
-          ),
-          SizedBox(width: 16),
-          Expanded(
-            child: Text(
-              value,
-              style: GoogleFonts.inter(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: context.colors.textMain,
+            SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                value,
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: context.colors.textMain,
+                ),
+                textAlign: TextAlign.left,
+                overflow: TextOverflow.ellipsis,
               ),
-              textAlign: TextAlign.left,
-              overflow: TextOverflow.ellipsis,
             ),
-          ),
-        ],
+            if (onTap != null) ...[
+              SizedBox(width: 8),
+              Icon(Icons.edit_outlined, size: 16, color: context.colors.primary),
+            ],
+          ],
+        ),
       ),
     );
   }
