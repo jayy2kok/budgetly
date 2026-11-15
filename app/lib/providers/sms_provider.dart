@@ -271,7 +271,9 @@ class SmsNotifier extends Notifier<SmsState> {
           // Fully parsed locally! Convert to transaction immediately.
           debugPrint('[SmsSync] Regex-parsed fully, creating transaction for msg id=${msg.id}');
           final txData = {
-            'amount': double.parse(msg.extractedData!['amount']!),
+            'amount': double.parse(
+              msg.extractedData!['amount']!.replaceAll(',', '').trim(),
+            ),
             'merchantName': msg.extractedData!['merchant'],
             // Prefer the SMS's authoritative receivedAt (a correct absolute
             // instant). The extracted timestamp is only a fallback: it carries

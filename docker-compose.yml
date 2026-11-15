@@ -56,6 +56,7 @@ services:
       mongodb:
         condition: service_healthy
     environment:
+      SPRING_DATA_MONGODB_URI: mongodb://budgetly:budgetly_secret@mongodb:27017/budgetly?authSource=admin&replicaSet=rs0
       SPRING_MONGODB_URI: mongodb://budgetly:budgetly_secret@mongodb:27017/budgetly?authSource=admin&replicaSet=rs0
       LLM_PROVIDER: ${LLM_PROVIDER:-openai}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-http://rpi.local:20129/v1}
@@ -64,7 +65,7 @@ services:
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-placeholder-client-id}
       JWT_SECRET: ${JWT_SECRET:-budgetly-super-secret-key-for-development-min-256-bits-long}
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:8080/actuator/health || exit 1"]
+      test: ["CMD-SHELL", "curl -f -s http://localhost:8080/actuator/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3

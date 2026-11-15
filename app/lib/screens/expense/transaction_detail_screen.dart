@@ -5,8 +5,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 
 import '../../config/theme.dart';
+import '../../models/category.dart';
 import '../../models/transaction.dart';
 
+import '../../providers/category_provider.dart';
 import '../../providers/transaction_provider.dart';
 
 /// Transaction Detail — Full info, source SMS.
@@ -18,6 +20,7 @@ class TransactionDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final txnState = ref.watch(transactionProvider);
+    final categories = ref.watch(categoryProvider).categories;
     final txn = txnState.transactions.cast<Transaction?>().firstWhere(
       (t) => t?.id == transactionId,
       orElse: () => null,
@@ -152,7 +155,7 @@ class TransactionDetailScreen extends ConsumerWidget {
                       ),
                       _DetailRow(
                         label: 'Category',
-                        value: _categoryName(txn.categoryId),
+                        value: _categoryName(txn.categoryId, categories),
                         icon: Icons.label_outline,
                       ),
                       _DetailRow(
@@ -248,8 +251,11 @@ class TransactionDetailScreen extends ConsumerWidget {
     );
   }
 
-  String _categoryName(String? id) {
-    if (id == 'uncategorized') return 'Uncategorized';
+  String _categoryName(String? id, List<Category> categories) {
+    if (id == null || id.isEmpty || id == 'uncategorized') return 'Uncategorized';
+    for (final c in categories) {
+      if (c.id == id) return c.name;
+    }
     const labels = {
       'cat_001': 'Groceries',
       'cat_002': 'Dining',

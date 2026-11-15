@@ -1,12 +1,15 @@
 package com.budgetly.api.service;
 
+import com.budgetly.api.document.CategoryDocument;
 import com.budgetly.api.document.MessageDocument;
 import com.budgetly.api.llm.LlmAnalysisResult;
 import com.budgetly.api.llm.LlmProvider;
 import com.budgetly.api.generated.model.BulkMessageItem;
 import com.budgetly.api.generated.model.BulkMessageRequest;
 import com.budgetly.api.generated.model.BulkMessageResponse;
+import com.budgetly.api.generated.model.CreateTransactionRequest;
 import com.budgetly.api.generated.model.ProcessMessageRequest;
+import com.budgetly.api.generated.model.Transaction;
 import com.budgetly.api.repository.MessageRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -18,6 +21,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyIterable;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
@@ -28,6 +32,7 @@ class MessageServiceTest {
     private TransactionService transactionService;
     private PatternRegistryService patternRegistryService;
     private LlmProvider llmProvider;
+    private CategoryResolver categoryResolver;
     private MessageService service;
 
     @BeforeEach
@@ -36,8 +41,9 @@ class MessageServiceTest {
         transactionService = mock(TransactionService.class);
         patternRegistryService = mock(PatternRegistryService.class);
         llmProvider = mock(LlmProvider.class);
+        categoryResolver = mock(CategoryResolver.class);
         service = new MessageService(messageRepository, transactionService,
-                patternRegistryService, llmProvider, new TransactionDateParser());
+                patternRegistryService, llmProvider, new TransactionDateParser(), categoryResolver);
         ReflectionTestUtils.setField(service, "maxBatchSize", 500);
     }
 
@@ -50,7 +56,7 @@ class MessageServiceTest {
         // and Mockito captures references, not copies).
         when(messageRepository.save(any(MessageDocument.class)))
                 .thenAnswer(inv -> snapshot(inv.getArgument(0, MessageDocument.class)));
-        when(llmProvider.analyzeMessage(anyString(), anyString()))
+        when(llmProvider.analyzeMessage(anyString(), anyString(), any()))
                 .thenReturn(LlmAnalysisResult.builder().financial(false).build());
 
         ProcessMessageRequest req = new ProcessMessageRequest();
@@ -69,6 +75,116 @@ class MessageServiceTest {
         // First persisted as PENDING then terminal status IGNORED.
         assertThat(saved).anySatisfy(d -> assertThat(d.getStatus()).isEqualTo(MessageDocument.STATUS_PENDING));
         assertThat(saved).anySatisfy(d -> assertThat(d.getStatus()).isEqualTo(MessageDocument.STATUS_IGNORED));
+    }
+
+    // ── WORK-006: LLM category → transaction categoryId ──────────
+
+    @Test
+    void processMessageSetsCategoryIdFromLlmResult() {
+        when(messageRepository.save(any(MessageDocument.class)))
+                .thenAnswer(inv -> snapshot(inv.getArgument(0, MessageDocument.class)));
+        when(categoryResolver.familyCategories("fam-1"))
+                .thenReturn(List.of(category("cat-1", "Groceries")));
+        when(categoryResolver.namesForPrompt(anyList()))
+                .thenReturn(List.of("Groceries"));
+        when(categoryResolver.categoryIdFor(anyList(), eq("Groceries")))
+                .thenReturn("cat-1");
+        when(llmProvider.analyzeMessage(anyString(), anyString(), any()))
+                .thenReturn(LlmAnalysisResult.builder()
+                        .financial(true)
+                        .amount(500.0)
+                        .merchant("Grocery Mart")
+                        .transactionType("EXPENSE")
+                        .category("Groceries")
+                        .build());
+        Transaction tx = new Transaction();
+        tx.setId("tx-1");
+        when(transactionService.createTransactionInternal(any(), any(), any(), any(), any(), any()))
+                .thenReturn(tx);
+
+        service.processMessage("u1", req("HDFCBK", "Spent Rs 500 at Grocery Mart on 01/10/2026", "fam-1")).join();
+
+        ArgumentCaptor<CreateTransactionRequest> txCaptor = ArgumentCaptor.forClass(CreateTransactionRequest.class);
+        verify(transactionService).createTransactionInternal(
+                eq("u1"), eq("fam-1"), txCaptor.capture(), anyString(), anyString(), any());
+        assertThat(txCaptor.getValue().getCategoryId()).isEqualTo("cat-1");
+    }
+
+    @Test
+    void processMessageLeavesCategoryNullForUncategorized() {
+        when(messageRepository.save(any(MessageDocument.class)))
+                .thenAnswer(inv -> snapshot(inv.getArgument(0, MessageDocument.class)));
+        when(categoryResolver.familyCategories("fam-1"))
+                .thenReturn(List.of(category("cat-1", "Groceries")));
+        when(categoryResolver.namesForPrompt(anyList()))
+                .thenReturn(List.of("Groceries"));
+        when(categoryResolver.categoryIdFor(anyList(), eq("uncategorized")))
+                .thenReturn(null);
+        when(llmProvider.analyzeMessage(anyString(), anyString(), any()))
+                .thenReturn(LlmAnalysisResult.builder()
+                        .financial(true)
+                        .amount(500.0)
+                        .merchant("Grocery Mart")
+                        .transactionType("EXPENSE")
+                        .category("uncategorized")
+                        .build());
+        Transaction tx = new Transaction();
+        tx.setId("tx-2");
+        when(transactionService.createTransactionInternal(any(), any(), any(), any(), any(), any()))
+                .thenReturn(tx);
+
+        service.processMessage("u1", req("HDFCBK", "Spent Rs 500 at Grocery Mart on 01/10/2026", "fam-1")).join();
+
+        ArgumentCaptor<CreateTransactionRequest> txCaptor = ArgumentCaptor.forClass(CreateTransactionRequest.class);
+        verify(transactionService).createTransactionInternal(
+                eq("u1"), eq("fam-1"), txCaptor.capture(), anyString(), anyString(), any());
+        assertThat(txCaptor.getValue().getCategoryId()).isNull();
+    }
+
+    @Test
+    void processMessageUsesDefaultCategoryListWhenFamilyHasNone() {
+        when(messageRepository.save(any(MessageDocument.class)))
+                .thenAnswer(inv -> snapshot(inv.getArgument(0, MessageDocument.class)));
+        when(categoryResolver.familyCategories("fam-1")).thenReturn(List.of());
+        when(categoryResolver.namesForPrompt(anyList())).thenReturn(CategoryResolver.DEFAULT_CATEGORIES);
+        when(llmProvider.analyzeMessage(anyString(), anyString(), any()))
+                .thenReturn(LlmAnalysisResult.builder().financial(false).build());
+
+        service.processMessage("u1", req("HDFCBK", "Spent Rs 500 at Grocery Mart on 01/10/2026", "fam-1")).join();
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<String>> captor = ArgumentCaptor.forClass(List.class);
+        verify(llmProvider).analyzeMessage(eq("HDFCBK"), anyString(), captor.capture());
+        assertThat(captor.getValue()).isEqualTo(CategoryResolver.DEFAULT_CATEGORIES);
+    }
+
+    @Test
+    void processMessageLeavesCategoryNullWhenLlmReturnsUnknownCategory() {
+        when(messageRepository.save(any(MessageDocument.class)))
+                .thenAnswer(inv -> snapshot(inv.getArgument(0, MessageDocument.class)));
+        when(categoryResolver.familyCategories("fam-1"))
+                .thenReturn(List.of(category("cat-1", "Groceries")));
+        when(categoryResolver.namesForPrompt(anyList())).thenReturn(List.of("Groceries"));
+        when(categoryResolver.categoryIdFor(anyList(), eq("Mystery"))).thenReturn(null);
+        when(llmProvider.analyzeMessage(anyString(), anyString(), any()))
+                .thenReturn(LlmAnalysisResult.builder()
+                        .financial(true)
+                        .amount(500.0)
+                        .merchant("Grocery Mart")
+                        .transactionType("EXPENSE")
+                        .category("Mystery")
+                        .build());
+        Transaction tx = new Transaction();
+        tx.setId("tx-3");
+        when(transactionService.createTransactionInternal(any(), any(), any(), any(), any(), any()))
+                .thenReturn(tx);
+
+        service.processMessage("u1", req("HDFCBK", "Spent Rs 500 at Grocery Mart on 01/10/2026", "fam-1")).join();
+
+        ArgumentCaptor<CreateTransactionRequest> txCaptor = ArgumentCaptor.forClass(CreateTransactionRequest.class);
+        verify(transactionService).createTransactionInternal(
+                eq("u1"), eq("fam-1"), txCaptor.capture(), anyString(), anyString(), any());
+        assertThat(txCaptor.getValue().getCategoryId()).isNull();
     }
 
     @Test
@@ -173,5 +289,17 @@ class MessageServiceTest {
         r.setSender(sender);
         r.setRawText(rawText);
         return r;
+    }
+
+    private ProcessMessageRequest req(String sender, String rawText, String familyGroupId) {
+        ProcessMessageRequest r = new ProcessMessageRequest();
+        r.setSender(sender);
+        r.setRawText(rawText);
+        r.setFamilyGroupId(familyGroupId);
+        return r;
+    }
+
+    private CategoryDocument category(String id, String name) {
+        return CategoryDocument.builder().id(id).name(name).build();
     }
 }

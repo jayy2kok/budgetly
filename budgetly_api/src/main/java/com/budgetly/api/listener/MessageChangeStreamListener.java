@@ -1,13 +1,15 @@
 package com.budgetly.api.listener;
 
+import com.budgetly.api.document.CategoryDocument;
 import com.budgetly.api.document.MessageDocument;
 import com.budgetly.api.document.ChangeStreamTokenDocument;
 import com.budgetly.api.repository.MessageRepository;
 import com.budgetly.api.repository.ChangeStreamTokenRepository;
-import com.budgetly.api.service.TransactionService;
 import com.budgetly.api.service.AnchorParserService;
+import com.budgetly.api.service.CategoryResolver;
 import com.budgetly.api.service.PatternRegistryService;
 import com.budgetly.api.service.TransactionDateParser;
+import com.budgetly.api.service.TransactionService;
 import com.budgetly.api.llm.LlmAnalysisResult;
 import com.budgetly.api.llm.LlmProvider;
 import lombok.extern.slf4j.Slf4j;
@@ -48,6 +50,7 @@ public class MessageChangeStreamListener {
     private final PatternRegistryService patternRegistryService;
     private final AnchorParserService anchorParserService;
     private final TransactionDateParser transactionDateParser;
+    private final CategoryResolver categoryResolver;
     private final String collectionName;
     private final String tokenCollectionName;
 
@@ -74,6 +77,7 @@ public class MessageChangeStreamListener {
             PatternRegistryService patternRegistryService,
             AnchorParserService anchorParserService,
             TransactionDateParser transactionDateParser,
+            CategoryResolver categoryResolver,
             @Value("${budgetly.change-stream.collection:messages}") String collectionName,
             @Value("${budgetly.change-stream.token-collection:change_stream_tokens}") String tokenCollectionName) {
         this.mongoTemplate = mongoTemplate;
@@ -84,6 +88,7 @@ public class MessageChangeStreamListener {
         this.patternRegistryService = patternRegistryService;
         this.anchorParserService = anchorParserService;
         this.transactionDateParser = transactionDateParser;
+        this.categoryResolver = categoryResolver;
         this.collectionName = collectionName;
         this.tokenCollectionName = tokenCollectionName;
         io.micrometer.core.instrument.Metrics.gauge(
@@ -322,7 +327,9 @@ public class MessageChangeStreamListener {
     // ── SLOW PATH: LLM classification + pattern proposal ─────────
 
     private void analyzeWithLlm(MessageDocument doc) {
-        LlmAnalysisResult llmResult = llmProvider.analyzeMessage(doc.getSender(), doc.getRawText());
+        List<CategoryDocument> familyCategories = categoryResolver.familyCategories(doc.getFamilyGroupId());
+        List<String> categoryNames = categoryResolver.namesForPrompt(familyCategories);
+        LlmAnalysisResult llmResult = llmProvider.analyzeMessage(doc.getSender(), doc.getRawText(), categoryNames);
 
         if (!llmResult.isFinancial()) {
             doc.setStatus(MessageDocument.STATUS_IGNORED);
@@ -338,6 +345,10 @@ public class MessageChangeStreamListener {
                 .atOffset(ZoneOffset.UTC));
         String llmCurrency = llmResult.getCurrency();
         txRequest.setCurrency(llmCurrency != null && !llmCurrency.isBlank() ? llmCurrency.toUpperCase(java.util.Locale.ROOT) : "INR");
+        String categoryId = categoryResolver.categoryIdFor(familyCategories, llmResult.getCategory());
+        if (categoryId != null && !categoryId.isBlank()) {
+            txRequest.setCategoryId(categoryId);
+        }
 
         SmsPatternDocument savedPattern = null;
         String template = llmResult.getTemplate();
@@ -374,6 +385,7 @@ public class MessageChangeStreamListener {
         if (llmResult.getAmount() != null) parsedDataMap.put("amount", llmResult.getAmount());
         if (llmResult.getMerchant() != null) parsedDataMap.put("merchant", llmResult.getMerchant());
         if (llmResult.getTransactionType() != null) parsedDataMap.put("transactionType", llmResult.getTransactionType());
+        if (llmResult.getCategory() != null && !llmResult.getCategory().isBlank()) parsedDataMap.put("category", llmResult.getCategory());
         doc.setParsedTransactionData(parsedDataMap);
     }
 
