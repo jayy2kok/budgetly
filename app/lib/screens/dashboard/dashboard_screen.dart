@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 
 import '../../config/theme.dart';
 import '../../config/routes.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/budget_provider.dart';
 import '../../providers/family_provider.dart';
 import '../../providers/category_provider.dart';
@@ -14,6 +15,7 @@ import '../../providers/transaction_provider.dart';
 import '../../providers/sms_provider.dart';
 import '../../models/transaction.dart';
 import '../../models/family_member.dart';
+import '../../utils/payer_resolver.dart';
 import '../../widgets/sms_consent_dialog.dart';
 
 /// Dashboard — Budget ring, stat cards, activity list.
@@ -188,9 +190,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               sliver: SliverList(
                 delegate: SliverChildBuilderDelegate((context, index) {
                   final txn = txnState.transactions[index];
+                  final familyState = ref.watch(familyProvider);
                   return _ActivityTile(
                     transaction: txn,
                     categoryName: catMap[txn.categoryId],
+                    members: familyState.members,
+                    currentUserId: ref.read(authProvider).user?.id,
                     onTap: () => context.push(
                       '${AppRoutes.transactionDetail}/${txn.id}',
                     ),
@@ -596,11 +601,15 @@ class _MiniStatCard extends StatelessWidget {
 class _ActivityTile extends StatelessWidget {
   final Transaction transaction;
   final String? categoryName;
+  final List<FamilyMember> members;
+  final String? currentUserId;
   final VoidCallback? onTap;
 
   const _ActivityTile({
     required this.transaction,
     this.categoryName,
+    this.members = const [],
+    this.currentUserId,
     this.onTap,
   });
 
@@ -694,7 +703,9 @@ class _ActivityTile extends StatelessWidget {
                       width: 20,
                       height: 20,
                       decoration: BoxDecoration(
-                        color: context.colors.primary,
+                        color: isIncome
+                            ? context.colors.accentMint
+                            : context.colors.primary,
                         shape: BoxShape.circle,
                         border: Border.all(
                           color: context.colors.backgroundAlt,
@@ -703,7 +714,11 @@ class _ActivityTile extends StatelessWidget {
                       ),
                       child: Center(
                         child: Text(
-                          'A',
+                          payerInitial(
+                            createdByUserId: transaction.createdByUserId,
+                            currentUserId: currentUserId,
+                            members: members,
+                          ),
                           style: TextStyle(
                             fontSize: 8,
                             fontWeight: FontWeight.w700,

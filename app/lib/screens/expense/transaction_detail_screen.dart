@@ -8,9 +8,12 @@ import '../../config/theme.dart';
 import '../../models/category.dart';
 import '../../models/transaction.dart';
 
+import '../../providers/auth_provider.dart';
 import '../../providers/category_provider.dart';
+import '../../providers/family_provider.dart';
 import '../../providers/transaction_provider.dart';
 import '../../providers/service_providers.dart';
+import '../../utils/payer_resolver.dart';
 import '../../widgets/category_icon.dart';
 
 /// Transaction Detail — Full info, source SMS.
@@ -170,7 +173,7 @@ class TransactionDetailScreen extends ConsumerWidget {
                       ),
                       _DetailRow(
                         label: 'Added by',
-                        value: _payerName(txn.createdByUserId),
+                        value: _resolvePayerName(txn.createdByUserId, ref),
                         icon: Icons.person_outline,
                       ),
                     ],
@@ -272,13 +275,14 @@ class TransactionDetailScreen extends ConsumerWidget {
     return labels[id] ?? 'Uncategorized';
   }
 
-  String _payerName(String userId) {
-    const names = {
-      'user_001': 'Arjun Sharma',
-      'user_002': 'Priya Sharma',
-      'user_003': 'Rohan Sharma',
-    };
-    return names[userId] ?? 'Unknown';
+  String _resolvePayerName(String userId, WidgetRef ref) {
+    final members = ref.watch(familyProvider).members;
+    final currentUserId = ref.watch(authProvider).user?.id;
+    return resolvePayerName(
+      createdByUserId: userId,
+      currentUserId: currentUserId,
+      members: members,
+    );
   }
 
   void _showCategoryPicker(BuildContext context, WidgetRef ref, Transaction txn) {
