@@ -19,9 +19,13 @@ class MockFamilyService implements FamilyService {
 
   @override
   Future<FamilyGroup> updateFamily(
-      String familyId, Map<String, dynamic> updates) async {
+    String familyId,
+    Map<String, dynamic> updates,
+  ) async {
     await Future.delayed(const Duration(milliseconds: 300));
-    return SampleData.familyGroup;
+    // Apply the patch to the sample family so mock-mode edits are visible.
+    final json = SampleData.familyGroup.toJson()..addAll(updates);
+    return FamilyGroup.fromJson(json);
   }
 
   @override

@@ -101,20 +101,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                 color: context.colors.textMain,
                               ),
                             ),
-                            SizedBox(width: 4),
-                            Icon(
-                              Icons.expand_more,
-                              color: context.colors.primary,
-                              size: 22,
-                            ),
                           ],
                         ),
                       ],
                     ),
                     // Family avatars
-                    _FamilyAvatars(
-                      members: ref.watch(familyProvider).members,
-                    ),
+                    _FamilyAvatars(members: ref.watch(familyProvider).members),
                   ],
                 ),
               ),
@@ -233,10 +225,10 @@ class _FamilyAvatars extends StatelessWidget {
       child: Stack(
         children: List.generate(displayMembers.length, (index) {
           final member = displayMembers[index];
-          final initial = member.user?.displayName.isNotEmpty == true 
-              ? member.user!.displayName[0].toUpperCase() 
+          final initial = member.user?.displayName.isNotEmpty == true
+              ? member.user!.displayName[0].toUpperCase()
               : 'U';
-          
+
           final colors = [
             context.colors.primary,
             context.colors.accentMint,
@@ -269,7 +261,6 @@ class _FamilyAvatars extends StatelessWidget {
     );
   }
 }
-
 
 // ─── Budget Ring Section ───
 class _BudgetRingSection extends StatelessWidget {
