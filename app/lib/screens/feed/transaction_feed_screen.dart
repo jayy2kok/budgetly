@@ -7,9 +7,11 @@ import 'package:intl/intl.dart';
 import '../../config/theme.dart';
 import '../../config/routes.dart';
 import '../../models/transaction.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/category_provider.dart';
 import '../../providers/family_provider.dart';
 import '../../providers/transaction_provider.dart';
+import '../../utils/payer_resolver.dart';
 
 /// Transaction Feed — Date-grouped list with filter chips.
 class TransactionFeedScreen extends ConsumerStatefulWidget {
@@ -153,6 +155,8 @@ class _TransactionFeedScreenState extends ConsumerState<TransactionFeedScreen> {
   ) {
     final categories = ref.watch(categoryProvider).categories;
     final catMap = {for (final c in categories) c.id: c.name};
+    final members = ref.watch(familyProvider).members;
+    final currentUserId = ref.watch(authProvider).user?.id;
     final slivers = <Widget>[];
     for (final dateLabel in sortedKeys) {
       final txns = grouped[dateLabel]!;
@@ -180,9 +184,16 @@ class _TransactionFeedScreenState extends ConsumerState<TransactionFeedScreen> {
           sliver: SliverList(
             delegate: SliverChildBuilderDelegate((context, index) {
               final txn = txns[index];
+              final payerInfo = resolvePayer(
+                createdByUserId: txn.createdByUserId,
+                currentUserId: currentUserId,
+                members: members,
+              );
               return _FeedTile(
                 transaction: txn,
                 categoryName: catMap[txn.categoryId],
+                payer: payerInfo.name,
+                initial: payerInfo.initial,
                 onTap: () =>
                     context.push('${AppRoutes.transactionDetail}/${txn.id}'),
               );
@@ -435,9 +446,17 @@ class _HeaderIconButton extends StatelessWidget {
 class _FeedTile extends StatelessWidget {
   final Transaction transaction;
   final String? categoryName;
+  final String payer;
+  final String initial;
   final VoidCallback? onTap;
 
-  const _FeedTile({required this.transaction, this.categoryName, this.onTap});
+  const _FeedTile({
+    required this.transaction,
+    this.categoryName,
+    required this.payer,
+    required this.initial,
+    this.onTap,
+  });
 
   static const _categoryIcons = {
     'cat_001': Icons.shopping_bag,
@@ -461,17 +480,10 @@ class _FeedTile extends StatelessWidget {
     'cat_008': 'Shopping',
   };
 
-  static const _payerNames = {
-    'user_001': 'Arjun',
-    'user_002': 'Priya',
-    'user_003': 'Rohan',
-  };
-
   @override
   Widget build(BuildContext context) {
     final isIncome = transaction.type == TransactionType.income;
     final icon = _categoryIcons[transaction.categoryId] ?? Icons.receipt;
-    final payer = _payerNames[transaction.createdByUserId] ?? 'Unknown';
     final category = categoryName ?? _categoryLabels[transaction.categoryId] ?? 'Other';
 
     return GestureDetector(
@@ -523,7 +535,9 @@ class _FeedTile extends StatelessWidget {
                       width: 20,
                       height: 20,
                       decoration: BoxDecoration(
-                        color: context.colors.primary,
+                        color: isIncome
+                            ? context.colors.accentMint
+                            : context.colors.primary,
                         shape: BoxShape.circle,
                         border: Border.all(
                           color: context.colors.cardSurface,
@@ -532,7 +546,7 @@ class _FeedTile extends StatelessWidget {
                       ),
                       child: Center(
                         child: Text(
-                          payer[0],
+                          initial,
                           style: TextStyle(
                             fontSize: 8,
                             fontWeight: FontWeight.w700,
