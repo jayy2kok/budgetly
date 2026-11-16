@@ -73,7 +73,7 @@ class SettingsScreen extends ConsumerWidget {
 
     final familyState = ref.watch(familyProvider);
     final members = familyState.members;
-    
+
     // Find current member or default to false for isAdmin if not found
     final currentMember = members.firstWhere(
       (m) => m.userId == user?.id,
@@ -114,81 +114,85 @@ class SettingsScreen extends ConsumerWidget {
           SliverToBoxAdapter(
             child: Padding(
               padding: EdgeInsets.fromLTRB(20, 20, 20, 0),
-              child: Container(
-                padding: EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      context.colors.primary.withValues(alpha: 0.12),
-                      context.colors.cardSurface,
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+              child: GestureDetector(
+                onTap: () => context.push(AppRoutes.profile),
+                behavior: HitTestBehavior.opaque,
+                child: Container(
+                  padding: EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        context.colors.primary.withValues(alpha: 0.12),
+                        context.colors.cardSurface,
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(
+                      BudgetlyTheme.radiusCardLg,
+                    ),
+                    border: Border.all(
+                      color: context.colors.primary.withValues(alpha: 0.15),
+                    ),
                   ),
-                  borderRadius: BorderRadius.circular(
-                    BudgetlyTheme.radiusCardLg,
-                  ),
-                  border: Border.all(
-                    color: context.colors.primary.withValues(alpha: 0.15),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    // Avatar
-                    Container(
-                      width: 56,
-                      height: 56,
-                      decoration: BoxDecoration(
-                        color: context.colors.primary,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: context.colors.primary.withValues(
-                              alpha: 0.3,
+                  child: Row(
+                    children: [
+                      // Avatar
+                      Container(
+                        width: 56,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          color: context.colors.primary,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: context.colors.primary.withValues(
+                                alpha: 0.3,
+                              ),
+                              blurRadius: 12,
                             ),
-                            blurRadius: 12,
-                          ),
-                        ],
-                      ),
-                      child: Center(
-                        child: Text(
-                          user?.displayName.isNotEmpty == true
-                              ? user!.displayName[0].toUpperCase()
-                              : 'A',
-                          style: GoogleFonts.ibmPlexSans(
-                            fontSize: 22,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
+                          ],
+                        ),
+                        child: Center(
+                          child: Text(
+                            user?.displayName.isNotEmpty == true
+                                ? user!.displayName[0].toUpperCase()
+                                : 'A',
+                            style: GoogleFonts.ibmPlexSans(
+                              fontSize: 22,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                    SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            user?.displayName ?? 'Budgetly User',
-                            style: GoogleFonts.ibmPlexSans(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w700,
-                              color: context.colors.textMain,
+                      SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              user?.displayName ?? 'Budgetly User',
+                              style: GoogleFonts.ibmPlexSans(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                                color: context.colors.textMain,
+                              ),
                             ),
-                          ),
-                          SizedBox(height: 2),
-                          Text(
-                            user?.email ?? 'arjun@budgetly.app',
-                            style: GoogleFonts.inter(
-                              fontSize: 13,
-                              color: context.colors.textDim,
+                            SizedBox(height: 2),
+                            Text(
+                              user?.email ?? 'arjun@budgetly.app',
+                              style: GoogleFonts.inter(
+                                fontSize: 13,
+                                color: context.colors.textDim,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                    Icon(Icons.chevron_right, color: context.colors.textDim),
-                  ],
+                      Icon(Icons.chevron_right, color: context.colors.textDim),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -264,8 +268,8 @@ class SettingsScreen extends ConsumerWidget {
                     smsState.smsPermissionGranted
                         ? 'Granted'
                         : (smsState.permissionPermanentlyDenied
-                            ? 'Permanently denied'
-                            : 'Denied'),
+                              ? 'Permanently denied'
+                              : 'Denied'),
                     style: GoogleFonts.inter(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
@@ -277,8 +281,7 @@ class SettingsScreen extends ConsumerWidget {
                 ),
                 onTap: smsState.smsPermissionGranted
                     ? null
-                    : () =>
-                        ref.read(smsProvider.notifier).requestPermission(),
+                    : () => ref.read(smsProvider.notifier).requestPermission(),
               ),
               _SettingsToggle(
                 icon: Icons.play_circle_outline,
@@ -324,8 +327,7 @@ class SettingsScreen extends ConsumerWidget {
                     : null,
                 onTap: smsState.isRefreshing
                     ? null
-                    : () =>
-                        ref.read(smsProvider.notifier).refreshPatterns(),
+                    : () => ref.read(smsProvider.notifier).refreshPatterns(),
               ),
             ],
           ),
@@ -430,8 +432,7 @@ class SettingsScreen extends ConsumerWidget {
                   style: OutlinedButton.styleFrom(
                     foregroundColor: context.colors.accentCoral,
                     side: BorderSide(
-                      color:
-                          context.colors.accentCoral.withValues(alpha: 0.3),
+                      color: context.colors.accentCoral.withValues(alpha: 0.3),
                     ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(
@@ -499,8 +500,7 @@ class _SettingsGroup extends StatelessWidget {
                   Divider(
                     height: 1,
                     indent: 52,
-                    color:
-                        context.colors.borderSubtle.withValues(alpha: 0.5),
+                    color: context.colors.borderSubtle.withValues(alpha: 0.5),
                   ),
               ],
             ],
@@ -617,8 +617,7 @@ class _SettingsToggleState extends State<_SettingsToggle> {
               widget.onChanged?.call(v);
             },
             activeThumbColor: context.colors.primary,
-            activeTrackColor:
-                context.colors.primary.withValues(alpha: 0.3),
+            activeTrackColor: context.colors.primary.withValues(alpha: 0.3),
             inactiveTrackColor: context.colors.surfaceHighlight,
             inactiveThumbColor: context.colors.textDim,
           ),

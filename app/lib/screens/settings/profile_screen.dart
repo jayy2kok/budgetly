@@ -56,56 +56,36 @@ class ProfileScreen extends ConsumerWidget {
                     SizedBox(height: 32),
 
                     // ── Avatar ──
-                    Stack(
-                      alignment: Alignment.bottomRight,
-                      children: [
-                        Container(
-                          width: 96,
-                          height: 96,
-                          decoration: BoxDecoration(
-                            color: context.colors.primary,
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: context.colors.primary.withValues(
-                                  alpha: 0.3,
+                    Container(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: context.colors.primary.withValues(
+                              alpha: 0.3,
+                            ),
+                            blurRadius: 20,
+                            spreadRadius: 2,
+                          ),
+                        ],
+                      ),
+                      child: CircleAvatar(
+                        radius: 48,
+                        backgroundColor: context.colors.primary,
+                        backgroundImage: user?.avatarUrl != null
+                            ? NetworkImage(user!.avatarUrl!)
+                            : null,
+                        child: user?.avatarUrl == null
+                            ? Text(
+                                user?.initials ?? 'A',
+                                style: GoogleFonts.ibmPlexSans(
+                                  fontSize: 36,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.white,
                                 ),
-                                blurRadius: 20,
-                                spreadRadius: 2,
-                              ),
-                            ],
-                          ),
-                          child: Center(
-                            child: Text(
-                              user?.displayName.isNotEmpty == true
-                                  ? user!.displayName[0].toUpperCase()
-                                  : 'A',
-                              style: GoogleFonts.ibmPlexSans(
-                                fontSize: 36,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                        ),
-                        Container(
-                          width: 32,
-                          height: 32,
-                          decoration: BoxDecoration(
-                            color: context.colors.cardSurface,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: context.colors.borderSubtle,
-                              width: 2,
-                            ),
-                          ),
-                          child: Icon(
-                            Icons.camera_alt,
-                            size: 16,
-                            color: context.colors.textMuted,
-                          ),
-                        ),
-                      ],
+                              )
+                            : null,
+                      ),
                     ),
 
                     SizedBox(height: 28),
@@ -123,14 +103,6 @@ class ProfileScreen extends ConsumerWidget {
                       label: 'EMAIL',
                       value: user?.email ?? 'arjun@budgetly.app',
                       icon: Icons.email_outlined,
-                    ),
-                    SizedBox(height: 16),
-
-                    // ── Phone ──
-                    _ProfileField(
-                      label: 'PHONE',
-                      value: '+91 98765 43210',
-                      icon: Icons.phone_outlined,
                     ),
                     SizedBox(height: 16),
 
@@ -261,22 +233,6 @@ class ProfileScreen extends ConsumerWidget {
                             borderRadius: BorderRadius.circular(
                               BudgetlyTheme.radiusMedium,
                             ),
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    SizedBox(height: 16),
-
-                    // Delete text
-                    TextButton(
-                      onPressed: () {},
-                      child: Text(
-                        'Delete Account',
-                        style: GoogleFonts.inter(
-                          fontSize: 13,
-                          color: context.colors.accentCoral.withValues(
-                            alpha: 0.7,
                           ),
                         ),
                       ),
