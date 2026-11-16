@@ -157,7 +157,7 @@ class SettingsScreen extends ConsumerWidget {
                           child: Text(
                             user?.displayName.isNotEmpty == true
                                 ? user!.displayName[0].toUpperCase()
-                                : 'A',
+                                : '?',
                             style: GoogleFonts.ibmPlexSans(
                               fontSize: 22,
                               fontWeight: FontWeight.w700,
@@ -181,7 +181,7 @@ class SettingsScreen extends ConsumerWidget {
                             ),
                             SizedBox(height: 2),
                             Text(
-                              user?.email ?? 'arjun@budgetly.app',
+                              user?.email ?? 'Not set',
                               style: GoogleFonts.inter(
                                 fontSize: 13,
                                 color: context.colors.textDim,

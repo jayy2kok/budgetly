@@ -77,7 +77,7 @@ class ProfileScreen extends ConsumerWidget {
                             : null,
                         child: user?.avatarUrl == null
                             ? Text(
-                                user?.initials ?? 'A',
+                                user?.initials ?? '?',
                                 style: GoogleFonts.ibmPlexSans(
                                   fontSize: 36,
                                   fontWeight: FontWeight.w700,
@@ -93,7 +93,7 @@ class ProfileScreen extends ConsumerWidget {
                     // ── Name Field ──
                     _ProfileField(
                       label: 'DISPLAY NAME',
-                      value: user?.displayName ?? 'Arjun Sharma',
+                      value: user?.displayName ?? 'Not set',
                       icon: Icons.person_outline,
                     ),
                     SizedBox(height: 16),
@@ -101,7 +101,7 @@ class ProfileScreen extends ConsumerWidget {
                     // ── Email ──
                     _ProfileField(
                       label: 'EMAIL',
-                      value: user?.email ?? 'arjun@budgetly.app',
+                      value: user?.email ?? 'Not set',
                       icon: Icons.email_outlined,
                     ),
                     SizedBox(height: 16),
@@ -166,7 +166,7 @@ class ProfileScreen extends ConsumerWidget {
                                       ),
                                     ),
                                     Text(
-                                      user?.email ?? 'arjun@gmail.com',
+                                      user?.email ?? 'Not set',
                                       style: GoogleFonts.inter(
                                         fontSize: 12,
                                         color: context.colors.textDim,

@@ -1,60 +1,53 @@
 import '../models/family_member.dart';
 
-/// Displays the full name of the user who created a transaction.
+/// Resolves the payer display info (name + avatar initial) for a transaction.
 ///
-/// If [createdByUserId] matches a family member's userId, returns their
-/// [User.displayName]. Falls back to "You" when the creator is the
-/// current user, then to "Unknown" when the member list doesn't have a match.
+/// Looks up [createdByUserId] in the [members] list and returns their
+/// [User.displayName] and first letter. Falls back to "You"/"Y" when the
+/// creator is the current user, and to "Unknown"/"?" when no match is found.
+///
+/// Returns a record `(name, initial)`.
+({String name, String initial}) resolvePayer({
+  required String createdByUserId,
+  required String? currentUserId,
+  required List<FamilyMember> members,
+}) {
+  if (createdByUserId == currentUserId) {
+    return (name: 'You', initial: 'Y');
+  }
+
+  for (final member in members) {
+    if (member.userId == createdByUserId) {
+      final name = member.user?.displayName;
+      if (name != null && name.isNotEmpty) {
+        return (name: name, initial: name[0].toUpperCase());
+      }
+    }
+  }
+
+  return (name: 'Unknown', initial: '?');
+}
+
+/// Convenience wrapper that returns just the payer display name.
 String resolvePayerName({
   required String createdByUserId,
   required String? currentUserId,
   required List<FamilyMember> members,
-}) {
-  if (createdByUserId == currentUserId) {
-    return 'You';
-  }
+}) =>
+    resolvePayer(
+      createdByUserId: createdByUserId,
+      currentUserId: currentUserId,
+      members: members,
+    ).name;
 
-  for (final member in members) {
-    if (member.userId == createdByUserId) {
-      final name = member.user?.displayName;
-      if (name != null && name.isNotEmpty) {
-        return name;
-      }
-      // member has a displayable name available — fall through to caller
-    }
-  }
-
-  // No match or no displayName available.
-  // If members list is empty (e.g. family not yet loaded) show "Unknown".
-  if (members.isEmpty) return 'Unknown';
-
-  // Try to extract something from userId (e.g. "user_001" → "U").
-  // This prevents a blank tile while real data is loading.
-  return createdByUserId.isNotEmpty
-      ? createdByUserId[0].toUpperCase()
-      : 'Unknown';
-}
-
-/// Returns the first display initial for an avatar badge on a transaction tile.
+/// Convenience wrapper that returns just the payer avatar initial.
 String payerInitial({
   required String createdByUserId,
   required String? currentUserId,
   required List<FamilyMember> members,
-}) {
-  if (createdByUserId == currentUserId) {
-    return 'Y'; // "You"
-  }
-
-  for (final member in members) {
-    if (member.userId == createdByUserId) {
-      final name = member.user?.displayName;
-      if (name != null && name.isNotEmpty) {
-        return name[0].toUpperCase();
-      }
-    }
-  }
-
-  return createdByUserId.isNotEmpty
-      ? createdByUserId[0].toUpperCase()
-      : '?';
-}
+}) =>
+    resolvePayer(
+      createdByUserId: createdByUserId,
+      currentUserId: currentUserId,
+      members: members,
+    ).initial;

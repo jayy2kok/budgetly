@@ -155,6 +155,8 @@ class _TransactionFeedScreenState extends ConsumerState<TransactionFeedScreen> {
   ) {
     final categories = ref.watch(categoryProvider).categories;
     final catMap = {for (final c in categories) c.id: c.name};
+    final members = ref.watch(familyProvider).members;
+    final currentUserId = ref.watch(authProvider).user?.id;
     final slivers = <Widget>[];
     for (final dateLabel in sortedKeys) {
       final txns = grouped[dateLabel]!;
@@ -182,14 +184,7 @@ class _TransactionFeedScreenState extends ConsumerState<TransactionFeedScreen> {
           sliver: SliverList(
             delegate: SliverChildBuilderDelegate((context, index) {
               final txn = txns[index];
-              final members = ref.watch(familyProvider).members;
-              final currentUserId = ref.read(authProvider).user?.id;
-              final payer = resolvePayerName(
-                createdByUserId: txn.createdByUserId,
-                currentUserId: currentUserId,
-                members: members,
-              );
-              final initial = payerInitial(
+              final payerInfo = resolvePayer(
                 createdByUserId: txn.createdByUserId,
                 currentUserId: currentUserId,
                 members: members,
@@ -197,8 +192,8 @@ class _TransactionFeedScreenState extends ConsumerState<TransactionFeedScreen> {
               return _FeedTile(
                 transaction: txn,
                 categoryName: catMap[txn.categoryId],
-                payer: payer,
-                initial: initial,
+                payer: payerInfo.name,
+                initial: payerInfo.initial,
                 onTap: () =>
                     context.push('${AppRoutes.transactionDetail}/${txn.id}'),
               );

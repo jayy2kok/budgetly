@@ -65,6 +65,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final txnState = ref.watch(transactionProvider);
     final categories = ref.watch(categoryProvider).categories;
     final catMap = {for (final c in categories) c.id: c.name};
+    final familyMembers = ref.watch(familyProvider).members;
+    final currentUserId = ref.watch(authProvider).user?.id;
 
     return Scaffold(
       body: CustomScrollView(
@@ -108,7 +110,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       ],
                     ),
                     // Family avatars
-                    _FamilyAvatars(members: ref.watch(familyProvider).members),
+                    _FamilyAvatars(members: familyMembers),
                   ],
                 ),
               ),
@@ -190,12 +192,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               sliver: SliverList(
                 delegate: SliverChildBuilderDelegate((context, index) {
                   final txn = txnState.transactions[index];
-                  final familyState = ref.watch(familyProvider);
                   return _ActivityTile(
                     transaction: txn,
                     categoryName: catMap[txn.categoryId],
-                    members: familyState.members,
-                    currentUserId: ref.read(authProvider).user?.id,
+                    members: familyMembers,
+                    currentUserId: currentUserId,
                     onTap: () => context.push(
                       '${AppRoutes.transactionDetail}/${txn.id}',
                     ),
