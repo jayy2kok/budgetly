@@ -12,6 +12,7 @@ import '../screens/messages/message_inbox_screen.dart';
 import '../screens/messages/ignored_messages_screen.dart';
 import '../screens/settings/link_family_screen.dart';
 import '../screens/settings/family_group_settings_screen.dart';
+import '../screens/settings/profile_screen.dart';
 
 /// Route path constants.
 class AppRoutes {
@@ -28,6 +29,7 @@ class AppRoutes {
   static const String ignoredMessages = '/messages/ignored';
   static const String linkFamily = '/settings/link-family';
   static const String familySettings = '/settings/family';
+  static const String profile = '/settings/profile';
 }
 
 /// The app's router configuration using GoRouter.
@@ -94,6 +96,10 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: AppRoutes.familySettings,
       builder: (context, state) => const FamilyGroupSettingsScreen(),
+    ),
+    GoRoute(
+      path: AppRoutes.profile,
+      builder: (context, state) => const ProfileScreen(),
     ),
   ],
 );
