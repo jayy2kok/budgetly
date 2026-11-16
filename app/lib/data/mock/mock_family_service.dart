@@ -1,4 +1,5 @@
 import '../../models/family_group.dart';
+import '../../models/family_invite.dart';
 import '../../models/family_member.dart';
 import '../family_service.dart';
 import 'sample_data.dart';
@@ -37,5 +38,19 @@ class MockFamilyService implements FamilyService {
   Future<List<FamilyMember>> getMembers(String familyId) async {
     await Future.delayed(const Duration(milliseconds: 300));
     return SampleData.members;
+  }
+
+  @override
+  Future<FamilyInvite> inviteFamily(
+    String familyId,
+    Map<String, dynamic> request,
+  ) async {
+    await Future.delayed(const Duration(milliseconds: 300));
+    const code = 'MOCK-FAM-7DAY';
+    return FamilyInvite(
+      inviteCode: code,
+      inviteLink: 'https://budgetly.app/join?code=$code',
+      expiresAt: DateTime.now().add(const Duration(days: 7)),
+    );
   }
 }
