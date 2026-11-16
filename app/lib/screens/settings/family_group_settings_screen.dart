@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../config/theme.dart';
 import '../../config/routes.dart';
 import '../../models/family_member.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/family_provider.dart';
 
 /// Family Management — Member list with role badges, invite button.
@@ -17,6 +18,13 @@ class FamilyGroupSettingsScreen extends ConsumerWidget {
     final familyState = ref.watch(familyProvider);
     final members = familyState.members;
     final familyGroup = familyState.currentFamily;
+
+    final authState = ref.watch(authProvider);
+    final currentUser = authState.user;
+    // Only admins may rename the family (backend enforces this too).
+    final isAdmin = members.any(
+      (m) => m.userId == currentUser?.id && m.isAdmin,
+    );
 
     if (familyGroup == null) {
       return Scaffold(
@@ -53,14 +61,23 @@ class FamilyGroupSettingsScreen extends ConsumerWidget {
                       ),
                     ),
                   ),
-                  IconButton(
-                    onPressed: () {},
-                    icon: Icon(
-                      Icons.edit_outlined,
-                      color: context.colors.textMuted,
-                      size: 20,
-                    ),
-                  ),
+                  if (isAdmin)
+                    IconButton(
+                      onPressed: () => _showEditFamilyNameDialog(
+                        context,
+                        ref,
+                        familyGroup.name,
+                      ),
+                      icon: Icon(
+                        Icons.edit_outlined,
+                        color: context.colors.textMuted,
+                        size: 20,
+                      ),
+                    )
+                  else
+                    // Keep the header symmetric so the title stays centered
+                    // for non-admin members, who can't rename the family.
+                    const SizedBox(width: 48),
                 ],
               ),
             ),
@@ -202,6 +219,76 @@ class FamilyGroupSettingsScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  /// Prompts an admin to rename the family group.
+  /// Mirrors the backend's admin-only `PUT /families/{id}` rule.
+  Future<void> _showEditFamilyNameDialog(
+    BuildContext context,
+    WidgetRef ref,
+    String currentName,
+  ) async {
+    final controller = TextEditingController(text: currentName);
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: context.colors.cardSurface,
+        title: Text(
+          'Edit Family Name',
+          style: GoogleFonts.ibmPlexSans(
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            color: context.colors.textMain,
+          ),
+        ),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          maxLength: 40,
+          textCapitalization: TextCapitalization.words,
+          style: GoogleFonts.inter(color: context.colors.textMain),
+          decoration: InputDecoration(
+            hintText: 'e.g. Sharma Family',
+            hintStyle: GoogleFonts.inter(color: context.colors.textMuted),
+            filled: true,
+            fillColor: context.colors.surfaceHighlight,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(BudgetlyTheme.radiusMedium),
+              borderSide: BorderSide.none,
+            ),
+            contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.inter(color: context.colors.textDim),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            child: Text(
+              'Save',
+              style: GoogleFonts.inter(
+                color: context.colors.primary,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (newName == null || newName.isEmpty || newName == currentName) return;
+
+    await ref.read(familyProvider.notifier).updateSettings({'name': newName});
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Family name updated to "$newName"')),
+      );
+    }
   }
 }
 

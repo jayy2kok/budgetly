@@ -67,6 +67,94 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
+  /// Shows the in-app Terms & Privacy Policy summary.
+  void _showLegalSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: context.colors.cardSurface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.65,
+        maxChildSize: 0.95,
+        builder: (ctx, scrollController) => SingleChildScrollView(
+          controller: scrollController,
+          padding: EdgeInsets.fromLTRB(24, 8, 24, 32),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: context.colors.borderSubtle,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              SizedBox(height: 16),
+              Text(
+                'Terms & Privacy Policy',
+                style: GoogleFonts.ibmPlexSans(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: context.colors.textMain,
+                ),
+              ),
+              SizedBox(height: 20),
+              Text(
+                'Terms of Service',
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: context.colors.textMain,
+                ),
+              ),
+              SizedBox(height: 6),
+              Text(
+                'Budgetly lets you and your family track shared expenses. '
+                'By continuing, you agree to use the app for lawful, personal '
+                'family budgeting and to keep your family group’s data private. '
+                'The service is provided as-is during development.',
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  height: 1.5,
+                  color: context.colors.textMuted,
+                ),
+              ),
+              SizedBox(height: 20),
+              Text(
+                'Privacy Policy',
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: context.colors.textMain,
+                ),
+              ),
+              SizedBox(height: 6),
+              Text(
+                'Budgetly stores family profiles, transactions, and — with your '
+                'permission — SMS messages in order to detect expenses. Your '
+                'information is shown to your family group to power shared '
+                'budgets and is never sold to third parties. You can sign out '
+                'or request data deletion at any time.',
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  height: 1.5,
+                  color: context.colors.textMuted,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
@@ -266,12 +354,33 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 const Spacer(flex: 1),
 
                 // ── Footer ──
-                Text(
-                  'By continuing, you agree to our Terms & Privacy Policy',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.inter(
-                    fontSize: 11,
-                    color: context.colors.textDim,
+                GestureDetector(
+                  onTap: _showLegalSheet,
+                  behavior: HitTestBehavior.opaque,
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: 4),
+                    child: Text.rich(
+                      TextSpan(
+                        style: GoogleFonts.inter(
+                          fontSize: 11,
+                          color: context.colors.textDim,
+                        ),
+                        children: [
+                          TextSpan(text: 'By continuing, you agree to our '),
+                          TextSpan(
+                            text: 'Terms & Privacy Policy',
+                            style: TextStyle(
+                              color: context.colors.primaryLight,
+                              fontWeight: FontWeight.w600,
+                              decoration: TextDecoration.underline,
+                              decorationColor: context.colors.primaryLight
+                                  .withValues(alpha: 0.5),
+                            ),
+                          ),
+                        ],
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
                   ),
                 ),
                 SizedBox(height: 24),
