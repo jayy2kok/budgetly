@@ -245,6 +245,11 @@ class SettingsScreen extends ConsumerWidget {
           _SettingsGroup(
             children: [
               _SettingsRow(
+                icon: Icons.inbox_outlined,
+                label: 'Message Inbox',
+                onTap: () => context.push(AppRoutes.messageInbox),
+              ),
+              _SettingsRow(
                 icon: Icons.sms_outlined,
                 label: 'SMS Permission',
                 trailing: Container(
