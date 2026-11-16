@@ -27,8 +27,10 @@ class _MessageInboxScreenState extends ConsumerState<MessageInboxScreen>
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      // 1. Load remote messages from API
-      ref.read(messageProvider.notifier).loadMessages();
+      // 1. Load remote messages from API. Await this before merging device SMS:
+      //    loadMessages() replaces the whole message state, so if it resolves
+      //    after the local merge it wipes out the messages read from the inbox.
+      await ref.read(messageProvider.notifier).loadMessages();
 
       // 2. Request SMS permission (shows OS dialog if not yet decided)
       final smsNotifier = ref.read(smsProvider.notifier);
@@ -383,11 +385,11 @@ class _IncompleteCard extends StatelessWidget {
           SizedBox(height: 14),
 
           // Actions
-          Row(
-            children: [
-              Expanded(
-                child: SizedBox(
-                  height: 40,
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
                   child: OutlinedButton(
                     onPressed: onReject,
                     style: OutlinedButton.styleFrom(
@@ -396,6 +398,11 @@ class _IncompleteCard extends StatelessWidget {
                         color: context.colors.accentCoral
                             .withValues(alpha: 0.3),
                       ),
+                      // Compact padding: the global button theme uses
+                      // vertical: 16, which leaves no room for the 13px
+                      // label when the height is constrained.
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      minimumSize: const Size(0, 44),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(
                             BudgetlyTheme.radiusMedium),
@@ -406,12 +413,9 @@ class _IncompleteCard extends StatelessWidget {
                             fontSize: 13, fontWeight: FontWeight.w600)),
                   ),
                 ),
-              ),
-              SizedBox(width: 10),
-              Expanded(
-                flex: 2,
-                child: SizedBox(
-                  height: 40,
+                SizedBox(width: 10),
+                Expanded(
+                  flex: 2,
                   child: ElevatedButton.icon(
                     onPressed: onConfirm,
                     icon: Icon(Icons.check, size: 16),
@@ -421,6 +425,8 @@ class _IncompleteCard extends StatelessWidget {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: context.colors.primary,
                       foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      minimumSize: const Size(0, 44),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(
                             BudgetlyTheme.radiusMedium),
@@ -428,8 +434,8 @@ class _IncompleteCard extends StatelessWidget {
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
@@ -597,15 +603,20 @@ class _UnprocessedCard extends StatelessWidget {
           SizedBox(height: 14),
 
           // Actions
-          Row(
-            children: [
-              SizedBox(
-                height: 40,
-                child: OutlinedButton(
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                OutlinedButton(
                   onPressed: isProcessing ? null : onReject,
                   style: OutlinedButton.styleFrom(
                     foregroundColor: context.colors.textDim,
                     side: BorderSide(color: context.colors.borderSubtle),
+                    // Compact padding: the global button theme uses
+                    // vertical: 16, which clips the 13px label inside a
+                    // fixed-height button.
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    minimumSize: const Size(0, 44),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(
                           BudgetlyTheme.radiusMedium),
@@ -615,11 +626,8 @@ class _UnprocessedCard extends StatelessWidget {
                       style: GoogleFonts.inter(
                           fontSize: 13, fontWeight: FontWeight.w500)),
                 ),
-              ),
-              SizedBox(width: 10),
-              Expanded(
-                child: SizedBox(
-                  height: 40,
+                SizedBox(width: 10),
+                Expanded(
                   child: ElevatedButton.icon(
                     onPressed: isProcessing ? null : onSubmit,
                     icon: isProcessing
@@ -644,6 +652,8 @@ class _UnprocessedCard extends StatelessWidget {
                           context.colors.primary.withValues(alpha: 0.6),
                       disabledForegroundColor:
                           Colors.white.withValues(alpha: 0.7),
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      minimumSize: const Size(0, 44),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(
                             BudgetlyTheme.radiusMedium),
@@ -651,8 +661,8 @@ class _UnprocessedCard extends StatelessWidget {
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
