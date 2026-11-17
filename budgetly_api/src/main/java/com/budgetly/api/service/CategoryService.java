@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -21,15 +22,63 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class CategoryService {
 
+    /**
+     * Categories every new family starts with. Seeded lazily on first listing
+     * so families created before seeding existed also get them.
+     * Budget limits start at 0 — the family sets its own.
+     */
+    private static final List<DefaultCategory> DEFAULT_CATEGORIES = List.of(
+            new DefaultCategory("Groceries", "🛒", "#34D399"),
+            new DefaultCategory("Dining", "🍽️", "#FB7185"),
+            new DefaultCategory("Transport", "🚗", "#60A5FA"),
+            new DefaultCategory("Housing", "🏠", "#FBBF24"),
+            new DefaultCategory("Bills", "📄", "#A78BFA"),
+            new DefaultCategory("Health", "💊", "#2DD4BF"),
+            new DefaultCategory("Entertainment", "🎬", "#F472B6"),
+            new DefaultCategory("Shopping", "🛍️", "#FB923C"));
+
     private final CategoryRepository categoryRepository;
     private final FamilyMemberRepository familyMemberRepository;
     private final TransactionRepository transactionRepository;
 
     public List<Category> listCategories(String userId, String familyId) {
         requireMember(userId, familyId);
-        return categoryRepository.findByFamilyGroupIdOrderBySortOrderAsc(familyId)
-                .stream().map(this::toDto).collect(Collectors.toList());
+        List<CategoryDocument> categories =
+                categoryRepository.findByFamilyGroupIdOrderBySortOrderAsc(familyId);
+        if (categories.isEmpty()) {
+            categories = seedDefaultCategoriesIfEmpty(familyId);
+        }
+        return categories.stream().map(this::toDto).collect(Collectors.toList());
     }
+
+    /**
+     * Seeds defaults only if the family is still empty. Synchronized so two
+     * members opening the app at the same time cannot seed duplicate sets.
+     */
+    private synchronized List<CategoryDocument> seedDefaultCategoriesIfEmpty(String familyId) {
+        List<CategoryDocument> existing =
+                categoryRepository.findByFamilyGroupIdOrderBySortOrderAsc(familyId);
+        if (!existing.isEmpty()) {
+            return existing;
+        }
+        List<CategoryDocument> docs = new ArrayList<>(DEFAULT_CATEGORIES.size());
+        for (int i = 0; i < DEFAULT_CATEGORIES.size(); i++) {
+            DefaultCategory c = DEFAULT_CATEGORIES.get(i);
+            docs.add(CategoryDocument.builder()
+                    .familyGroupId(familyId)
+                    .name(c.name())
+                    .icon(c.icon())
+                    .color(c.color())
+                    .budgetLimit(0.0)
+                    .sortOrder(i)
+                    .build());
+        }
+        List<CategoryDocument> saved = categoryRepository.saveAll(docs);
+        log.info("Seeded {} default categories for family {}", saved.size(), familyId);
+        return saved;
+    }
+
+    private record DefaultCategory(String name, String icon, String color) {}
 
     public Category createCategory(String userId, String familyId, CreateCategoryRequest request) {
         requireAdmin(userId, familyId);
