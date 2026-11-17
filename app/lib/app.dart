@@ -37,6 +37,10 @@ class _BudgetlyAppState extends ConsumerState<BudgetlyApp> {
   @override
   void initState() {
     super.initState();
+    // Subscribe to warm deep-link events as early as possible.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _subscribeToDeepLinks();
+    });
   }
 
   @override
@@ -45,7 +49,7 @@ class _BudgetlyAppState extends ConsumerState<BudgetlyApp> {
     super.dispose();
   }
 
-  void _subscribeToDeepLinks(GoRouter router) {
+  void _subscribeToDeepLinks() {
     if (_deepLinkSub != null) return; // already listening
     final stream = widget.deepLinkStream;
     if (stream == null) return;
@@ -53,8 +57,16 @@ class _BudgetlyAppState extends ConsumerState<BudgetlyApp> {
     _deepLinkSub = stream.listen((event) {
       final rawUri = event?.toString();
       if (rawUri == null || rawUri.isEmpty) return;
+      debugPrint('🔗 Dart received EventChannel deep link: $rawUri');
       final path = widget.onNewDeepLink?.call(rawUri);
-      if (path != null) router.go(path);
+      debugPrint('🔗 Converted to: $path');
+      if (path != null) {
+        debugPrint('🔗 Calling router.go($path)');
+        // Navigate the router actually mounted in the tree.
+        (_router ?? appRouter).go(path);
+      } else {
+        debugPrint('⚠️ Deep link path was null, ignoring');
+      }
     });
   }
 
@@ -63,15 +75,14 @@ class _BudgetlyAppState extends ConsumerState<BudgetlyApp> {
     final themeMode = ref.watch(themeModeProvider);
 
     // Build (once) a router that may carry the cold-start deep link.
-    final router = _router ??= widget.initialDeepLink != null
-        ? GoRouter(
-            initialLocation: widget.initialDeepLink!,
-            debugLogDiagnostics: true,
-            routes: appRouteList,
-          )
-        : appRouter;
-
-    _subscribeToDeepLinks(router);
+    // overridePlatformDefaultLocation prevents GoRouter from preferring the
+    // RAW platform deep-link URI as the initial route (see routes.dart).
+    final router = _router ??= GoRouter(
+      initialLocation: widget.initialDeepLink ?? AppRoutes.login,
+      overridePlatformDefaultLocation: true,
+      redirect: deepLinkRedirect,
+      routes: appRouteList,
+    );
 
     return MaterialApp.router(
       title: 'Budgetly',

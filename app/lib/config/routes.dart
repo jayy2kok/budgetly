@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../screens/shell/app_shell.dart';
@@ -112,8 +113,61 @@ final List<RouteBase> appRouteList = [
   ),
 ];
 
+/// Convert a deep-link URI to a GoRouter-compatible path.
+///
+/// Supports:
+///   budgetly://join?code=XXX
+///   budgetly://join/?code=XXX          (Android-normalized form)
+///   budgetly://join/XXX                (path-based)
+///   https://budgetly.app/join?code=XXX
+String? deepLinkToGoRouterPath(String uriStr) {
+  final uri = Uri.tryParse(uriStr);
+  if (uri == null) return null;
+  if (uriStr.isEmpty) return null;
+
+  // Query-param form:  .../join?code=XXX
+  final code = uri.queryParameters['code'];
+  if (code != null && code.isNotEmpty) {
+    return '/join?code=$code';
+  }
+
+  // Path-based form, only for real deep-link schemes/hosts:
+  //   budgetly://join/XXX, https://budgetly.app/join/XXX
+  if (uriStr.toLowerCase().startsWith('budgetly://') ||
+      uri.host == 'budgetly.app') {
+    final segments =
+        uri.pathSegments.where((s) => s.isNotEmpty).toList();
+    if (segments.isNotEmpty) {
+      return '/join?code=${segments.first}';
+    }
+  }
+
+  return '/join';
+}
+
+/// Catch-all redirect so a RAW deep-link location is normalized before
+/// GoRouter tries to match it (e.g. the platform's initial route on cold
+/// start, or a stray navigator call). App-internal paths are never touched.
+String? deepLinkRedirect(BuildContext context, GoRouterState state) {
+  final loc = state.uri.toString();
+  if (loc.startsWith('budgetly://') || loc.startsWith('https://budgetly.app')) {
+    final converted = deepLinkToGoRouterPath(loc);
+    if (converted != null && converted != loc) return converted;
+  }
+  return null;
+}
+
 /// The app's default router configuration.
+///
+/// `overridePlatformDefaultLocation: true` is critical: without it, GoRouter
+/// prefers Flutter's `defaultRouteName` over `initialLocation` — and on a
+/// cold start via a VIEW intent that value is the RAW deep-link URI
+/// (`budgetly://join/?code=...`), which matches no route and yields the
+/// built-in "Page Not Found" screen. All deep-link handling goes through our
+/// own Android bridge ([deepLinkToGoRouterPath] + [deepLinkRedirect]).
 final GoRouter appRouter = GoRouter(
   initialLocation: AppRoutes.login,
+  overridePlatformDefaultLocation: true,
+  redirect: deepLinkRedirect,
   routes: appRouteList,
 );
