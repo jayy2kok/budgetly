@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/family_service.dart';
@@ -5,6 +6,32 @@ import '../data/remote/remote_family_service.dart';
 import '../models/family_group.dart';
 import '../models/family_member.dart';
 import 'service_providers.dart';
+
+/// Turn a thrown error into a concise, user-facing message.
+///
+/// The backend returns `{status, error, message}` on failures, so prefer its
+/// `message` field over the raw [DioException] dump (which is unreadable).
+String friendlyError(Object e) {
+  if (e is DioException) {
+    final data = e.response?.data;
+    if (data is Map && data['message'] is String) {
+      final message = data['message'] as String;
+      if (message.isNotEmpty) return message;
+    }
+    switch (e.response?.statusCode) {
+      case 400:
+        return 'That invite code is invalid or has expired.';
+      case 401:
+      case 403:
+        return 'You do not have access to this family.';
+      case 404:
+        return 'Family not found.';
+      case 409:
+        return 'You are already a member of this family.';
+    }
+  }
+  return e.toString();
+}
 
 /// State for the current family group and its members.
 class FamilyState {
@@ -60,7 +87,7 @@ class FamilyNotifier extends Notifier<FamilyState> {
           isLoading: false,
         );
       } catch (e) {
-        state = state.copyWith(isLoading: false, error: e.toString());
+        state = state.copyWith(isLoading: false, error: friendlyError(e));
       }
     } else {
       await loadFamily('family_001');
@@ -78,7 +105,7 @@ class FamilyNotifier extends Notifier<FamilyState> {
         isLoading: false,
       );
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(isLoading: false, error: friendlyError(e));
     }
   }
 
@@ -90,7 +117,7 @@ class FamilyNotifier extends Notifier<FamilyState> {
       final updated = await _service.updateFamily(familyId, updates);
       state = state.copyWith(currentFamily: updated, isLoading: false);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(isLoading: false, error: friendlyError(e));
     }
   }
 
@@ -112,7 +139,7 @@ class FamilyNotifier extends Notifier<FamilyState> {
       state = state.copyWith(isLoading: false);
       return true;
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(isLoading: false, error: friendlyError(e));
       return false;
     }
   }
