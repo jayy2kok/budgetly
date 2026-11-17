@@ -107,7 +107,13 @@ public class FamilyGroupService {
     public void deleteFamily(String userId, String familyId) {
         getGroupAndValidateMember(userId, familyId);
         requireAdminRole(userId, familyId);
-        removeMember(userId, familyId, userId);
+
+        // The caller is leaving their own family. Detach by membership lookup,
+        // not by member document id (deleteFamily receives a userId, not an id).
+        FamilyMemberDocument ownMembership = familyMemberRepository
+                .findByUserIdAndFamilyGroupId(userId, familyId)
+                .orElseThrow(() -> new ResourceNotFoundException("FamilyMember", userId));
+        detachMember(ownMembership);
     }
 
     public InviteResponse invite(String userId, String familyId, InviteRequest request) {
