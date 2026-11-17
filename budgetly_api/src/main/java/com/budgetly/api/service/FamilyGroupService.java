@@ -9,6 +9,9 @@ import com.budgetly.api.generated.model.*;
 import com.budgetly.api.repository.FamilyGroupRepository;
 import com.budgetly.api.repository.FamilyMemberRepository;
 import com.budgetly.api.repository.UserRepository;
+import com.budgetly.api.repository.TransactionRepository;
+import com.budgetly.api.repository.CategoryRepository;
+import com.budgetly.api.repository.MessageRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -27,6 +30,9 @@ public class FamilyGroupService {
     private final FamilyGroupRepository familyGroupRepository;
     private final FamilyMemberRepository familyMemberRepository;
     private final UserRepository userRepository;
+    private final TransactionRepository transactionRepository;
+    private final CategoryRepository categoryRepository;
+    private final MessageRepository messageRepository;
 
     public FamilyGroup createFamily(String userId, CreateFamilyRequest request) {
         FamilyGroupDocument group = FamilyGroupDocument.builder()
@@ -128,6 +134,10 @@ public class FamilyGroupService {
     }
 
     public FamilyMember joinFamily(String userId, String familyId, JoinFamilyRequest request) {
+        // A user can only belong to ONE family. Cascade delete their old family
+        // (and all children) before joining the new one.
+        _removeOldFamily(userId);
+
         FamilyGroupDocument group = familyGroupRepository.findByInviteCode(request.getInviteCode())
                 .orElseThrow(() -> new IllegalArgumentException("Invalid invite code"));
 
@@ -150,6 +160,30 @@ public class FamilyGroupService {
         member = familyMemberRepository.save(member);
         UserDocument user = userRepository.findById(userId).orElse(null);
         return toMemberDto(member, user);
+    }
+
+    /**
+     * Removes the user's current family and all its child documents.
+     * Called before joinFamily to enforce the "one active family per user" rule.
+     */
+    private void _removeOldFamily(String userId) {
+        List<FamilyMemberDocument> memberships = familyMemberRepository.findByUserId(userId);
+        java.util.Optional<FamilyMemberDocument> active = memberships.stream()
+                .filter(m -> "ACTIVE".equals(m.getStatus()))
+                .findFirst();
+
+        if (!active.isPresent()) return;
+
+        String oldFamilyId = active.get().getFamilyGroupId();
+
+        // Delete in dependency order to avoid orphaned children
+        transactionRepository.deleteAllByFamilyGroupId(oldFamilyId);
+        categoryRepository.deleteAllByFamilyGroupId(oldFamilyId);
+        messageRepository.deleteAllByFamilyGroupId(oldFamilyId);
+        familyMemberRepository.deleteAllByFamilyGroupId(oldFamilyId);
+        familyGroupRepository.deleteById(oldFamilyId);
+
+        log.info("Deleted old family {} for user {}", oldFamilyId, userId);
     }
 
     public List<FamilyMember> listMembers(String userId, String familyId) {

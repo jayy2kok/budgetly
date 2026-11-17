@@ -358,14 +358,12 @@ class SettingsScreen extends ConsumerWidget {
                   icon: Icons.admin_panel_settings_outlined,
                   label: 'Permissions',
                 ),
-              ] else if (!members.any((m) => m.userId == user?.id)) ...[
-                // Not yet a member of this family — show join button
-                _SettingsRow(
-                  icon: Icons.login_outlined,
-                  label: 'Join Family',
-                  onTap: () => context.push(AppRoutes.joinFamily),
-                ),
               ],
+              _SettingsRow(
+                icon: Icons.login_outlined,
+                label: 'Join Family',
+                onTap: () => context.push(AppRoutes.joinFamily),
+              ),
             ],
           ),
 

@@ -34,83 +34,86 @@ class AppRoutes {
   static const String joinFamily = '/join';
 }
 
-/// The app's router configuration using GoRouter.
+/// All route definitions, reused by both the default and deep-link routers.
+final List<RouteBase> appRouteList = [
+  // ── Auth ──
+  GoRoute(
+    path: AppRoutes.login,
+    builder: (context, state) => const LoginScreen(),
+  ),
+
+  // ── Bottom nav shell ──
+  ShellRoute(
+    builder: (context, state, child) => AppShell(child: child),
+    routes: [
+      GoRoute(
+        path: AppRoutes.dashboard,
+        pageBuilder: (context, state) =>
+            const NoTransitionPage(child: DashboardScreen()),
+      ),
+      GoRoute(
+        path: AppRoutes.feed,
+        pageBuilder: (context, state) =>
+            const NoTransitionPage(child: TransactionFeedScreen()),
+      ),
+      GoRoute(
+        path: AppRoutes.budget,
+        pageBuilder: (context, state) =>
+            const NoTransitionPage(child: MonthlyBudgetScreen()),
+      ),
+      GoRoute(
+        path: AppRoutes.settings,
+        pageBuilder: (context, state) =>
+            const NoTransitionPage(child: SettingsScreen()),
+      ),
+    ],
+  ),
+
+  // ── Standalone screens ──
+  GoRoute(
+    path: AppRoutes.addExpense,
+    builder: (context, state) => const AddExpenseScreen(),
+  ),
+  GoRoute(
+    path: '${AppRoutes.transactionDetail}/:id',
+    builder: (context, state) {
+      final id = state.pathParameters['id']!;
+      return TransactionDetailScreen(transactionId: id);
+    },
+  ),
+  GoRoute(
+    path: AppRoutes.messageInbox,
+    builder: (context, state) => const MessageInboxScreen(),
+  ),
+  GoRoute(
+    path: AppRoutes.ignoredMessages,
+    builder: (context, state) => const IgnoredMessagesScreen(),
+  ),
+  GoRoute(
+    path: AppRoutes.linkFamily,
+    builder: (context, state) => const LinkFamilyScreen(),
+  ),
+  GoRoute(
+    path: AppRoutes.familySettings,
+    builder: (context, state) => const FamilyGroupSettingsScreen(),
+  ),
+  GoRoute(
+    path: AppRoutes.profile,
+    builder: (context, state) => const ProfileScreen(),
+  ),
+
+  // ── Join Family — from deep link or manual entry ──
+  GoRoute(
+    path: AppRoutes.joinFamily,
+    builder: (context, state) {
+      final deepLinkCode = state.uri.queryParameters['code'];
+      return JoinFamilyScreen(deepLinkCode: deepLinkCode);
+    },
+  ),
+];
+
+/// The app's default router configuration.
 final GoRouter appRouter = GoRouter(
   initialLocation: AppRoutes.login,
-  routes: [
-    // ── Auth ──
-    GoRoute(
-      path: AppRoutes.login,
-      builder: (context, state) => const LoginScreen(),
-    ),
-
-    // ── Bottom nav shell ──
-    ShellRoute(
-      builder: (context, state, child) => AppShell(child: child),
-      routes: [
-        GoRoute(
-          path: AppRoutes.dashboard,
-          pageBuilder: (context, state) =>
-              const NoTransitionPage(child: DashboardScreen()),
-        ),
-        GoRoute(
-          path: AppRoutes.feed,
-          pageBuilder: (context, state) =>
-              const NoTransitionPage(child: TransactionFeedScreen()),
-        ),
-        GoRoute(
-          path: AppRoutes.budget,
-          pageBuilder: (context, state) =>
-              const NoTransitionPage(child: MonthlyBudgetScreen()),
-        ),
-        GoRoute(
-          path: AppRoutes.settings,
-          pageBuilder: (context, state) =>
-              const NoTransitionPage(child: SettingsScreen()),
-        ),
-      ],
-    ),
-
-    // ── Standalone screens ──
-    GoRoute(
-      path: AppRoutes.addExpense,
-      builder: (context, state) => const AddExpenseScreen(),
-    ),
-    GoRoute(
-      path: '${AppRoutes.transactionDetail}/:id',
-      builder: (context, state) {
-        final id = state.pathParameters['id']!;
-        return TransactionDetailScreen(transactionId: id);
-      },
-    ),
-    GoRoute(
-      path: AppRoutes.messageInbox,
-      builder: (context, state) => const MessageInboxScreen(),
-    ),
-    GoRoute(
-      path: AppRoutes.ignoredMessages,
-      builder: (context, state) => const IgnoredMessagesScreen(),
-    ),
-    GoRoute(
-      path: AppRoutes.linkFamily,
-      builder: (context, state) => const LinkFamilyScreen(),
-    ),
-    GoRoute(
-      path: AppRoutes.familySettings,
-      builder: (context, state) => const FamilyGroupSettingsScreen(),
-    ),
-    GoRoute(
-      path: AppRoutes.profile,
-      builder: (context, state) => const ProfileScreen(),
-    ),
-
-    // ── Join Family — from deep link or manual entry ──
-    GoRoute(
-      path: AppRoutes.joinFamily,
-      builder: (context, state) {
-        final deepLinkCode = state.uri.queryParameters['code'];
-        return JoinFamilyScreen(deepLinkCode: deepLinkCode);
-      },
-    ),
-  ],
+  routes: appRouteList,
 );

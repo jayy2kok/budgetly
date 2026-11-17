@@ -12,4 +12,5 @@ public interface CategoryRepository extends MongoRepository<CategoryDocument, St
     List<CategoryDocument> findByFamilyGroupIdOrderBySortOrderAsc(String familyGroupId);
     Optional<CategoryDocument> findByIdAndFamilyGroupId(String id, String familyGroupId);
     boolean existsByFamilyGroupIdAndName(String familyGroupId, String name);
+    void deleteAllByFamilyGroupId(String familyGroupId);
 }
