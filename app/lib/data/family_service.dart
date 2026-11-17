@@ -12,4 +12,7 @@ abstract class FamilyService {
 
   /// Generate a real invite (link/QR) for [familyId]. Admin only on the API.
   Future<FamilyInvite> inviteFamily(String familyId, Map<String, dynamic> request);
+
+  /// Join a family group using an invite code.
+  Future<FamilyMember> joinFamily(String inviteCode);
 }

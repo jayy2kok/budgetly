@@ -13,6 +13,7 @@ import '../screens/messages/ignored_messages_screen.dart';
 import '../screens/settings/link_family_screen.dart';
 import '../screens/settings/family_group_settings_screen.dart';
 import '../screens/settings/profile_screen.dart';
+import '../screens/settings/join_family_screen.dart';
 
 /// Route path constants.
 class AppRoutes {
@@ -30,6 +31,7 @@ class AppRoutes {
   static const String linkFamily = '/settings/link-family';
   static const String familySettings = '/settings/family';
   static const String profile = '/settings/profile';
+  static const String joinFamily = '/join';
 }
 
 /// The app's router configuration using GoRouter.
@@ -100,6 +102,15 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: AppRoutes.profile,
       builder: (context, state) => const ProfileScreen(),
+    ),
+
+    // ── Join Family — from deep link or manual entry ──
+    GoRoute(
+      path: AppRoutes.joinFamily,
+      builder: (context, state) {
+        final deepLinkCode = state.uri.queryParameters['code'];
+        return JoinFamilyScreen(deepLinkCode: deepLinkCode);
+      },
     ),
   ],
 );

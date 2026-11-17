@@ -97,6 +97,25 @@ class FamilyNotifier extends Notifier<FamilyState> {
   Future<void> updateBudgetLimit(double limit) async {
     await updateSettings({'monthlyBudgetLimit': limit});
   }
+
+  /// Joins a family group using an invite code, then reloads the family.
+  Future<bool> joinViaInvite(String inviteCode) async {
+    state = state.copyWith(isLoading: true, error: null);
+    try {
+      final member = await _service.joinFamily(inviteCode);
+      // The backend returns the joined member; reload the family to get
+      // updated members list and switch to the new family.
+      final familyId = member.familyGroupId;
+      if (familyId.isNotEmpty) {
+        await loadFamily(familyId);
+      }
+      state = state.copyWith(isLoading: false);
+      return true;
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+      return false;
+    }
+  }
 }
 
 final familyProvider = NotifierProvider<FamilyNotifier, FamilyState>(

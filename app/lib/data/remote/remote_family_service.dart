@@ -59,4 +59,13 @@ class RemoteFamilyService implements FamilyService {
     );
     return FamilyInvite.fromJson(response.data as Map<String, dynamic>);
   }
+
+  @override
+  Future<FamilyMember> joinFamily(String inviteCode) async {
+    final response = await _dio.post(
+      '/families/join',
+      data: {'inviteCode': inviteCode},
+    );
+    return FamilyMember.fromJson(response.data as Map<String, dynamic>);
+  }
 }

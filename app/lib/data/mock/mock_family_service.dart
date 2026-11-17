@@ -53,4 +53,19 @@ class MockFamilyService implements FamilyService {
       expiresAt: DateTime.now().add(const Duration(days: 7)),
     );
   }
+
+  @override
+  Future<FamilyMember> joinFamily(String inviteCode) async {
+    await Future.delayed(const Duration(milliseconds: 300));
+    // In mock mode, just return a dummy member to confirm the flow
+    return FamilyMember(
+      id: 'mock_member',
+      userId: 'mock_user',
+      familyGroupId: 'mock_family',
+      role: MemberRole.member,
+      status: MemberStatus.active,
+      joinedAt: DateTime.now(),
+      user: SampleData.members.first.user,
+    );
+  }
 }

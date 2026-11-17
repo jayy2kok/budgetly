@@ -58,6 +58,10 @@ class _FakeFamilyService implements FamilyService {
   @override
   Future<List<FamilyMember>> getMembers(String familyId) async =>
       throw UnimplementedError();
+
+  @override
+  Future<FamilyMember> joinFamily(String inviteCode) async =>
+      throw UnimplementedError();
 }
 
 class _FakeFamilyNotifier extends FamilyNotifier {
