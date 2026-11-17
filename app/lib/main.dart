@@ -6,6 +6,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app.dart';
 
+/// Native method channel exposed by MainActivity.kt.
+const MethodChannel _deepLinkMethodChannel = MethodChannel('budgetly/deep_link');
+
+/// Stream of deep-link URIs delivered while the app is already running.
+const EventChannel _deepLinkEventChannel =
+    EventChannel('budgetly/deep_link/events');
+
 /// Holds the initial deep link URI received from Android intent.
 String? _initialDeepLink;
 
@@ -18,13 +25,12 @@ String? _deepLinkToGoRouterPath(String uriStr) {
   final uri = Uri.tryParse(uriStr);
   if (uri == null) return null;
 
-  // Extract code from query param
+  // Extract code from query param, falling back to the first path segment.
   final code = uri.queryParameters['code'];
   final path = uri.pathSegments.isNotEmpty ? uri.pathSegments.first : null;
   final extractedCode = code ?? path;
 
-  // Normalize to /join route
-  if (extractedCode != null) {
+  if (extractedCode != null && extractedCode.isNotEmpty) {
     return '/join?code=$extractedCode';
   }
   return '/join';
@@ -33,28 +39,39 @@ String? _deepLinkToGoRouterPath(String uriStr) {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Catch any Flutter framework errors
+  // Catch any Flutter framework errors.
   FlutterError.onError = (details) {
     debugPrint('⚠️ FlutterError: ${details.exception}');
     debugPrint('Stack: ${details.stack}');
   };
 
-  // Listen for initial intent (deep links on Android)
+  // Cold-start deep link: ask the native side for the intent that launched us.
+  // (Flutter's own getInitialRoute()/getInitialIntent() do not surface VIEW
+  // intents reliably across OEMs, so we bridge through MainActivity.)
   try {
-    final initialIntent = await SystemChannels.platform
-        .invokeMethod<Map<dynamic, dynamic>>('getInitialIntent');
-    if (initialIntent != null && initialIntent['data'] != null) {
-      final rawUri = initialIntent['data'] as String;
+    final rawUri = await _deepLinkMethodChannel
+        .invokeMethod<String>('initialLink');
+    if (rawUri != null && rawUri.isNotEmpty) {
       _initialDeepLink = _deepLinkToGoRouterPath(rawUri);
-      debugPrint(
-          '🔗 Budgetly opened via deep link: $rawUri -> ${_initialDeepLink ?? "unknown"}');
+      debugPrint('🔗 Budgetly opened via deep link: $rawUri -> $_initialDeepLink');
     }
   } catch (e) {
-    debugPrint('⚠️ Failed to read initial intent: $e');
+    debugPrint('⚠️ Failed to read initial deep link: $e');
   }
 
   debugPrint('🚀 Budgetly starting...');
   runApp(ProviderScope(
-    child: BudgetlyApp(initialDeepLink: _initialDeepLink),
+    child: BudgetlyApp(
+      initialDeepLink: _initialDeepLink,
+      onNewDeepLink: (rawUri) {
+        final path = _deepLinkToGoRouterPath(rawUri);
+        if (path != null) {
+          debugPrint('🔗 Budgetly received deep link (warm): $rawUri -> $path');
+          return path;
+        }
+        return null;
+      },
+      deepLinkStream: _deepLinkEventChannel.receiveBroadcastStream(),
+    ),
   ));
 }

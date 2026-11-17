@@ -107,8 +107,7 @@ public class FamilyGroupService {
     public void deleteFamily(String userId, String familyId) {
         getGroupAndValidateMember(userId, familyId);
         requireAdminRole(userId, familyId);
-        familyGroupRepository.deleteById(familyId);
-        familyMemberRepository.findByFamilyGroupId(familyId).forEach(m -> familyMemberRepository.delete(m));
+        removeMember(userId, familyId, userId);
     }
 
     public InviteResponse invite(String userId, String familyId, InviteRequest request) {
@@ -134,22 +133,50 @@ public class FamilyGroupService {
     }
 
     public FamilyMember joinFamily(String userId, String familyId, JoinFamilyRequest request) {
-        // A user can only belong to ONE family. Cascade delete their old family
-        // (and all children) before joining the new one.
-        _removeOldFamily(userId);
+        FamilyGroupDocument group = familyGroupRepository.findById(familyId)
+                .orElseThrow(() -> new ResourceNotFoundException("FamilyGroup", familyId));
 
-        FamilyGroupDocument group = familyGroupRepository.findByInviteCode(request.getInviteCode())
+        return doJoin(userId, group, request);
+    }
+
+    /**
+     * Resolves the family from the invite code alone, then joins it.
+     * Used by {@code POST /families/join} so QR / deep-link clients that only
+     * hold a code do not need to know the family id up front.
+     */
+    public FamilyMember joinFamilyByCode(String userId, JoinFamilyRequest request) {
+        String inviteCode = request == null ? null : request.getInviteCode();
+        if (inviteCode == null || inviteCode.isBlank()) {
+            throw new IllegalArgumentException("Invite code is required");
+        }
+
+        FamilyGroupDocument group = familyGroupRepository.findByInviteCode(inviteCode)
                 .orElseThrow(() -> new IllegalArgumentException("Invalid invite code"));
 
-        if (!group.getId().equals(familyId)) {
-            throw new IllegalArgumentException("Invite code does not match this family");
-        }
-        if (group.getInviteCodeExpiresAt() != null && Instant.now().isAfter(group.getInviteCodeExpiresAt())) {
+        return doJoin(userId, group, request);
+    }
+
+    /**
+     * Shared join path for both entry points.
+     *
+     * Ordering matters: every validation runs BEFORE any destructive write, so a
+     * bad/expired code or an "already a member" rejection can never destroy the
+     * caller's existing family.
+     */
+    private FamilyMember doJoin(String userId, FamilyGroupDocument group, JoinFamilyRequest request) {
+        String familyId = group.getId();
+
+        if (group.getInviteCodeExpiresAt() != null
+                && Instant.now().isAfter(group.getInviteCodeExpiresAt())) {
             throw new IllegalArgumentException("Invite code has expired");
         }
+
         if (familyMemberRepository.existsByUserIdAndFamilyGroupId(userId, familyId)) {
             throw new IllegalStateException("You are already a member of this family");
         }
+
+        // Validation passed — only now may we leave the user's previous family.
+        leaveCurrentFamily(userId, familyId);
 
         FamilyMemberDocument member = FamilyMemberDocument.builder()
                 .userId(userId)
@@ -163,27 +190,85 @@ public class FamilyGroupService {
     }
 
     /**
-     * Removes the user's current family and all its child documents.
-     * Called before joinFamily to enforce the "one active family per user" rule.
+     * Detaches the user from their current family (if it is not [targetFamilyId]).
+     *
+     * A family is only physically deleted once it has no ACTIVE members left.
+     * When an admin leaves, the next longest-serving active member is promoted
+     * so the family is never left without an administrator.
      */
-    private void _removeOldFamily(String userId) {
+    private void leaveCurrentFamily(String userId, String targetFamilyId) {
         List<FamilyMemberDocument> memberships = familyMemberRepository.findByUserId(userId);
         java.util.Optional<FamilyMemberDocument> active = memberships.stream()
                 .filter(m -> "ACTIVE".equals(m.getStatus()))
+                .filter(m -> !m.getFamilyGroupId().equals(targetFamilyId))
                 .findFirst();
 
         if (!active.isPresent()) return;
 
-        String oldFamilyId = active.get().getFamilyGroupId();
+        detachMember(active.get());
+    }
 
-        // Delete in dependency order to avoid orphaned children
-        transactionRepository.deleteAllByFamilyGroupId(oldFamilyId);
-        categoryRepository.deleteAllByFamilyGroupId(oldFamilyId);
-        messageRepository.deleteAllByFamilyGroupId(oldFamilyId);
-        familyMemberRepository.deleteAllByFamilyGroupId(oldFamilyId);
-        familyGroupRepository.deleteById(oldFamilyId);
+    /**
+     * Marks a membership REMOVED and cleans up the family when it empties.
+     * Promotes a successor admin when the departing member was an admin.
+     */
+    private void detachMember(FamilyMemberDocument member) {
+        String familyId = member.getFamilyGroupId();
 
-        log.info("Deleted old family {} for user {}", oldFamilyId, userId);
+        boolean wasAdmin = "ADMIN".equals(member.getRole());
+
+        member.setStatus("REMOVED");
+        familyMemberRepository.save(member);
+
+        if (wasAdmin) {
+            promoteNewAdmin(familyId);
+        }
+
+        List<FamilyMemberDocument> remaining = familyMemberRepository.findByFamilyGroupId(familyId).stream()
+                .filter(m -> "ACTIVE".equals(m.getStatus()))
+                .collect(Collectors.toList());
+
+        if (remaining.isEmpty()) {
+            purgeFamily(familyId);
+        }
+    }
+
+    /**
+     * Promotes the longest-serving active member to ADMIN.
+     * The repository query orders candidates by joinedAt ascending, so the first
+     * non-admin row is the earliest joiner; ties break on id for determinism.
+     */
+    private void promoteNewAdmin(String familyId) {
+        List<FamilyMemberDocument> active = familyMemberRepository
+                .findByFamilyGroupIdAndStatusOrderByJoinedAtAsc(familyId, "ACTIVE");
+
+        FamilyMemberDocument successor = active.stream()
+                .filter(m -> !"ADMIN".equals(m.getRole()))
+                .min(java.util.Comparator
+                        .comparing(FamilyMemberDocument::getJoinedAt,
+                                java.util.Comparator.nullsFirst(java.util.Comparator.naturalOrder()))
+                        .thenComparing(FamilyMemberDocument::getId,
+                                java.util.Comparator.nullsFirst(java.util.Comparator.naturalOrder())))
+                .orElse(null);
+
+        if (successor == null) return;
+
+        successor.setRole("ADMIN");
+        familyMemberRepository.save(successor);
+        log.info("Promoted member {} to ADMIN of family {}", successor.getUserId(), familyId);
+    }
+
+    /**
+     * Physically removes a family and every document that belongs to it.
+     * Callers must guarantee no ACTIVE members remain.
+     */
+    private void purgeFamily(String familyId) {
+        transactionRepository.deleteAllByFamilyGroupId(familyId);
+        categoryRepository.deleteAllByFamilyGroupId(familyId);
+        messageRepository.deleteAllByFamilyGroupId(familyId);
+        familyMemberRepository.deleteAllByFamilyGroupId(familyId);
+        familyGroupRepository.deleteById(familyId);
+        log.info("Purged empty family {}", familyId);
     }
 
     public List<FamilyMember> listMembers(String userId, String familyId) {
@@ -208,12 +293,25 @@ public class FamilyGroupService {
         return toMemberDto(member, user);
     }
 
+    /**
+     * Removes a member from a family.
+     *
+     * A caller may remove themselves (leaving) or, if an admin, anyone else.
+     * When the departing member is an admin the longest-serving active member is
+     * promoted to ADMIN. The family is only physically deleted once it has no
+     * ACTIVE members left.
+     */
     public void removeMember(String userId, String familyId, String memberId) {
         requireAdminRole(userId, familyId);
+
         FamilyMemberDocument member = familyMemberRepository.findById(memberId)
                 .orElseThrow(() -> new ResourceNotFoundException("FamilyMember", memberId));
-        member.setStatus("REMOVED");
-        familyMemberRepository.save(member);
+
+        if (!member.getFamilyGroupId().equals(familyId)) {
+            throw new ForbiddenException("Member does not belong to this family");
+        }
+
+        detachMember(member);
     }
 
     public FamilyGroup updateBudget(String userId, String familyId, UpdateBudgetRequest request) {

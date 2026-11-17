@@ -10,6 +10,12 @@ import java.util.Optional;
 @Repository
 public interface FamilyMemberRepository extends MongoRepository<FamilyMemberDocument, String> {
     List<FamilyMemberDocument> findByFamilyGroupId(String familyGroupId);
+
+    /**
+     * Active members of a family ordered by join time ascending, so the earliest
+     * joiner is at index 0 — used to pick an admin successor.
+     */
+    List<FamilyMemberDocument> findByFamilyGroupIdAndStatusOrderByJoinedAtAsc(String familyGroupId, String status);
     Optional<FamilyMemberDocument> findByUserIdAndFamilyGroupId(String userId, String familyGroupId);
     List<FamilyMemberDocument> findByUserId(String userId);
     boolean existsByUserIdAndFamilyGroupId(String userId, String familyGroupId);
