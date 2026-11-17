@@ -5,9 +5,11 @@ import com.budgetly.api.document.FamilyMemberDocument;
 import com.budgetly.api.document.UserDocument;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.Map;
 
 import static io.restassured.RestAssured.given;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -268,8 +270,8 @@ class FamilyGroupE2ETest extends BaseE2ETest {
         FamilyGroupDocument family = seedFamily(admin.getId(), "Succession");
 
         // first joined before second
-        FamilyMemberDocument firstDoc = seedMember(first.getId(), family.getId());
-        FamilyMemberDocument secondDoc = seedMember(second.getId(), family.getId());
+        seedMember(first.getId(), family.getId());
+        seedMember(second.getId(), family.getId());
 
         // Admin leaves
         givenAuth(admin.getId())
@@ -277,13 +279,29 @@ class FamilyGroupE2ETest extends BaseE2ETest {
                 .then()
                 .statusCode(204);
 
-        // first member (oldest) should now be admin
-        givenAuth(first.getId())
+        // Members list is still reachable by the remaining members; extract it
+        // as plain Java objects (avoids fragile Groovy GPath closures).
+        List<Map<String, Object>> members = givenAuth(first.getId())
                 .get("/families/" + family.getId() + "/members")
                 .then()
                 .statusCode(200)
-                .body("$.find { it.userId == '" + first.getId() + "' }.role", equalTo("ADMIN"))
-                .body("$.find { it.userId == '" + second.getId() + "' }.role", equalTo("MEMBER"));
+                .extract().jsonPath().getList("$");
+
+        // oldest member (first) was promoted to ADMIN
+        Map<String, Object> firstMember = members.stream()
+                .filter(m -> first.getId().equals(m.get("userId")))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("first member missing from members"));
+        assertThat("oldest member should be promoted to ADMIN",
+                firstMember.get("role"), equalTo("ADMIN"));
+
+        // second member stays a regular MEMBER
+        Map<String, Object> secondMember = members.stream()
+                .filter(m -> second.getId().equals(m.get("userId")))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("second member missing from members"));
+        assertThat("second member should remain a MEMBER",
+                secondMember.get("role"), equalTo("MEMBER"));
     }
 
     // ── Rule: joining with a bad code does not destroy existing family ──
