@@ -76,7 +76,7 @@ public class CategoryService {
     // ── Helpers ──────────────────────────────────────────────────
 
     private void requireMember(String userId, String familyId) {
-        if (!familyMemberRepository.existsByUserIdAndFamilyGroupId(userId, familyId)) {
+        if (!familyMemberRepository.existsByUserIdAndFamilyGroupIdAndStatus(userId, familyId, "ACTIVE")) {
             throw new ForbiddenException("Not a member of this family");
         }
     }

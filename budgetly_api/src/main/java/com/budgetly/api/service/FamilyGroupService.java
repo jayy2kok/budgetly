@@ -177,20 +177,36 @@ public class FamilyGroupService {
             throw new IllegalArgumentException("Invite code has expired");
         }
 
-        if (familyMemberRepository.existsByUserIdAndFamilyGroupId(userId, familyId)) {
+        FamilyMemberDocument existing = familyMemberRepository
+                .findByUserIdAndFamilyGroupId(userId, familyId)
+                .orElse(null);
+
+        // Only an ACTIVE membership blocks a join. A REMOVED row means the user
+        // left/was removed before, and must be allowed to re-join.
+        if (existing != null && "ACTIVE".equals(existing.getStatus())) {
             throw new IllegalStateException("You are already a member of this family");
         }
 
         // Validation passed — only now may we leave the user's previous family.
         leaveCurrentFamily(userId, familyId);
 
-        FamilyMemberDocument member = FamilyMemberDocument.builder()
-                .userId(userId)
-                .familyGroupId(familyId)
-                .role("MEMBER")
-                .status("ACTIVE")
-                .build();
-        member = familyMemberRepository.save(member);
+        FamilyMemberDocument member;
+        if (existing != null) {
+            // Re-activate the previous membership in place — the (userId,
+            // familyGroupId) pair is uniquely indexed, so we must never insert a
+            // duplicate row for a user who was previously a member.
+            existing.setStatus("ACTIVE");
+            existing.setRole("MEMBER");
+            existing.setJoinedAt(Instant.now());
+            member = familyMemberRepository.save(existing);
+        } else {
+            member = familyMemberRepository.save(FamilyMemberDocument.builder()
+                    .userId(userId)
+                    .familyGroupId(familyId)
+                    .role("MEMBER")
+                    .status("ACTIVE")
+                    .build());
+        }
         UserDocument user = userRepository.findById(userId).orElse(null);
         return toMemberDto(member, user);
     }
@@ -280,6 +296,9 @@ public class FamilyGroupService {
     public List<FamilyMember> listMembers(String userId, String familyId) {
         getGroupAndValidateMember(userId, familyId);
         return familyMemberRepository.findByFamilyGroupId(familyId).stream()
+                // Only current members are shown; REMOVED rows are kept for the
+                // unique (userId, familyGroupId) index but are not "members".
+                .filter(m -> "ACTIVE".equals(m.getStatus()))
                 .map(m -> {
                     UserDocument user = userRepository.findById(m.getUserId()).orElse(null);
                     return toMemberDto(m, user);
@@ -332,8 +351,9 @@ public class FamilyGroupService {
     private FamilyGroupDocument getGroupAndValidateMember(String userId, String familyId) {
         FamilyGroupDocument group = familyGroupRepository.findById(familyId)
                 .orElseThrow(() -> new ResourceNotFoundException("FamilyGroup", familyId));
-        boolean isMember = familyMemberRepository.existsByUserIdAndFamilyGroupId(userId, familyId);
-        if (!isMember) throw new ForbiddenException("You are not a member of this family");
+        boolean isActiveMember = familyMemberRepository
+                .existsByUserIdAndFamilyGroupIdAndStatus(userId, familyId, "ACTIVE");
+        if (!isActiveMember) throw new ForbiddenException("You are not a member of this family");
         return group;
     }
 
@@ -341,7 +361,7 @@ public class FamilyGroupService {
         FamilyMemberDocument member = familyMemberRepository
                 .findByUserIdAndFamilyGroupId(userId, familyId)
                 .orElseThrow(() -> new ForbiddenException("Not a member of this family"));
-        if (!"ADMIN".equals(member.getRole())) {
+        if (!"ACTIVE".equals(member.getStatus()) || !"ADMIN".equals(member.getRole())) {
             throw new ForbiddenException("Admin role required for this action");
         }
     }

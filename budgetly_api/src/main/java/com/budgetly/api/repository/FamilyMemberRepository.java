@@ -19,5 +19,8 @@ public interface FamilyMemberRepository extends MongoRepository<FamilyMemberDocu
     Optional<FamilyMemberDocument> findByUserIdAndFamilyGroupId(String userId, String familyGroupId);
     List<FamilyMemberDocument> findByUserId(String userId);
     boolean existsByUserIdAndFamilyGroupId(String userId, String familyGroupId);
+
+    /** True only when the user has an ACTIVE membership in the family. */
+    boolean existsByUserIdAndFamilyGroupIdAndStatus(String userId, String familyGroupId, String status);
     void deleteAllByFamilyGroupId(String familyGroupId);
 }
