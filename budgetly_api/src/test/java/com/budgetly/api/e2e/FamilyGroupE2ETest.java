@@ -218,4 +218,131 @@ class FamilyGroupE2ETest extends BaseE2ETest {
                 .then()
                 .statusCode(204);
     }
+
+    // ── Rule A: family only deleted when no active members ──────
+
+    @Test
+    void deleteFamily_withRemainingMember_keepsFamily() {
+        UserDocument admin = seedUser("g-fam-11a", "Admin 11", "admin11@fam.com");
+        UserDocument member = seedUser("g-fam-11b", "Member 11", "member11@fam.com");
+        FamilyGroupDocument family = seedFamily(admin.getId(), "Keep Me");
+        seedMember(member.getId(), family.getId());
+
+        // Admin leaves — family must survive because a member remains.
+        givenAuth(admin.getId())
+                .delete("/families/" + family.getId())
+                .then()
+                .statusCode(204);
+
+        // Family still reachable by the remaining member.
+        givenAuth(member.getId())
+                .get("/families/" + family.getId())
+                .then()
+                .statusCode(200)
+                .body("id", equalTo(family.getId()));
+    }
+
+    @Test
+    void deleteFamily_lastMember_removesFamily() {
+        UserDocument admin = seedUser("g-fam-12", "Admin 12", "admin12@fam.com");
+        FamilyGroupDocument family = seedFamily(admin.getId(), "Last One");
+
+        givenAuth(admin.getId())
+                .delete("/families/" + family.getId())
+                .then()
+                .statusCode(204);
+
+        givenAuth(admin.getId())
+                .get("/families/" + family.getId())
+                .then()
+                .statusCode(anyOf(is(404), is(403)));
+    }
+
+    // ── Rule B: oldest member becomes admin on admin departure ──
+
+    @Test
+    void deleteFamily_adminLeaves_oldestMemberBecomesAdmin() {
+        UserDocument admin = seedUser("g-fam-13a", "Admin 13", "admin13@fam.com");
+        UserDocument first = seedUser("g-fam-13b", "First Member", "first13@fam.com");
+        UserDocument second = seedUser("g-fam-13c", "Second Member", "second13@fam.com");
+        FamilyGroupDocument family = seedFamily(admin.getId(), "Succession");
+
+        // first joined before second
+        FamilyMemberDocument firstDoc = seedMember(first.getId(), family.getId());
+        FamilyMemberDocument secondDoc = seedMember(second.getId(), family.getId());
+
+        // Admin leaves
+        givenAuth(admin.getId())
+                .delete("/families/" + family.getId())
+                .then()
+                .statusCode(204);
+
+        // first member (oldest) should now be admin
+        givenAuth(first.getId())
+                .get("/families/" + family.getId() + "/members")
+                .then()
+                .statusCode(200)
+                .body("$.find { it.userId == '" + first.getId() + "' }.role", equalTo("ADMIN"))
+                .body("$.find { it.userId == '" + second.getId() + "' }.role", equalTo("MEMBER"));
+    }
+
+    // ── Rule: joining with a bad code does not destroy existing family ──
+
+    @Test
+    void joinFamily_invalidCode_keepsExistingFamily() {
+        UserDocument user = seedUser("g-fam-14", "User 14", "user14@fam.com");
+        FamilyGroupDocument family = seedFamily(user.getId(), "My Family");
+
+        // Attempt to join a non-existent family with a bad code.
+        givenAuth(user.getId())
+                .body(Map.of("inviteCode", "NONEXISTENT"))
+                .post("/families/join")
+                .then()
+                .statusCode(400);
+
+        // Existing family must still be intact.
+        givenAuth(user.getId())
+                .get("/families/" + family.getId())
+                .then()
+                .statusCode(200)
+                .body("id", equalTo(family.getId()));
+    }
+
+    // ── Rule: already a member does not destroy existing family ──
+
+    @Test
+    void joinFamily_alreadyMember_keepsExistingFamily() {
+        UserDocument admin = seedUser("g-fam-15a", "Admin 15", "admin15@fam.com");
+        UserDocument member = seedUser("g-fam-15b", "Member 15", "member15@fam.com");
+        FamilyGroupDocument family = seedFamily(admin.getId(), "My Family");
+
+        // Generate an invite for the family.
+        String inviteCode = givenAuth(admin.getId())
+                .body(Map.of("email", "member15@fam.com"))
+                .post("/families/" + family.getId() + "/invite")
+                .then()
+                .statusCode(200)
+                .extract().path("inviteCode");
+
+        // Member joins once.
+        givenAuth(member.getId())
+                .body(Map.of("inviteCode", inviteCode))
+                .post("/families/join")
+                .then()
+                .statusCode(200);
+
+        // Attempting to join again must be rejected without destroying the family.
+        givenAuth(member.getId())
+                .body(Map.of("inviteCode", inviteCode))
+                .post("/families/join")
+                .then()
+                .statusCode(409);
+
+        // Family must still exist with both members.
+        givenAuth(admin.getId())
+                .get("/families/" + family.getId() + "/members")
+                .then()
+                .statusCode(200)
+                .body("$.size()", equalTo(2));
+    }
 }
