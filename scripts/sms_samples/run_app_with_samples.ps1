@@ -9,11 +9,23 @@
 # emulator inbox is emptied before the chosen number of sample messages is loaded.
 # Pass -NoClean to keep the current app install and inbox.
 #
+# Snapshot AVDs (Pixel_9a_jayraj, Pixel_9a_jayy2kok) carry a pre-logged-in Google
+# account in a `logged_in_base` snapshot. Pass -Snapshot <name> (or nothing: the
+# AVD's own configured snapshot is picked up automatically) to boot from it. The
+# data wipe is then skipped so the login survives, and -no-snapshot-save keeps the
+# snapshot untouched -- every run starts fresh with no messages but the Google
+# account already signed in.
+#
 # Usage (from the repo root, or anywhere with an absolute path):
 #   powershell -ExecutionPolicy Bypass -File scripts/sms_samples/run_app_with_samples.ps1 [options] [-- flutter args]
 #
 # Options (both -Name and --name forms work, case-insensitive):
 #   -Avd NAME           AVD to launch (default: $env:BUDGETLY_AVD, else first AVD)
+#   -Snapshot NAME      Boot from this emulator snapshot (default: the AVD's
+#                       configured snapshot, e.g. logged_in_base; else none).
+#                       Skips -wipe-data so a logged-in Google account survives.
+#   -Gpu MODE           Emulator -gpu value (snapshot-mode default:
+#                       swiftshader_indirect; otherwise left to the emulator).
 #   -Serial SERIAL      Use an already-running device/emulator
 #   -Fixture PATH       Sample inbox JSON (default: app/test/fixtures/sample_inbox.json)
 #   -MaxMessages N      Sample messages to load and the app's sync cap (default: 100)
@@ -32,6 +44,8 @@
 #
 # Examples:
 #   powershell -ExecutionPolicy Bypass -File scripts/sms_samples/run_app_with_samples.ps1 -Avd Pixel_9a
+#   powershell -ExecutionPolicy Bypass -File scripts/sms_samples/run_app_with_samples.ps1 -Avd Pixel_9a_jayraj
+#   powershell -ExecutionPolicy Bypass -File scripts/sms_samples/run_app_with_samples.ps1 -Avd Pixel_9a_jayy2kok -Snapshot logged_in_base
 #   .\scripts\sms_samples\run_app_with_samples.ps1 -Headless -NoApp
 
 $ErrorActionPreference = 'Continue'
@@ -44,6 +58,8 @@ $SeedScript = Join-Path $ScriptDir 'seed_emulator.py'
 $LogDir     = if ($env:TEMP) { $env:TEMP } else { [System.IO.Path]::GetTempPath() }
 
 $Avd            = if ($env:BUDGETLY_AVD) { $env:BUDGETLY_AVD } else { '' }
+$Snapshot       = ''
+$Gpu            = ''
 $SerialExplicit = ''
 $Fixture        = Join-Path $RepoRoot 'app\test\fixtures\sample_inbox.json'
 $MaxMessages    = 100
@@ -85,6 +101,11 @@ Usage:
 
 Options:
   -Avd NAME           AVD to launch (default: $env:BUDGETLY_AVD, else first AVD)
+  -Snapshot NAME      Boot from this emulator snapshot (default: the AVD's
+                      configured snapshot, e.g. logged_in_base; else none).
+                      Skips -wipe-data so a logged-in Google account survives.
+  -Gpu MODE           Emulator -gpu value (snapshot-mode default:
+                      swiftshader_indirect; otherwise left to the emulator).
   -Serial SERIAL      Use an already-running device/emulator
   -Fixture PATH       Sample inbox JSON (default: app/test/fixtures/sample_inbox.json)
   -MaxMessages N      Sample messages to load and the app's sync cap (default: 100)
@@ -103,6 +124,8 @@ Anything after `--` is forwarded to `flutter run`, e.g.
 
 Examples:
   powershell -ExecutionPolicy Bypass -File scripts/sms_samples/run_app_with_samples.ps1 -Avd Pixel_9a
+  powershell -ExecutionPolicy Bypass -File scripts/sms_samples/run_app_with_samples.ps1 -Avd Pixel_9a_jayraj
+  powershell -ExecutionPolicy Bypass -File scripts/sms_samples/run_app_with_samples.ps1 -Avd Pixel_9a_jayy2kok -Snapshot logged_in_base
   .\scripts\sms_samples\run_app_with_samples.ps1 -Headless -NoApp
 '@
 
@@ -144,6 +167,8 @@ while ($script:ArgIndex -lt $script:Argv.Count) {
 
     switch ($name) {
         'avd'         { $Avd = Read-OptionValue '--avd' }
+        'snapshot'    { $Snapshot = Read-OptionValue '--snapshot' }
+        'gpu'         { $Gpu = Read-OptionValue '--gpu' }
         'serial'      { $SerialExplicit = Read-OptionValue '--serial' }
         'fixture'     { $Fixture = Read-OptionValue '--fixture' }
         'maxmessages' { $MaxMessages = Read-OptionValue '--max-messages' }
@@ -307,6 +332,52 @@ function Get-AvdName {
     return ''
 }
 
+function Get-AvdConfigIni {
+    param([string]$Name)
+    if (-not $Name) { return '' }
+    $avdHome = $null
+    if ($env:ANDROID_AVD_HOME)       { $avdHome = $env:ANDROID_AVD_HOME }
+    elseif ($env:ANDROID_PREFS_ROOT) { $avdHome = Join-Path $env:ANDROID_PREFS_ROOT 'avd' }
+    elseif ($env:ANDROID_SDK_HOME)   { $avdHome = Join-Path $env:ANDROID_SDK_HOME '.android\avd' }
+    else                             { $avdHome = Join-Path $HOME '.android\avd' }
+    $ini = Join-Path $avdHome ("{0}.avd\config.ini" -f $Name)
+    if (Test-Path -LiteralPath $ini -PathType Leaf) { return $ini }
+    return ''
+}
+
+function Get-AvdConfiguredSnapshot {
+    # If this AVD is configured to always boot from a snapshot
+    # (fastboot.forceChosenSnapshotBoot=yes + fastboot.chosenSnapshotFile=<name>),
+    # return that name. The snapshot AVDs Pixel_9a_jayraj / Pixel_9a_jayy2kok pin
+    # `logged_in_base` here, so `-Avd Pixel_9a_jayraj` alone already restores the
+    # pre-logged-in Google account without needing -Snapshot on the command line.
+    param([string]$Name)
+    $ini = Get-AvdConfigIni -Name $Name
+    if (-not $ini) { return '' }
+    $force = $false
+    $file = ''
+    foreach ($line in @(Get-Content -LiteralPath $ini -ErrorAction SilentlyContinue)) {
+        if ($line -match '^fastboot\.forceChosenSnapshotBoot=(.+)$') {
+            $force = (([string]$Matches[1]).Trim() -eq 'yes')
+        }
+        elseif ($line -match '^fastboot\.chosenSnapshotFile=(.*)$') {
+            $file = ([string]$Matches[1]).Trim()
+        }
+    }
+    if ($force -and $file) { return $file }
+    return ''
+}
+
+function Test-AvdSnapshot {
+    # True if a snapshot of this name exists on disk for the given AVD.
+    param([string]$AvdName, [string]$SnapshotName)
+    if (-not $SnapshotName) { return $false }
+    $ini = Get-AvdConfigIni -Name $AvdName
+    if (-not $ini) { return $false }
+    $snapshotsDir = Join-Path (Split-Path -Parent $ini) 'snapshots'
+    return (Test-Path -LiteralPath (Join-Path $snapshotsDir $SnapshotName) -PathType Container)
+}
+
 # ---- Emulator selection / launch -------------------------------------------
 
 $script:Serial = ''
@@ -339,6 +410,19 @@ try {
             Stop-Script "No AVD selected. Pass --avd <name> or create one with 'flutter emulators --create'."
         }
 
+        # If no snapshot was named, boot whatever snapshot the AVD itself is
+        # configured for (fastboot.forceChosenSnapshotBoot=yes). The snapshot
+        # AVDs Pixel_9a_jayraj / Pixel_9a_jayy2kok pin `logged_in_base` here, so
+        # `-Avd Pixel_9a_jayraj` alone already restores the pre-logged-in Google
+        # account. An explicit -Snapshot always wins.
+        if (-not $Snapshot) {
+            $configured = Get-AvdConfiguredSnapshot -Name $Avd
+            if ($configured) {
+                $Snapshot = $configured
+                Write-Info "AVD '$Avd' is configured to boot from snapshot '$configured'."
+            }
+        }
+
         # If an emulator already running this AVD is up, reuse it -- unless a
         # clean start is requested, in which case it must be relaunched so its
         # data can be wiped (a running instance can't be wiped).
@@ -350,7 +434,12 @@ try {
                     Write-Info "AVD '$Avd' is already running as $script:Serial; reusing it."
                 }
                 else {
-                    Write-Info "Clean start: stopping already-running $Avd ($runningSerial) so it can relaunch wiped."
+                    if ($Snapshot) {
+                        Write-Info "Clean start: stopping already-running $Avd ($runningSerial) so it can relaunch from snapshot '$Snapshot'."
+                    }
+                    else {
+                        Write-Info "Clean start: stopping already-running $Avd ($runningSerial) so it can relaunch wiped."
+                    }
                     & $script:Adb -s $runningSerial emu kill 2>$null | Out-Null
                     Start-Sleep -Seconds 3  # let the old instance deregister from adb
                 }
@@ -366,8 +455,26 @@ try {
 
             $emuArgs = @('-avd', $Avd)
             if ($Headless) {
-                Write-Info "Launching emulator '$Avd' (headless) ..."
-                $emuArgs += @('-no-window', '-no-audio', '-no-boot-anim', '-no-snapshot')
+                $emuArgs += @('-no-window', '-no-audio', '-no-boot-anim')
+            }
+
+            if ($Snapshot) {
+                # Boot from a named snapshot (e.g. logged_in_base) so the Google
+                # account is already signed in. Skip -wipe-data: wiping the data
+                # partition would erase that login. Keep -no-snapshot-save so the
+                # base snapshot is never overwritten -- every run starts from the
+                # same pristine, logged-in state.
+                if (-not $Gpu) { $Gpu = 'swiftshader_indirect' }
+                if ($Gpu)      { $emuArgs += @('-gpu', $Gpu) }
+                $emuArgs += @('-snapshot', $Snapshot, '-no-snapshot-save')
+                Write-Info "Launching emulator '$Avd' from snapshot '$Snapshot' (Google login preserved; no -wipe-data)."
+                if (-not (Test-AvdSnapshot -AvdName $Avd -SnapshotName $Snapshot)) {
+                    Write-Warn "Snapshot '$Snapshot' not found for AVD '$Avd'; the emulator will cold-boot instead (no Google login)."
+                }
+            }
+            elseif ($Headless) {
+                Write-Info "Launching emulator '$Avd' (headless, fresh boot) ..."
+                $emuArgs += '-no-snapshot'
             }
             else {
                 # Launch directly so we can disable snapshot restore/save: a
@@ -376,12 +483,15 @@ try {
                 Write-Info "Launching emulator '$Avd' (windowed, fresh boot) ..."
                 $emuArgs += @('-no-snapshot-load', '-no-snapshot-save')
             }
-            if (-not $NoClean) {
+            if (-not $NoClean -and -not $Snapshot) {
                 # The telephony provider on this AVD's user build refuses content
                 # delete, so -wipe-data is the only reliable way to empty the
                 # inbox (and it also gives the app a genuinely fresh install).
                 $emuArgs += '-wipe-data'
                 Write-Info 'Clean start: AVD data will be wiped (-wipe-data).'
+            }
+            elseif ($Snapshot -and -not $NoClean) {
+                Write-Info "Clean start: AVD data is NOT wiped (snapshot '$Snapshot' restored instead)."
             }
 
             # Start-Process cannot send stdout and stderr to the same file.

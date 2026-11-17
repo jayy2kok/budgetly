@@ -7,11 +7,23 @@
 # emulator inbox is emptied before the chosen number of sample messages is loaded.
 # Pass --no-clean to keep the current app install and inbox.
 #
+# Snapshot AVDs (Pixel_9a_jayraj, Pixel_9a_jayy2kok) carry a pre-logged-in Google
+# account in a `logged_in_base` snapshot. Pass --snapshot <name> (or nothing: the
+# AVD's own configured snapshot is picked up automatically) to boot from it. The
+# data wipe is then skipped so the login survives, and -no-snapshot-save keeps the
+# snapshot untouched -- every run starts fresh with no messages but the Google
+# account already signed in.
+#
 # Usage (from the repo root, or anywhere if you use an absolute path):
 #   bash scripts/sms_samples/run_app_with_samples.sh [options] [-- flutter args]
 #
 # Options:
 #   --avd NAME          AVD to launch (default: $BUDGETLY_AVD, else first AVD)
+#   --snapshot NAME     Boot from this emulator snapshot (default: the AVD's
+#                       configured snapshot, e.g. logged_in_base; else none).
+#                       Skips -wipe-data so a logged-in Google account survives.
+#   --gpu MODE          Emulator -gpu value (snapshot-mode default:
+#                       swiftshader_indirect; otherwise left to the emulator).
 #   --serial SERIAL     Use an already-running device/emulator
 #   --fixture PATH      Sample inbox JSON (default: app/test/fixtures/sample_inbox.json)
 #   --max-messages N    Sample messages to load and the app's sync cap (default: 100)
@@ -30,6 +42,8 @@
 #
 # Examples:
 #   bash scripts/sms_samples/run_app_with_samples.sh --avd Pixel_9a
+#   bash scripts/sms_samples/run_app_with_samples.sh --avd Pixel_9a_jayraj
+#   bash scripts/sms_samples/run_app_with_samples.sh --avd Pixel_9a_jayy2kok --snapshot logged_in_base
 #   bash scripts/sms_samples/run_app_with_samples.sh --headless --no-app
 #
 set -euo pipefail
@@ -40,6 +54,8 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 APP_DIR="$REPO_ROOT/app"
 
 AVD="${BUDGETLY_AVD:-}"
+SNAPSHOT=""
+GPU_MODE=""
 SERIAL_EXPLICIT=""
 FIXTURE="$REPO_ROOT/app/test/fixtures/sample_inbox.json"
 MAX_MESSAGES=100
@@ -68,6 +84,8 @@ usage() {
 while (( $# )); do
   case "$1" in
     --avd)          AVD="${2:?--avd needs a value}"; shift 2 ;;
+    --snapshot)     SNAPSHOT="${2:?--snapshot needs a value}"; shift 2 ;;
+    --gpu)          GPU_MODE="${2:?--gpu needs a value}"; shift 2 ;;
     --serial)       SERIAL_EXPLICIT="${2:?--serial needs a value}"; shift 2 ;;
     --fixture)      FIXTURE="${2:?--fixture needs a value}"; shift 2 ;;
     --max-messages) MAX_MESSAGES="${2:?--max-messages needs a value}"; shift 2 ;;
@@ -183,6 +201,44 @@ pick_avd() {
     }'
 }
 
+avd_config_ini() {
+  # Path to $AVD.avd/config.ini, or nothing if the AVD is not on this machine.
+  local avd_home ini
+  if [ -n "${ANDROID_AVD_HOME:-}" ]; then
+    avd_home="$ANDROID_AVD_HOME"
+  elif [ -n "${ANDROID_PREFS_ROOT:-}" ]; then
+    avd_home="$ANDROID_PREFS_ROOT/avd"
+  elif [ -n "${ANDROID_SDK_HOME:-}" ]; then
+    avd_home="$ANDROID_SDK_HOME/.android/avd"
+  else
+    avd_home="$HOME/.android/avd"
+  fi
+  ini="$avd_home/$1.avd/config.ini"
+  if [ -f "$ini" ]; then printf '%s' "$ini"; return 0; fi
+  return 1
+}
+
+avd_configured_snapshot() {
+  # If this AVD is configured to always boot from a snapshot
+  # (fastboot.forceChosenSnapshotBoot=yes + fastboot.chosenSnapshotFile=<name>),
+  # print that name. The snapshot AVDs Pixel_9a_jayraj / Pixel_9a_jayy2kok pin
+  # `logged_in_base` here, so `--avd Pixel_9a_jayraj` alone already restores the
+  # pre-logged-in Google account without needing --snapshot on the command line.
+  local ini force file
+  ini="$(avd_config_ini "$1")" || return 0
+  force="$(sed -n 's/^fastboot\.forceChosenSnapshotBoot=//p' "$ini" | tr -d '\r')"
+  file="$(sed -n 's/^fastboot\.chosenSnapshotFile=//p' "$ini" | tr -d '\r')"
+  if [ "$force" = "yes" ] && [ -n "$file" ]; then printf '%s' "$file"; fi
+}
+
+avd_snapshot_exists() {
+  # True if a snapshot of this name exists on disk for the given AVD.
+  local ini snap
+  ini="$(avd_config_ini "$1")" || return 1
+  snap="$(dirname "$ini")/snapshots/$2"
+  [ -d "$snap" ]
+}
+
 SERIAL=""
 cleanup() {
   if [ "$STOP_ON_EXIT" = true ] && [ -n "${SERIAL:-}" ]; then
@@ -203,6 +259,19 @@ else
   AVD="$(pick_avd)"
   [ -n "$AVD" ] || die "No AVD selected. Pass --avd <name> or create one with 'flutter emulators --create'."
 
+  # If no snapshot was named, boot whatever snapshot the AVD itself is
+  # configured for (fastboot.forceChosenSnapshotBoot=yes). The snapshot AVDs
+  # Pixel_9a_jayraj / Pixel_9a_jayy2kok pin `logged_in_base` here, so
+  # `--avd Pixel_9a_jayraj` alone already restores the pre-logged-in Google
+  # account. An explicit --snapshot always wins.
+  if [ -z "$SNAPSHOT" ]; then
+    configured="$(avd_configured_snapshot "$AVD")"
+    if [ -n "$configured" ]; then
+      SNAPSHOT="$configured"
+      info "AVD '$AVD' is configured to boot from snapshot '$configured'."
+    fi
+  fi
+
   # If an emulator already running this AVD is up, reuse it -- unless a clean
   # start is requested, in which case it must be relaunched so its data can be
   # wiped (a running instance can't be wiped).
@@ -212,7 +281,11 @@ else
         SERIAL="$running_serial"
         info "AVD '$AVD' is already running as $SERIAL; reusing it."
       else
-        info "Clean start: stopping already-running $AVD ($running_serial) so it can relaunch wiped."
+        if [ -n "$SNAPSHOT" ]; then
+          info "Clean start: stopping already-running $AVD ($running_serial) so it can relaunch from snapshot '$SNAPSHOT'."
+        else
+          info "Clean start: stopping already-running $AVD ($running_serial) so it can relaunch wiped."
+        fi
         "$ADB" -s "$running_serial" emu kill >/dev/null 2>&1 || true
         sleep 3  # let the old instance deregister from adb before re-detecting
       fi
@@ -223,21 +296,40 @@ else
   if [ -z "$SERIAL" ]; then
     EMULATOR_BIN="$(find_emulator_bin)" || die "Could not find the emulator binary."
     BEFORE="$(list_any_emulator_serials || true)"
+    EXTRA_EMU_ARGS=""
     if [ "$HEADLESS" = true ]; then
-      info "Launching emulator '$AVD' (headless) ..."
-      EXTRA_EMU_ARGS="-no-window -no-audio -no-boot-anim -no-snapshot"
+      EXTRA_EMU_ARGS="-no-window -no-audio -no-boot-anim"
+    fi
+
+    if [ -n "$SNAPSHOT" ]; then
+      # Boot from a named snapshot (e.g. logged_in_base) so the Google account is
+      # already signed in. Skip -wipe-data: wiping the data partition would erase
+      # that login. Keep -no-snapshot-save so the base snapshot is never
+      # overwritten -- every run starts from the same pristine, logged-in state.
+      if [ -z "$GPU_MODE" ]; then GPU_MODE="swiftshader_indirect"; fi
+      if [ -n "$GPU_MODE" ]; then EXTRA_EMU_ARGS="$EXTRA_EMU_ARGS -gpu $GPU_MODE"; fi
+      EXTRA_EMU_ARGS="$EXTRA_EMU_ARGS -snapshot $SNAPSHOT -no-snapshot-save"
+      info "Launching emulator '$AVD' from snapshot '$SNAPSHOT' (Google login preserved; no -wipe-data)."
+      if ! avd_snapshot_exists "$AVD" "$SNAPSHOT"; then
+        warn "Snapshot '$SNAPSHOT' not found for AVD '$AVD'; the emulator will cold-boot instead (no Google login)."
+      fi
+    elif [ "$HEADLESS" = true ]; then
+      info "Launching emulator '$AVD' (headless, fresh boot) ..."
+      EXTRA_EMU_ARGS="$EXTRA_EMU_ARGS -no-snapshot"
     else
       info "Launching emulator '$AVD' (windowed, fresh boot) ..."
       # Launch directly so we can disable snapshot restore/save: a restored
       # snapshot is what leaves an emulator wedged at "offline" in adb.
-      EXTRA_EMU_ARGS="-no-snapshot-load -no-snapshot-save"
+      EXTRA_EMU_ARGS="$EXTRA_EMU_ARGS -no-snapshot-load -no-snapshot-save"
     fi
-    if [ "$NO_CLEAN" != true ]; then
+    if [ "$NO_CLEAN" != true ] && [ -z "$SNAPSHOT" ]; then
       # The telephony provider on this AVD's user build refuses content delete,
       # so -wipe-data is the only reliable way to empty the inbox (and it also
       # gives the app a genuinely fresh install).
       EXTRA_EMU_ARGS="$EXTRA_EMU_ARGS -wipe-data"
       info "Clean start: AVD data will be wiped (-wipe-data)."
+    elif [ -n "$SNAPSHOT" ] && [ "$NO_CLEAN" != true ]; then
+      info "Clean start: AVD data is NOT wiped (snapshot '$SNAPSHOT' restored instead)."
     fi
     "$EMULATOR_BIN" -avd "$AVD" $EXTRA_EMU_ARGS \
       >"${TMPDIR:-/tmp}/budgetly-emulator.log" 2>&1 &
