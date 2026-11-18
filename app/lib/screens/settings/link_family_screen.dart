@@ -93,6 +93,21 @@ class _LinkFamilyScreenState extends ConsumerState<LinkFamilyScreen> {
     });
   }
 
+  /// Converts a backend-generated https://budgetly.app/join?code=X link to the
+  /// budgetly:// scheme, which Android launches reliably without assetlinks.json.
+  String _toBudgetlyScheme(String link) {
+    final uri = Uri.tryParse(link);
+    if (uri == null) return link;
+    if (uri.scheme == 'https' && uri.host == 'budgetly.app') {
+      final code = uri.queryParameters['code'];
+      if (code != null && code.isNotEmpty) return 'budgetly://join?code=$code';
+      final segments = uri.pathSegments.where((s) => s.isNotEmpty).toList();
+      if (segments.isNotEmpty) return 'budgetly://join?code=${segments.first}';
+      return 'budgetly://join';
+    }
+    return link;
+  }
+
   String _formatExpiry(DateTime expiresAt) {
     final local = expiresAt.toLocal();
     final day = local.day.toString().padLeft(2, '0');
@@ -377,7 +392,7 @@ class _LinkFamilyScreenState extends ConsumerState<LinkFamilyScreen> {
 
   Widget _buildLinkCard(BuildContext context) {
     final invite = _invite!;
-    final link = invite.inviteLink ?? '';
+    final link = _toBudgetlyScheme(invite.inviteLink ?? '');
     final copyingEnabled = link.isNotEmpty;
 
     return Container(
@@ -495,7 +510,7 @@ class _LinkFamilyScreenState extends ConsumerState<LinkFamilyScreen> {
   }
 
   Widget _buildQrCard(BuildContext context) {
-    final link = _invite?.inviteLink;
+    final link = _toBudgetlyScheme(_invite?.inviteLink ?? '');
     final hasLink = link != null && link.isNotEmpty;
 
     return Container(
