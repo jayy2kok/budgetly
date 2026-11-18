@@ -42,14 +42,24 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     if (text.trim().isEmpty) return 'Enter an amount';
     final amount = double.tryParse(text.trim());
     if (amount == null || amount <= 0) return 'Enter a valid amount';
+    if (text.trim().length > _kMaxAmountLength) return 'Amount too long';
     return null;
   }
 
   /// Returns the validation error for the merchant name, or null if valid.
   String? _merchantError(String text) {
     if (text.trim().isEmpty) return 'Enter a merchant name';
+    if (text.trim().length > _kMaxMerchantLength) {
+      return 'Merchant name too long';
+    }
     return null;
   }
+
+  /// Maximum characters allowed for the amount field.
+  static const int _kMaxAmountLength = 10;
+
+  /// Maximum characters allowed for the merchant name field.
+  static const int _kMaxMerchantLength = 100;
 
   String _selectedCategoryName(List<Category> categories) {
     if (_selectedCategoryId == null) return "Unknown";
@@ -208,6 +218,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                               fontWeight: FontWeight.w700,
                               color: context.colors.textMain,
                             ),
+                            maxLength: _kMaxAmountLength,
                             decoration: InputDecoration(
                               border: InputBorder.none,
                               hintText: '0',
@@ -366,6 +377,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                               fontSize: 16,
                               color: context.colors.textMain,
                             ),
+                            maxLength: _kMaxMerchantLength,
                             decoration: InputDecoration(
                               border: InputBorder.none,
                               enabledBorder: InputBorder.none,
