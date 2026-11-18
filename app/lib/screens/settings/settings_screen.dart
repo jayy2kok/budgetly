@@ -359,6 +359,11 @@ class SettingsScreen extends ConsumerWidget {
                   label: 'Permissions',
                 ),
               ],
+              _SettingsRow(
+                icon: Icons.login_outlined,
+                label: 'Join Family',
+                onTap: () => context.push(AppRoutes.joinFamily),
+              ),
             ],
           ),
 

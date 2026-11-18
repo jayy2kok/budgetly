@@ -62,6 +62,13 @@ public class FamilyGroupController implements FamilyGroupsApi {
         return ResponseEntity.ok(familyGroupService.joinFamily(userId, id, joinFamilyRequest));
     }
 
+    /** POST /api/v1/families/join — resolve the family from the invite code alone. */
+    @Override
+    public ResponseEntity<FamilyMember> joinFamilyByCode(JoinFamilyRequest joinFamilyRequest) {
+        String userId = ControllerUtils.getCurrentUserId();
+        return ResponseEntity.ok(familyGroupService.joinFamilyByCode(userId, joinFamilyRequest));
+    }
+
     @Override
     public ResponseEntity<List<FamilyMember>> listFamilyMembers(String id) {
         String userId = ControllerUtils.getCurrentUserId();

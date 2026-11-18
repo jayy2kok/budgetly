@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../screens/shell/app_shell.dart';
@@ -13,6 +14,7 @@ import '../screens/messages/ignored_messages_screen.dart';
 import '../screens/settings/link_family_screen.dart';
 import '../screens/settings/family_group_settings_screen.dart';
 import '../screens/settings/profile_screen.dart';
+import '../screens/settings/join_family_screen.dart';
 
 /// Route path constants.
 class AppRoutes {
@@ -30,76 +32,142 @@ class AppRoutes {
   static const String linkFamily = '/settings/link-family';
   static const String familySettings = '/settings/family';
   static const String profile = '/settings/profile';
+  static const String joinFamily = '/join';
 }
 
-/// The app's router configuration using GoRouter.
+/// All route definitions, reused by both the default and deep-link routers.
+final List<RouteBase> appRouteList = [
+  // ── Auth ──
+  GoRoute(
+    path: AppRoutes.login,
+    builder: (context, state) => const LoginScreen(),
+  ),
+
+  // ── Bottom nav shell ──
+  ShellRoute(
+    builder: (context, state, child) => AppShell(child: child),
+    routes: [
+      GoRoute(
+        path: AppRoutes.dashboard,
+        pageBuilder: (context, state) =>
+            const NoTransitionPage(child: DashboardScreen()),
+      ),
+      GoRoute(
+        path: AppRoutes.feed,
+        pageBuilder: (context, state) =>
+            const NoTransitionPage(child: TransactionFeedScreen()),
+      ),
+      GoRoute(
+        path: AppRoutes.budget,
+        pageBuilder: (context, state) =>
+            const NoTransitionPage(child: MonthlyBudgetScreen()),
+      ),
+      GoRoute(
+        path: AppRoutes.settings,
+        pageBuilder: (context, state) =>
+            const NoTransitionPage(child: SettingsScreen()),
+      ),
+    ],
+  ),
+
+  // ── Standalone screens ──
+  GoRoute(
+    path: AppRoutes.addExpense,
+    builder: (context, state) => const AddExpenseScreen(),
+  ),
+  GoRoute(
+    path: '${AppRoutes.transactionDetail}/:id',
+    builder: (context, state) {
+      final id = state.pathParameters['id']!;
+      return TransactionDetailScreen(transactionId: id);
+    },
+  ),
+  GoRoute(
+    path: AppRoutes.messageInbox,
+    builder: (context, state) => const MessageInboxScreen(),
+  ),
+  GoRoute(
+    path: AppRoutes.ignoredMessages,
+    builder: (context, state) => const IgnoredMessagesScreen(),
+  ),
+  GoRoute(
+    path: AppRoutes.linkFamily,
+    builder: (context, state) => const LinkFamilyScreen(),
+  ),
+  GoRoute(
+    path: AppRoutes.familySettings,
+    builder: (context, state) => const FamilyGroupSettingsScreen(),
+  ),
+  GoRoute(
+    path: AppRoutes.profile,
+    builder: (context, state) => const ProfileScreen(),
+  ),
+
+  // ── Join Family — from deep link or manual entry ──
+  GoRoute(
+    path: AppRoutes.joinFamily,
+    builder: (context, state) {
+      final deepLinkCode = state.uri.queryParameters['code'];
+      return JoinFamilyScreen(deepLinkCode: deepLinkCode);
+    },
+  ),
+];
+
+/// Convert a deep-link URI to a GoRouter-compatible path.
+///
+/// Supports:
+///   budgetly://join?code=XXX
+///   budgetly://join/?code=XXX          (Android-normalized form)
+///   budgetly://join/XXX                (path-based)
+///   https://budgetly.app/join?code=XXX
+String? deepLinkToGoRouterPath(String uriStr) {
+  final uri = Uri.tryParse(uriStr);
+  if (uri == null) return null;
+  if (uriStr.isEmpty) return null;
+
+  // Query-param form:  .../join?code=XXX
+  final code = uri.queryParameters['code'];
+  if (code != null && code.isNotEmpty) {
+    return '/join?code=$code';
+  }
+
+  // Path-based form, only for real deep-link schemes/hosts:
+  //   budgetly://join/XXX, https://budgetly.app/join/XXX
+  if (uriStr.toLowerCase().startsWith('budgetly://') ||
+      uri.host == 'budgetly.app') {
+    final segments =
+        uri.pathSegments.where((s) => s.isNotEmpty).toList();
+    if (segments.isNotEmpty) {
+      return '/join?code=${segments.first}';
+    }
+  }
+
+  return '/join';
+}
+
+/// Catch-all redirect so a RAW deep-link location is normalized before
+/// GoRouter tries to match it (e.g. the platform's initial route on cold
+/// start, or a stray navigator call). App-internal paths are never touched.
+String? deepLinkRedirect(BuildContext context, GoRouterState state) {
+  final loc = state.uri.toString();
+  if (loc.startsWith('budgetly://') || loc.startsWith('https://budgetly.app')) {
+    final converted = deepLinkToGoRouterPath(loc);
+    if (converted != null && converted != loc) return converted;
+  }
+  return null;
+}
+
+/// The app's default router configuration.
+///
+/// `overridePlatformDefaultLocation: true` is critical: without it, GoRouter
+/// prefers Flutter's `defaultRouteName` over `initialLocation` — and on a
+/// cold start via a VIEW intent that value is the RAW deep-link URI
+/// (`budgetly://join/?code=...`), which matches no route and yields the
+/// built-in "Page Not Found" screen. All deep-link handling goes through our
+/// own Android bridge ([deepLinkToGoRouterPath] + [deepLinkRedirect]).
 final GoRouter appRouter = GoRouter(
   initialLocation: AppRoutes.login,
-  routes: [
-    // ── Auth ──
-    GoRoute(
-      path: AppRoutes.login,
-      builder: (context, state) => const LoginScreen(),
-    ),
-
-    // ── Bottom nav shell ──
-    ShellRoute(
-      builder: (context, state, child) => AppShell(child: child),
-      routes: [
-        GoRoute(
-          path: AppRoutes.dashboard,
-          pageBuilder: (context, state) =>
-              const NoTransitionPage(child: DashboardScreen()),
-        ),
-        GoRoute(
-          path: AppRoutes.feed,
-          pageBuilder: (context, state) =>
-              const NoTransitionPage(child: TransactionFeedScreen()),
-        ),
-        GoRoute(
-          path: AppRoutes.budget,
-          pageBuilder: (context, state) =>
-              const NoTransitionPage(child: MonthlyBudgetScreen()),
-        ),
-        GoRoute(
-          path: AppRoutes.settings,
-          pageBuilder: (context, state) =>
-              const NoTransitionPage(child: SettingsScreen()),
-        ),
-      ],
-    ),
-
-    // ── Standalone screens ──
-    GoRoute(
-      path: AppRoutes.addExpense,
-      builder: (context, state) => const AddExpenseScreen(),
-    ),
-    GoRoute(
-      path: '${AppRoutes.transactionDetail}/:id',
-      builder: (context, state) {
-        final id = state.pathParameters['id']!;
-        return TransactionDetailScreen(transactionId: id);
-      },
-    ),
-    GoRoute(
-      path: AppRoutes.messageInbox,
-      builder: (context, state) => const MessageInboxScreen(),
-    ),
-    GoRoute(
-      path: AppRoutes.ignoredMessages,
-      builder: (context, state) => const IgnoredMessagesScreen(),
-    ),
-    GoRoute(
-      path: AppRoutes.linkFamily,
-      builder: (context, state) => const LinkFamilyScreen(),
-    ),
-    GoRoute(
-      path: AppRoutes.familySettings,
-      builder: (context, state) => const FamilyGroupSettingsScreen(),
-    ),
-    GoRoute(
-      path: AppRoutes.profile,
-      builder: (context, state) => const ProfileScreen(),
-    ),
-  ],
+  overridePlatformDefaultLocation: true,
+  redirect: deepLinkRedirect,
+  routes: appRouteList,
 );

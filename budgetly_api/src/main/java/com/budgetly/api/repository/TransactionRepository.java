@@ -36,4 +36,6 @@ public interface TransactionRepository extends MongoRepository<TransactionDocume
     List<TransactionDocument> findTop5ByFamilyGroupIdOrderByTransactionDateDesc(String familyGroupId);
 
     void deleteAllByCategoryId(String categoryId);
+
+    void deleteAllByFamilyGroupId(String familyGroupId);
 }

@@ -43,6 +43,13 @@ dependencies:
 
   # Local persistence
   shared_preferences: ^2.3.4
+  qr_flutter: ^4.1.0
+
+  # Deep linking
+  url_launcher: ^6.3.0
+
+  # QR scanning
+  mobile_scanner: ^5.2.3
 
 dev_dependencies:
   flutter_test:

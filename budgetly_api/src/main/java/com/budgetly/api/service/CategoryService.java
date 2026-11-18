@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -20,6 +21,21 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class CategoryService {
+
+    /**
+     * Categories every new family starts with. Seeded lazily on first listing
+     * so families created before seeding existed also get them.
+     * Budget limits start at 0 — the family sets its own.
+     */
+    private static final List<DefaultCategory> DEFAULT_CATEGORIES = List.of(
+            new DefaultCategory("Groceries", "🛒", "#34D399"),
+            new DefaultCategory("Dining", "🍽️", "#FB7185"),
+            new DefaultCategory("Transport", "🚗", "#60A5FA"),
+            new DefaultCategory("Housing", "🏠", "#FBBF24"),
+            new DefaultCategory("Bills", "📄", "#A78BFA"),
+            new DefaultCategory("Health", "💊", "#2DD4BF"),
+            new DefaultCategory("Entertainment", "🎬", "#F472B6"),
+            new DefaultCategory("Shopping", "🛍️", "#FB923C"));
 
     private final CategoryRepository categoryRepository;
     private final FamilyMemberRepository familyMemberRepository;
@@ -30,6 +46,35 @@ public class CategoryService {
         return categoryRepository.findByFamilyGroupIdOrderBySortOrderAsc(familyId)
                 .stream().map(this::toDto).collect(Collectors.toList());
     }
+
+    /**
+     * Inserts the starter category set for a newly created family.
+     *
+     * <p>Called from {@link FamilyGroupService#createFamily}, i.e. exactly once
+     * per family. Deliberately not triggered from {@code listCategories}:
+     * a family that deletes all its categories must be able to stay empty.
+     */
+    public void seedDefaultCategories(String familyId) {
+        if (!categoryRepository.findByFamilyGroupIdOrderBySortOrderAsc(familyId).isEmpty()) {
+            return;
+        }
+        List<CategoryDocument> docs = new ArrayList<>(DEFAULT_CATEGORIES.size());
+        for (int i = 0; i < DEFAULT_CATEGORIES.size(); i++) {
+            DefaultCategory c = DEFAULT_CATEGORIES.get(i);
+            docs.add(CategoryDocument.builder()
+                    .familyGroupId(familyId)
+                    .name(c.name())
+                    .icon(c.icon())
+                    .color(c.color())
+                    .budgetLimit(0.0)
+                    .sortOrder(i)
+                    .build());
+        }
+        categoryRepository.saveAll(docs);
+        log.info("Seeded {} default categories for family {}", docs.size(), familyId);
+    }
+
+    private record DefaultCategory(String name, String icon, String color) {}
 
     public Category createCategory(String userId, String familyId, CreateCategoryRequest request) {
         requireAdmin(userId, familyId);
@@ -76,7 +121,7 @@ public class CategoryService {
     // ── Helpers ──────────────────────────────────────────────────
 
     private void requireMember(String userId, String familyId) {
-        if (!familyMemberRepository.existsByUserIdAndFamilyGroupId(userId, familyId)) {
+        if (!familyMemberRepository.existsByUserIdAndFamilyGroupIdAndStatus(userId, familyId, "ACTIVE")) {
             throw new ForbiddenException("Not a member of this family");
         }
     }

@@ -267,6 +267,43 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /families/join:
+    post:
+      tags: [Family Groups]
+      operationId: joinFamilyByCode
+      summary: Join family using only an invite code
+      description: >
+        Resolves the family from the invite code itself, so clients that only
+        have a code (QR scan, deep link) do not need to know the family id
+        up front.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JoinFamilyRequest"
+      responses:
+        "200":
+          description: Joined family
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FamilyMember"
+        "400":
+          description: Invalid or expired invite code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Already a member of this family
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /families/{id}/members:
     parameters:
       - $ref: "#/components/parameters/FamilyIdPath"

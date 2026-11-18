@@ -68,6 +68,7 @@ final budgetServiceProvider = Provider<BudgetService>((ref) {
 
 /// Shared SMS pattern cache. Override in tests with a seeded fake cache.
 final patternCacheServiceProvider = Provider<PatternCacheService>((ref) {
+  ref.watch(_apiClientInitProvider); // ensure ApiClient.init() runs in real-API mode
   return PatternCacheService();
 });
 

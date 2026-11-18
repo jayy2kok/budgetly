@@ -62,6 +62,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         // ── Mock mode: skip Google and use mock credentials ───────────────
         await ref.read(authProvider.notifier).signInWithGoogle();
       }
+    } catch (e, stackTrace) {
+      // Google Sign-In throws (canceled, Play Services missing, OAuth client
+      // misconfigured, ...). Without this the button appears to do nothing.
+      debugPrint('❌ Google sign-in failed: $e');
+      debugPrintStack(stackTrace: stackTrace);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Google sign-in failed: $e'),
+            duration: const Duration(seconds: 8),
+          ),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isSigningIn = false);
     }

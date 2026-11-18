@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import '../../models/family_group.dart';
+import '../../models/family_invite.dart';
 import '../../models/family_member.dart';
 import '../family_service.dart';
 import 'api_client.dart';
@@ -45,5 +46,26 @@ class RemoteFamilyService implements FamilyService {
     return list
         .map((json) => FamilyMember.fromJson(json as Map<String, dynamic>))
         .toList();
+  }
+
+  @override
+  Future<FamilyInvite> inviteFamily(
+    String familyId,
+    Map<String, dynamic> request,
+  ) async {
+    final response = await _dio.post(
+      '/families/$familyId/invite',
+      data: request,
+    );
+    return FamilyInvite.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  @override
+  Future<FamilyMember> joinFamily(String inviteCode) async {
+    final response = await _dio.post(
+      '/families/join',
+      data: {'inviteCode': inviteCode},
+    );
+    return FamilyMember.fromJson(response.data as Map<String, dynamic>);
   }
 }
