@@ -43,23 +43,20 @@ public class CategoryService {
 
     public List<Category> listCategories(String userId, String familyId) {
         requireMember(userId, familyId);
-        List<CategoryDocument> categories =
-                categoryRepository.findByFamilyGroupIdOrderBySortOrderAsc(familyId);
-        if (categories.isEmpty()) {
-            categories = seedDefaultCategoriesIfEmpty(familyId);
-        }
-        return categories.stream().map(this::toDto).collect(Collectors.toList());
+        return categoryRepository.findByFamilyGroupIdOrderBySortOrderAsc(familyId)
+                .stream().map(this::toDto).collect(Collectors.toList());
     }
 
     /**
-     * Seeds defaults only if the family is still empty. Synchronized so two
-     * members opening the app at the same time cannot seed duplicate sets.
+     * Inserts the starter category set for a newly created family.
+     *
+     * <p>Called from {@link FamilyGroupService#createFamily}, i.e. exactly once
+     * per family. Deliberately not triggered from {@code listCategories}:
+     * a family that deletes all its categories must be able to stay empty.
      */
-    private synchronized List<CategoryDocument> seedDefaultCategoriesIfEmpty(String familyId) {
-        List<CategoryDocument> existing =
-                categoryRepository.findByFamilyGroupIdOrderBySortOrderAsc(familyId);
-        if (!existing.isEmpty()) {
-            return existing;
+    public void seedDefaultCategories(String familyId) {
+        if (!categoryRepository.findByFamilyGroupIdOrderBySortOrderAsc(familyId).isEmpty()) {
+            return;
         }
         List<CategoryDocument> docs = new ArrayList<>(DEFAULT_CATEGORIES.size());
         for (int i = 0; i < DEFAULT_CATEGORIES.size(); i++) {
@@ -73,9 +70,8 @@ public class CategoryService {
                     .sortOrder(i)
                     .build());
         }
-        List<CategoryDocument> saved = categoryRepository.saveAll(docs);
-        log.info("Seeded {} default categories for family {}", saved.size(), familyId);
-        return saved;
+        categoryRepository.saveAll(docs);
+        log.info("Seeded {} default categories for family {}", docs.size(), familyId);
     }
 
     private record DefaultCategory(String name, String icon, String color) {}

@@ -29,6 +29,7 @@ public class FamilyGroupService {
 
     private final FamilyGroupRepository familyGroupRepository;
     private final FamilyMemberRepository familyMemberRepository;
+    private final CategoryService categoryService;
     private final UserRepository userRepository;
     private final TransactionRepository transactionRepository;
     private final CategoryRepository categoryRepository;
@@ -53,6 +54,10 @@ public class FamilyGroupService {
                 .status("ACTIVE")
                 .build();
         familyMemberRepository.save(member);
+
+        // Give the new family a starter set of categories so the Budget and
+        // Add Expense screens are usable immediately.
+        categoryService.seedDefaultCategories(group.getId());
 
         return toDto(group);
     }
