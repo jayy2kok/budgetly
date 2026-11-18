@@ -511,7 +511,7 @@ class _LinkFamilyScreenState extends ConsumerState<LinkFamilyScreen> {
 
   Widget _buildQrCard(BuildContext context) {
     final link = _toBudgetlyScheme(_invite?.inviteLink ?? '');
-    final hasLink = link != null && link.isNotEmpty;
+    final hasLink = link.isNotEmpty;
 
     return Container(
       width: double.infinity,

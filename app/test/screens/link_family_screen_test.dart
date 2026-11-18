@@ -17,6 +17,7 @@ import 'package:budgetly/providers/service_providers.dart';
 import 'package:budgetly/screens/settings/link_family_screen.dart';
 
 const inviteLink = 'https://budgetly.app/join?code=TEST123';
+const displayLink = 'budgetly://join?code=TEST123';
 
 final _invite = FamilyInvite(
   inviteCode: 'TEST123',
@@ -103,7 +104,7 @@ void main() {
   testWidgets('renders the backend-generated link and a real QR', (tester) async {
     await pumpScreen(tester);
 
-    expect(find.text(inviteLink), findsOneWidget);
+    expect(find.text(displayLink), findsOneWidget);
     expect(find.byType(QrImageView), findsOneWidget);
     expect(find.text('Copy Link'), findsOneWidget);
     expect(find.text('Invite your family'), findsOneWidget);
@@ -133,7 +134,7 @@ void main() {
     final setData =
         calls.where((c) => c.method == 'Clipboard.setData').toList();
     expect(setData, hasLength(1));
-    expect((setData.single.arguments as Map)['text'], inviteLink);
+    expect((setData.single.arguments as Map)['text'], displayLink);
 
     // Flush the "Copied!" reset timer before the test ends.
     await tester.pump(const Duration(seconds: 2));
@@ -144,7 +145,7 @@ void main() {
     await tester.tap(find.text('Regenerate'));
     await tester.pumpAndSettle();
 
-    expect(find.text(inviteLink), findsOneWidget);
+    expect(find.text(displayLink), findsOneWidget);
     expect(find.byType(QrImageView), findsOneWidget);
   });
 
