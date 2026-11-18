@@ -32,9 +32,14 @@ const bool useRealApi = true;
 
 // ── API client initialisation ─────────────────────────────────
 
-/// Initialises the Dio client once when first used in real-API mode.
+/// Initialises the Dio client once when first used.
+///
+/// Runs in both real-API and mock mode: PatternCacheService (and other
+/// services) read [ApiClient.instance.dio], which must be initialized before
+/// they can be constructed — otherwise opening Settings in mock/dev mode
+/// throws a LateInitializationError.
 final _apiClientInitProvider = Provider<void>((ref) {
-  if (useRealApi) ApiClient.instance.init();
+  ApiClient.instance.init();
 });
 
 // ── Service Providers ─────────────────────────────────────────
