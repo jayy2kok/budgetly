@@ -28,6 +28,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   String? _selectedPayerId;
   DateTime _selectedDate = DateTime.now();
   bool _isSaving = false;
+  String? _error;
 
   @override
   void dispose() {
@@ -35,6 +36,30 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     _merchantController.dispose();
     super.dispose();
   }
+
+  /// Returns the validation error for the amount, or null if it is valid.
+  String? _amountError(String text) {
+    if (text.trim().isEmpty) return 'Enter an amount';
+    final amount = double.tryParse(text.trim());
+    if (amount == null || amount <= 0) return 'Enter a valid amount';
+    if (text.trim().length > _kMaxAmountLength) return 'Amount too long';
+    return null;
+  }
+
+  /// Returns the validation error for the merchant name, or null if valid.
+  String? _merchantError(String text) {
+    if (text.trim().isEmpty) return 'Enter a merchant name';
+    if (text.trim().length > _kMaxMerchantLength) {
+      return 'Merchant name too long';
+    }
+    return null;
+  }
+
+  /// Maximum characters allowed for the amount field.
+  static const int _kMaxAmountLength = 10;
+
+  /// Maximum characters allowed for the merchant name field.
+  static const int _kMaxMerchantLength = 100;
 
   String _selectedCategoryName(List<Category> categories) {
     if (_selectedCategoryId == null) return "Unknown";
@@ -46,24 +71,47 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   }
 
   Future<void> _save() async {
-    final amount = double.tryParse(_amountController.text);
-    if (amount == null || amount <= 0) return;
+    if (_isSaving) return;
 
-    setState(() => _isSaving = true);
+    final amountError = _amountError(_amountController.text);
+    if (amountError != null) {
+      setState(() => _error = amountError);
+      return;
+    }
+    final merchantError = _merchantError(_merchantController.text);
+    if (merchantError != null) {
+      setState(() => _error = merchantError);
+      return;
+    }
+    setState(() {
+      _error = null;
+      _isSaving = true;
+    });
+    final amount = double.parse(_amountController.text.trim());
 
     final payload = {
       'categoryId': _selectedCategoryId,
       'amount': amount,
       'currency': 'INR',
-      'merchant': _merchantController.text.isNotEmpty
-          ? _merchantController.text
-          : 'Unknown',
+      'merchant': _merchantController.text.trim(),
       'type': 'EXPENSE',
       'transactionDate': _selectedDate.toIso8601String(),
     };
 
     await ref.read(transactionProvider.notifier).addTransaction(payload);
-    if (mounted) context.pop();
+    if (!mounted) return;
+    final saveError = ref.read(transactionProvider).error;
+    if (saveError != null) {
+      // The notifier swallows the exception into state.error; surface it so a
+      // failed save doesn't look like a silent no-op either.
+      debugPrint('Add expense failed: $saveError');
+      setState(() {
+        _isSaving = false;
+        _error = 'Could not save expense. Please try again.';
+      });
+      return;
+    }
+    context.pop();
   }
 
   @override
@@ -151,6 +199,11 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                           child: TextField(
                             controller: _amountController,
                             autofocus: true,
+                            onChanged: (_) {
+                              if (_error != null) {
+                                setState(() => _error = null);
+                              }
+                            },
                             keyboardType: const TextInputType.numberWithOptions(
                               decimal: true,
                             ),
@@ -165,6 +218,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                               fontWeight: FontWeight.w700,
                               color: context.colors.textMain,
                             ),
+                            maxLength: _kMaxAmountLength,
                             decoration: InputDecoration(
                               border: InputBorder.none,
                               hintText: '0',
@@ -210,6 +264,14 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                       ),
                     ],
                   ),
+
+                  if (_error != null) ...[
+                    SizedBox(height: 20),
+                    _InlineErrorBanner(
+                      message: _error!,
+                      onDismiss: () => setState(() => _error = null),
+                    ),
+                  ],
 
                   SizedBox(height: 28),
 
@@ -306,10 +368,16 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                         Expanded(
                           child: TextField(
                             controller: _merchantController,
+                            onChanged: (_) {
+                              if (_error != null) {
+                                setState(() => _error = null);
+                              }
+                            },
                             style: GoogleFonts.inter(
                               fontSize: 16,
                               color: context.colors.textMain,
                             ),
+                            maxLength: _kMaxMerchantLength,
                             decoration: InputDecoration(
                               border: InputBorder.none,
                               enabledBorder: InputBorder.none,
@@ -485,6 +553,47 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
 }
 
 // ─── Small helpers ───
+class _InlineErrorBanner extends StatelessWidget {
+  final String message;
+  final VoidCallback onDismiss;
+
+  const _InlineErrorBanner({required this.message, required this.onDismiss});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: context.colors.accentCoral.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(BudgetlyTheme.radiusMedium),
+        border: Border.all(
+          color: context.colors.accentCoral.withValues(alpha: 0.3),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.error_outline, size: 18, color: context.colors.accentCoral),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                color: context.colors.textMain,
+              ),
+            ),
+          ),
+          GestureDetector(
+            onTap: onDismiss,
+            child: Icon(Icons.close, size: 18, color: context.colors.textDim),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _FieldLabel extends StatelessWidget {
   final String text;
   const _FieldLabel(this.text);
