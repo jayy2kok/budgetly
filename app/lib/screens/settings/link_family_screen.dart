@@ -476,7 +476,6 @@ class _LinkFamilyScreenState extends ConsumerState<LinkFamilyScreen> {
           SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
-            height: 44,
             child: ElevatedButton.icon(
               onPressed: copyingEnabled ? () => _copyLink(link) : null,
               icon: Icon(
