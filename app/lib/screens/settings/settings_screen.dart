@@ -9,6 +9,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../../providers/sms_provider.dart';
 import '../../providers/family_provider.dart';
+import '../../providers/preferences_provider.dart';
 import '../../models/family_member.dart';
 
 /// Settings screen — Profile card, grouped settings, SMS & Parsing, sign out.
@@ -70,6 +71,7 @@ class SettingsScreen extends ConsumerWidget {
     final authState = ref.watch(authProvider);
     final user = authState.user;
     final smsState = ref.watch(smsProvider);
+    final prefs = ref.watch(preferencesProvider);
 
     final familyState = ref.watch(familyProvider);
     final members = familyState.members;
@@ -374,17 +376,17 @@ class SettingsScreen extends ConsumerWidget {
               _SettingsToggle(
                 icon: Icons.notifications_outlined,
                 label: 'Push Notifications',
-                value: true,
-              ),
-              _SettingsToggle(
-                icon: Icons.email_outlined,
-                label: 'Email Reports',
-                value: false,
+                value: prefs.pushNotifications,
+                onChanged: (v) => ref
+                    .read(preferencesProvider.notifier)
+                    .setPushNotifications(v),
               ),
               _SettingsToggle(
                 icon: Icons.warning_amber_outlined,
                 label: 'Budget Alerts',
-                value: true,
+                value: prefs.budgetAlerts,
+                onChanged: (v) =>
+                    ref.read(preferencesProvider.notifier).setBudgetAlerts(v),
               ),
             ],
           ),
@@ -531,6 +533,9 @@ class _SettingsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Without an [onTap] this row is informational only: dim it and drop the
+    // chevron so it no longer looks like a tappable setting.
+    final enabled = onTap != null;
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
@@ -538,7 +543,13 @@ class _SettingsRow extends StatelessWidget {
         padding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         child: Row(
           children: [
-            Icon(icon, size: 20, color: context.colors.textMuted),
+            Icon(
+              icon,
+              size: 20,
+              color: enabled
+                  ? context.colors.textMuted
+                  : context.colors.textDim.withValues(alpha: 0.45),
+            ),
             SizedBox(width: 14),
             Expanded(
               child: Text(
@@ -546,16 +557,19 @@ class _SettingsRow extends StatelessWidget {
                 style: GoogleFonts.inter(
                   fontSize: 15,
                   fontWeight: FontWeight.w500,
-                  color: context.colors.textMain,
+                  color: enabled
+                      ? context.colors.textMain
+                      : context.colors.textDim,
                 ),
               ),
             ),
             if (trailing != null) ...[trailing!, SizedBox(width: 6)],
-            Icon(
-              Icons.chevron_right,
-              size: 18,
-              color: context.colors.textDim.withValues(alpha: 0.5),
-            ),
+            if (enabled)
+              Icon(
+                Icons.chevron_right,
+                size: 18,
+                color: context.colors.textDim.withValues(alpha: 0.5),
+              ),
           ],
         ),
       ),
@@ -563,7 +577,7 @@ class _SettingsRow extends StatelessWidget {
   }
 }
 
-class _SettingsToggle extends StatefulWidget {
+class _SettingsToggle extends StatelessWidget {
   final IconData icon;
   final String label;
   final bool value;
@@ -577,37 +591,16 @@ class _SettingsToggle extends StatefulWidget {
   });
 
   @override
-  State<_SettingsToggle> createState() => _SettingsToggleState();
-}
-
-class _SettingsToggleState extends State<_SettingsToggle> {
-  late bool _value;
-
-  @override
-  void initState() {
-    super.initState();
-    _value = widget.value;
-  }
-
-  @override
-  void didUpdateWidget(covariant _SettingsToggle oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.value != widget.value) {
-      _value = widget.value;
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
         children: [
-          Icon(widget.icon, size: 20, color: context.colors.textMuted),
+          Icon(icon, size: 20, color: context.colors.textMuted),
           SizedBox(width: 14),
           Expanded(
             child: Text(
-              widget.label,
+              label,
               style: GoogleFonts.inter(
                 fontSize: 15,
                 fontWeight: FontWeight.w500,
@@ -615,12 +608,11 @@ class _SettingsToggleState extends State<_SettingsToggle> {
               ),
             ),
           ),
+          // Fully controlled: the switch reflects the persisted provider value
+          // and never holds its own copy, so it can't drift from real state.
           Switch(
-            value: _value,
-            onChanged: (v) {
-              setState(() => _value = v);
-              widget.onChanged?.call(v);
-            },
+            value: value,
+            onChanged: onChanged,
             activeThumbColor: context.colors.primary,
             activeTrackColor: context.colors.primary.withValues(alpha: 0.3),
             inactiveTrackColor: context.colors.surfaceHighlight,
