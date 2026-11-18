@@ -927,26 +927,37 @@ class MonthlyBudgetScreen extends ConsumerWidget {
           ),
 
           // ── Category Cards ──
-          SliverPadding(
-            padding: EdgeInsets.symmetric(horizontal: 20),
-            sliver: SliverList(
-              delegate: SliverChildBuilderDelegate((context, index) {
-                final cat = categories[index];
-                final transactions = ref.watch(transactionProvider).transactions;
-                final spent = transactions
-                    .where((t) => t.categoryId == cat.id)
-                    .fold(0.0, (sum, t) => sum + t.amount);
-                
-                return _CategoryBudgetCard(
-                  category: cat,
-                  spent: spent,
+          if (categories.isEmpty)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(20, 8, 20, 16),
+                child: _EmptyCategories(
                   isAdmin: isAdmin,
-                  onEdit: () => _showEditCategorySheet(context, ref, cat),
-                  onDelete: () => _showDeleteCategoryDialog(context, ref, cat),
-                );
-              }, childCount: categories.length),
+                  onAddCategory: () => _showAddCategorySheet(context, ref),
+                ),
+              ),
+            )
+          else
+            SliverPadding(
+              padding: EdgeInsets.symmetric(horizontal: 20),
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate((context, index) {
+                  final cat = categories[index];
+                  final transactions = ref.watch(transactionProvider).transactions;
+                  final spent = transactions
+                      .where((t) => t.categoryId == cat.id)
+                      .fold(0.0, (sum, t) => sum + t.amount);
+
+                  return _CategoryBudgetCard(
+                    category: cat,
+                    spent: spent,
+                    isAdmin: isAdmin,
+                    onEdit: () => _showEditCategorySheet(context, ref, cat),
+                    onDelete: () => _showDeleteCategoryDialog(context, ref, cat),
+                  );
+                }, childCount: categories.length),
+              ),
             ),
-          ),
 
           // ── Add Category Button ──
           if (isAdmin)
@@ -993,6 +1004,90 @@ class MonthlyBudgetScreen extends ConsumerWidget {
             ),
 
           const SliverToBoxAdapter(child: SizedBox(height: 100)),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Empty Categories ───
+/// Shown in place of the category list when a family has no categories yet.
+/// Admins get an inline CTA to create the first one; members get guidance.
+class _EmptyCategories extends StatelessWidget {
+  final bool isAdmin;
+  final VoidCallback? onAddCategory;
+
+  const _EmptyCategories({required this.isAdmin, this.onAddCategory});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.fromLTRB(24, 28, 24, 24),
+      decoration: BoxDecoration(
+        color: context.colors.cardSurface,
+        borderRadius: BorderRadius.circular(BudgetlyTheme.radiusCard),
+        border: Border.all(color: context.colors.borderSubtle),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            Icons.category_outlined,
+            size: 40,
+            color: context.colors.textDim.withValues(alpha: 0.6),
+          ),
+          SizedBox(height: 12),
+          Text(
+            'No categories yet',
+            style: GoogleFonts.inter(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: context.colors.textMuted,
+            ),
+          ),
+          SizedBox(height: 6),
+          Text(
+            isAdmin
+                ? 'Create your first category to start planning your monthly budget.'
+                : 'Ask a family admin to add a category so expenses can be tracked here.',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              height: 1.4,
+              color: context.colors.textDim,
+            ),
+          ),
+          if (isAdmin && onAddCategory != null) ...[
+            SizedBox(height: 18),
+            GestureDetector(
+              onTap: onAddCategory,
+              child: Container(
+                height: 44,
+                padding: EdgeInsets.symmetric(horizontal: 20),
+                decoration: BoxDecoration(
+                  color: context.colors.primary,
+                  borderRadius: BorderRadius.circular(
+                    BudgetlyTheme.radiusCard,
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.add, size: 18, color: Colors.white),
+                    SizedBox(width: 6),
+                    Text(
+                      'Add your first category',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
