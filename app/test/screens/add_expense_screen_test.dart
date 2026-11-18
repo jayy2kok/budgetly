@@ -197,13 +197,27 @@ void main() {
 
     await tester.enterText(find.byType(TextField).first, '123.45');
     await tester.pump();
+    await tester.enterText(find.byType(TextField).last, 'Cafe');
+    await tester.pump();
     await tapSave(tester);
     await tester.pumpAndSettle();
 
     expect(service.createCalls, 1);
     expect(service.lastPayload!['amount'], 123.45);
     expect(service.lastPayload!['type'], 'EXPENSE');
+    expect(service.lastPayload!['merchant'], 'Cafe');
     expect(find.text('home'), findsOneWidget);
+  });
+
+  testWidgets('empty merchant name shows an inline error', (tester) async {
+    final service = await pumpScreen(tester);
+
+    await tester.enterText(find.byType(TextField).first, '123.45');
+    await tester.pump();
+    await tapSave(tester);
+
+    expect(find.text('Enter a merchant name'), findsOneWidget);
+    expect(service.createCalls, 0);
   });
 
   testWidgets('save failure shows an error and stays on the screen',
@@ -211,6 +225,8 @@ void main() {
     final service = await pumpScreen(tester, saveError: Exception('boom'));
 
     await tester.enterText(find.byType(TextField).first, '50');
+    await tester.pump();
+    await tester.enterText(find.byType(TextField).last, 'Cafe');
     await tester.pump();
     await tapSave(tester);
     await tester.pumpAndSettle();
@@ -231,5 +247,19 @@ void main() {
     await tester.enterText(find.byType(TextField).first, '10');
     await tester.pump();
     expect(find.text('Enter an amount'), findsNothing);
+  });
+
+  testWidgets('error clears when the user edits the merchant', (tester) async {
+    await pumpScreen(tester);
+
+    await tester.enterText(find.byType(TextField).first, '10');
+    await tester.pump();
+    await tapSave(tester);
+
+    expect(find.text('Enter a merchant name'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField).last, 'Cafe');
+    await tester.pump();
+    expect(find.text('Enter a merchant name'), findsNothing);
   });
 }

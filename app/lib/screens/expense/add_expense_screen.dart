@@ -45,6 +45,12 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     return null;
   }
 
+  /// Returns the validation error for the merchant name, or null if valid.
+  String? _merchantError(String text) {
+    if (text.trim().isEmpty) return 'Enter a merchant name';
+    return null;
+  }
+
   String _selectedCategoryName(List<Category> categories) {
     if (_selectedCategoryId == null) return "Unknown";
     final cat = categories.firstWhere(
@@ -62,6 +68,11 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       setState(() => _error = amountError);
       return;
     }
+    final merchantError = _merchantError(_merchantController.text);
+    if (merchantError != null) {
+      setState(() => _error = merchantError);
+      return;
+    }
     setState(() {
       _error = null;
       _isSaving = true;
@@ -72,9 +83,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       'categoryId': _selectedCategoryId,
       'amount': amount,
       'currency': 'INR',
-      'merchant': _merchantController.text.isNotEmpty
-          ? _merchantController.text
-          : 'Unknown',
+      'merchant': _merchantController.text.trim(),
       'type': 'EXPENSE',
       'transactionDate': _selectedDate.toIso8601String(),
     };
@@ -348,6 +357,11 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                         Expanded(
                           child: TextField(
                             controller: _merchantController,
+                            onChanged: (_) {
+                              if (_error != null) {
+                                setState(() => _error = null);
+                              }
+                            },
                             style: GoogleFonts.inter(
                               fontSize: 16,
                               color: context.colors.textMain,
