@@ -129,13 +129,17 @@ class MessageChangeStreamListenerTest {
     void ignoredWhenLlmClassifiesNonFinancial() {
         claimIngress(pendingDoc());
         when(llmProvider.analyzeMessage(any(), any(), any()))
-                .thenReturn(LlmAnalysisResult.builder().financial(false).build());
+                .thenReturn(LlmAnalysisResult.builder()
+                        .financial(false)
+                        .nonFinancialCategory("PROMO")
+                        .build());
 
         listener.processEventInternal(pendingDoc(), new BsonDocument());
 
         ArgumentCaptor<MessageDocument> captor = ArgumentCaptor.forClass(MessageDocument.class);
         verify(messageRepository).save(captor.capture());
         assertThat(captor.getValue().getStatus()).isEqualTo(MessageDocument.STATUS_IGNORED);
+        assertThat(captor.getValue().getNonFinancialCategory()).isEqualTo("PROMO");
         assertThat(captor.getValue().getProcessedAt()).isNotNull();
 
         // Anchor fast-path consulted the registry (no active pattern) then

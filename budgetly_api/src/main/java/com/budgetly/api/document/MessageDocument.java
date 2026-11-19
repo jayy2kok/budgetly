@@ -71,6 +71,13 @@ public class MessageDocument {
     @Builder.Default
     private String parseSource = "LLM_SERVER";  // REGEX_LOCAL | LLM_SERVER | MANUAL
 
+    /**
+     * Classification of a non-financial message (OTP | PROMO | PERSONAL |
+     * DELIVERY | UNKNOWN). Set by the LLM when a message is not a financial
+     * transaction; null for financial messages.
+     */
+    private String nonFinancialCategory;
+
     private String matchedPatternId;
 
     // Parsed transaction data (stored as embedded map for flexibility)
