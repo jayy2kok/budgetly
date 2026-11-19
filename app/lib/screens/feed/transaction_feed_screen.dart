@@ -213,8 +213,12 @@ class _TransactionFeedScreenState extends ConsumerState<TransactionFeedScreen> {
     final sortedKeys = grouped.keys.toList();
 
     return Scaffold(
-      body: CustomScrollView(
-        slivers: [
+      body: RefreshIndicator(
+        onRefresh: _refreshFeed,
+        child: CustomScrollView(
+          // Always scrollable so a short page can still be pulled to refresh.
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
           // ── Header ──
           SliverToBoxAdapter(
             child: SafeArea(
@@ -411,9 +415,20 @@ class _TransactionFeedScreenState extends ConsumerState<TransactionFeedScreen> {
             ..._buildGroupedSlivers(sortedKeys, grouped),
 
           const SliverToBoxAdapter(child: SizedBox(height: 100)),
-        ],
+          ],
+        ),
       ),
     );
+  }
+
+  /// Reload transactions and categories — the manual fallback for
+  /// pull-to-refresh.
+  Future<void> _refreshFeed() async {
+    final familyId = ref.read(familyProvider).currentFamily?.id;
+    if (familyId != null) {
+      await ref.read(categoryProvider.notifier).loadCategories(familyId);
+    }
+    await ref.read(transactionProvider.notifier).loadTransactions();
   }
 }
 
