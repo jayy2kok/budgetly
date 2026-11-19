@@ -15,8 +15,11 @@ jwt:
   refresh-expiration: 604800000  # 7 days in ms
 
 # Google OAuth
+# REQUIRED for Google sign-in: set GOOGLE_CLIENT_ID to the web client ID from
+# https://console.cloud.google.com/apis/credentials. When unset, GoogleAuthConfigValidator
+# fails startup with an explicit message rather than failing every /auth/google request.
 google:
-  client-id: ${GOOGLE_CLIENT_ID:your-google-client-id}
+  client-id: ${GOOGLE_CLIENT_ID:}
 
 # LLM provider selection: "openai" (OpenAI-compatible, e.g. OmniRoute) or "gemini"
 llm:

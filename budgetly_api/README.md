@@ -12,6 +12,28 @@ Spring Boot REST API for Budgetly — Personal & Family Finance Manager.
 
 ---
 
+## Configuration
+
+Environment variables (all optional for build/test; `GOOGLE_CLIENT_ID` is required at runtime):
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `GOOGLE_CLIENT_ID` | *(none — startup fails if unset)* | Google OAuth **web** client ID (`<digits>-<hash>.apps.googleusercontent.com`) used as the audience for ID-token verification. |
+| `JWT_SECRET` | dev-only value | HMAC secret for app JWTs. |
+| `LLM_PROVIDER` | `openai` | `openai` or `gemini`. |
+| `OPENAI_BASE_URL` | `http://rpi.local:20129/v1` | OpenAI-compatible endpoint. |
+| `OPENAI_API_KEY` | `placeholder-key` | LLM API key. |
+| `OPENAI_MODEL` | `auto/best-free` | LLM model id. |
+| `SPRING_MONGODB_URI` | `mongodb://localhost:27017/budgetly` | MongoDB connection string. |
+| `BUDGETLY_CHANGE_STREAM_ENABLED` | `true` | Enable the Mongo change-stream listener. |
+
+`GoogleAuthConfigValidator` checks `google.client-id` once at startup: if it is
+missing or a known placeholder it throws (production-like profiles) or logs a
+prominent `WARN` (`local`/`test`), listing exactly how to fix it. This replaces
+the previous silent fallback that made every Google sign-in return `400`.
+
+---
+
 ## Upgrade Notes (Java 25 & Spring Boot 4.x)
 
 This service was upgraded from Java 21 and Spring Boot 3.4.3 to **Java 25** and **Spring Boot 4.1.2**. Key architectural updates include:
