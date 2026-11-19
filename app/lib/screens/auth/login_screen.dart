@@ -6,6 +6,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 
 import '../../config/theme.dart';
 import '../../config/routes.dart';
+import '../../providers/auth_error.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/service_providers.dart';
 
@@ -68,9 +69,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       debugPrint('❌ Google sign-in failed: $e');
       debugPrintStack(stackTrace: stackTrace);
       if (mounted) {
+        // Short message only — never echo the raw exception (issue #23).
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Google sign-in failed: $e'),
+            content: Text(authErrorMessage(e)),
             duration: const Duration(seconds: 8),
           ),
         );
@@ -333,6 +335,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 // ── Error State ──
                 if (authState.status == AuthStatus.error)
                   Container(
+                    key: const ValueKey('login-error-banner'),
                     padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                     decoration: BoxDecoration(
                       color: context.colors.accentCoral.withValues(alpha: 0.1),
@@ -356,6 +359,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         Expanded(
                           child: Text(
                             authState.errorMessage ?? 'Sign-in failed',
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
                             style: Theme.of(context).textTheme.bodySmall
                                 ?.copyWith(color: context.colors.accentCoral),
                           ),
