@@ -4,11 +4,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:permission_handler_platform_interface/permission_handler_platform_interface.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:budgetly/data/budget_service.dart';
 import 'package:budgetly/data/message_service.dart';
 import 'package:budgetly/models/category.dart';
 import 'package:budgetly/models/family_group.dart';
 import 'package:budgetly/models/message.dart';
 import 'package:budgetly/models/sms_pattern.dart';
+import 'package:budgetly/models/transaction.dart';
 import 'package:budgetly/models/user.dart';
 import 'package:budgetly/providers/auth_provider.dart';
 import 'package:budgetly/providers/category_provider.dart';
@@ -156,9 +158,13 @@ class FakeCategoryNotifier extends CategoryNotifier {
   CategoryState build() => CategoryState(categories: categories);
 }
 
-/// Records addTransaction calls; never touches the network.
+/// RecordingTransactionNotifier; counts addTransaction calls and
+/// loadTransactions calls so the post-sync reload can be asserted without
+/// touching the network.
 class RecordingTransactionNotifier extends TransactionNotifier {
   final List<Map<String, dynamic>> addCalls = [];
+  int loadCalls = 0;
+  List<Transaction> getTransactionsResult = const [];
 
   @override
   TransactionState build() => const TransactionState();
@@ -166,6 +172,15 @@ class RecordingTransactionNotifier extends TransactionNotifier {
   @override
   Future<void> addTransaction(Map<String, dynamic> data) async {
     addCalls.add(data);
+  }
+
+  @override
+  Future<void> loadTransactions({TransactionType? type}) async {
+    loadCalls++;
+    state = state.copyWith(
+      isLoading: false,
+      transactions: getTransactionsResult,
+    );
   }
 }
 
@@ -181,6 +196,31 @@ class FakeMessageNotifier extends MessageNotifier {
     loadCalls++;
     state = const MessageState();
   }
+}
+
+/// BudgetService that records dashboard reloads and never touches the network.
+class RecordingBudgetService implements BudgetService {
+  int loadDashboardCalls = 0;
+
+  @override
+  Future<Map<String, dynamic>> getDashboardData(String familyGroupId) async {
+    loadDashboardCalls++;
+    return {
+      'monthlyBudgetLimit': 50000,
+      'totalSpent': 500,
+      'dailyAverage': 50,
+      'projectedSpend': 1500,
+      'estimatedSavings': 1000,
+    };
+  }
+
+  @override
+  Future<Map<String, dynamic>> getBudgetSummary(
+          String familyGroupId, String? month) async =>
+      {};
+
+  @override
+  Future<void> updateBudgetLimit(String familyGroupId, double limit) async {}
 }
 
 // ── Fixtures ──────────────────────────────────────────────────────
@@ -261,6 +301,7 @@ ProviderContainer buildContainer({
   User? user,
   FamilyGroup? family,
   List<Category>? categories,
+  BudgetService? budgetService,
 }) {
   return ProviderContainer(
     overrides: [
@@ -270,6 +311,8 @@ ProviderContainer buildContainer({
       familyProvider.overrideWith(() => FakeFamilyNotifier(family)),
       categoryProvider.overrideWith(() => FakeCategoryNotifier(categories ?? [])),
       messageServiceProvider.overrideWithValue(messageService),
+      if (budgetService != null)
+        budgetServiceProvider.overrideWithValue(budgetService),
       transactionProvider.overrideWith(() => transactions),
       messageProvider.overrideWith(() => FakeMessageNotifier()),
     ],
@@ -564,6 +607,56 @@ void main() {
       final fakeMsg =
           container.read(messageProvider.notifier) as FakeMessageNotifier;
       expect(fakeMsg.loadCalls, 1);
+    });
+  });
+
+  group('syncInboxMessages — dashboard refresh', () {
+    test('reloads transactions and budget after a successful sync', () async {
+      final budgetService = RecordingBudgetService();
+
+      transactions.getTransactionsResult = [
+        Transaction(
+          id: 'tx-1',
+          familyGroupId: 'fam-1',
+          createdByUserId: 'u1',
+          amount: 500,
+          merchant: 'Grocery Mart',
+          type: TransactionType.expense,
+          transactionDate: now,
+          createdAt: now,
+        ),
+      ];
+
+      final refreshContainer = buildContainer(
+        reader: reader,
+        messageService: messageService,
+        transactions: transactions,
+        cache: cache,
+        user: kUser(),
+        family: kFamily(),
+        budgetService: budgetService,
+      );
+      addTearDown(refreshContainer.dispose);
+
+      reader.canned = [
+        smsMsg(
+          id: 30,
+          sender: 'SBIUPI',
+          body: 'Rs.750 debited from a/c 4321.',
+          at: now,
+        ),
+      ];
+
+      await settleInitFor(refreshContainer);
+      await refreshContainer.read(smsProvider.notifier).syncInboxMessages();
+
+      // A server-bound message reloads the transaction list and the budget
+      // dashboard so Home surfaces server-parsed transactions.
+      expect(messageService.bulkCalls, hasLength(1));
+      expect(transactions.loadCalls, 1);
+      expect(budgetService.loadDashboardCalls, 1);
+      expect(refreshContainer.read(transactionProvider).transactions,
+          hasLength(1));
     });
   });
 

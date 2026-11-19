@@ -69,8 +69,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final currentUserId = ref.watch(authProvider).user?.id;
 
     return Scaffold(
-      body: CustomScrollView(
-        slivers: [
+      body: RefreshIndicator(
+        onRefresh: _refreshDashboard,
+        child: CustomScrollView(
+          // Always scrollable so a short page can still be pulled to refresh.
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
           // ── Header ──
           SliverToBoxAdapter(
             child: SafeArea(
@@ -207,9 +211,21 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
           // Bottom padding
           const SliverToBoxAdapter(child: SizedBox(height: 100)),
-        ],
+          ],
+        ),
       ),
     );
+  }
+
+  /// Reload budget, categories and transactions — the manual fallback for
+  /// pull-to-refresh.
+  Future<void> _refreshDashboard() async {
+    final familyId = ref.read(familyProvider).currentFamily?.id;
+    if (familyId != null) {
+      await ref.read(budgetProvider.notifier).loadDashboard(familyId);
+      await ref.read(categoryProvider.notifier).loadCategories(familyId);
+    }
+    await ref.read(transactionProvider.notifier).loadTransactions();
   }
 }
 

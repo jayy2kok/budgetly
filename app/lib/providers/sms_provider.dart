@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../providers/auth_provider.dart';
+import '../providers/budget_provider.dart';
 import '../providers/category_provider.dart';
 import '../providers/message_provider.dart';
 import '../services/pattern_cache_service.dart';
@@ -350,6 +351,26 @@ class SmsNotifier extends Notifier<SmsState> {
     } finally {
       state = state.copyWith(isSyncing: false);
       ref.read(messageProvider.notifier).loadMessages();
+      await _refreshDashboard();
+    }
+  }
+
+  /// Reload dashboard totals and the transaction list after a sync.
+  ///
+  /// Local regex-parsed messages already create transactions directly, but
+  /// server-side processing of bulk-submitted messages happens asynchronously
+  /// after the bulk response, so both views are reloaded to surface them.
+  /// Errors are swallowed — a failed refresh must not surface as a sync
+  /// failure, and the next sync or pull-to-refresh will retry.
+  Future<void> _refreshDashboard() async {
+    try {
+      await ref.read(transactionProvider.notifier).loadTransactions();
+      final familyId = ref.read(familyProvider).currentFamily?.id;
+      if (familyId != null) {
+        await ref.read(budgetProvider.notifier).loadDashboard(familyId);
+      }
+    } catch (e) {
+      debugPrint('[SmsSync] Dashboard refresh failed: $e');
     }
   }
 
