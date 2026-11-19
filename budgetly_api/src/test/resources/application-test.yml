@@ -24,7 +24,10 @@ jwt:
   refresh-expiration: 7200000
 
 google:
-  client-id: test-google-client-id
+  # Shaped like a real web client ID so GoogleAuthConfigValidator lets the context
+  # start and the full /auth/google flow is exercised end-to-end. The E2E suite
+  # replaces the verifier with TestGoogleTokenVerifier, so no real value is needed.
+  client-id: 1234567890-testclientid.apps.googleusercontent.com
 
 gemini:
   api-key: test-api-key

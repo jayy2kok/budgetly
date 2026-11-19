@@ -25,6 +25,13 @@ public class GlobalExceptionHandler {
         return buildError(HttpStatus.FORBIDDEN, ex.getMessage(), request.getRequestURI());
     }
 
+    @ExceptionHandler(AuthNotConfiguredException.class)
+    public ResponseEntity<Map<String, Object>> handleAuthNotConfigured(AuthNotConfiguredException ex,
+            HttpServletRequest request) {
+        log.error("Auth not configured at {}: {}", request.getRequestURI(), ex.getMessage());
+        return buildError(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage(), request.getRequestURI());
+    }
+
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, Object>> handleBadRequest(IllegalArgumentException ex, HttpServletRequest request) {
         return buildError(HttpStatus.BAD_REQUEST, ex.getMessage(), request.getRequestURI());

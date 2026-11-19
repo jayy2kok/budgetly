@@ -1,9 +1,11 @@
 package com.budgetly.api.service;
 
 import com.budgetly.api.document.UserDocument;
+import com.budgetly.api.exception.AuthNotConfiguredException;
 import com.budgetly.api.exception.ResourceNotFoundException;
 import com.budgetly.api.generated.model.*;
 import com.budgetly.api.repository.UserRepository;
+import com.budgetly.api.security.GoogleAuthConfigValidator;
 import com.budgetly.api.security.GoogleTokenVerifier;
 import com.budgetly.api.security.JwtTokenProvider;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
@@ -20,10 +22,18 @@ import java.time.ZoneOffset;
 public class AuthService {
 
     private final GoogleTokenVerifier googleTokenVerifier;
+    private final GoogleAuthConfigValidator googleAuthConfigValidator;
     private final JwtTokenProvider jwtTokenProvider;
     private final UserRepository userRepository;
 
     public AuthResponse googleSignIn(GoogleSignInRequest request) {
+        // Surface a misconfigured server (missing/placeholder GOOGLE_CLIENT_ID) as 503
+        // instead of letting every attempt degrade into an opaque 400 "invalid token".
+        if (!googleAuthConfigValidator.isConfigured()) {
+            throw new AuthNotConfiguredException(
+                    "Google sign-in is not configured on this server; set GOOGLE_CLIENT_ID to a real web client ID.");
+        }
+
         GoogleIdToken.Payload payload = googleTokenVerifier.verify(request.getIdToken());
         if (payload == null) {
             throw new IllegalArgumentException("Invalid Google ID token");

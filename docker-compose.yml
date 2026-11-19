@@ -62,7 +62,11 @@ services:
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-http://rpi.local:20129/v1}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       OPENAI_MODEL: ${OPENAI_MODEL:-auto/best-free}
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-placeholder-client-id}
+      # Google OAuth web client ID — REQUIRED for Google sign-in. No default: when unset the
+      # API fails startup with an explicit message (see GoogleAuthConfigValidator) instead of
+      # silently accepting a placeholder and failing every /auth/google request.
+      # Copy .env.example to .env and set a real *.apps.googleusercontent.com value.
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?GOOGLE_CLIENT_ID must be set to a real Google OAuth web client ID}
       JWT_SECRET: ${JWT_SECRET:-budgetly-super-secret-key-for-development-min-256-bits-long}
     healthcheck:
       test: ["CMD-SHELL", "curl -f -s http://localhost:8080/actuator/health || exit 1"]

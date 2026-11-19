@@ -18,9 +18,26 @@ Personal & Family Finance Manager featuring automated SMS parsing, shared budget
 
 ### Backend (Docker Compose)
 ```bash
+cp .env.example .env          # then set GOOGLE_CLIENT_ID (required for Google sign-in)
 docker compose up --build
 ```
 The API starts on `http://localhost:8080`, with MongoDB replica set on port 27018.
+
+### Configuration
+
+| Variable | Required | Description |
+| --- | --- | --- |
+| `GOOGLE_CLIENT_ID` | **Yes** | Google OAuth **web** client ID (`<digits>-<hash>.apps.googleusercontent.com`) from <https://console.cloud.google.com/apis/credentials>. Used as the audience when verifying Google ID tokens. |
+| `JWT_SECRET` | Dev only | HMAC secret for app JWTs. Override outside local development. |
+| `OPENAI_API_KEY` | For SMS analysis | Key for the OpenAI-compatible LLM endpoint. |
+| `OPENAI_BASE_URL` / `OPENAI_MODEL` | No | Defaults to `http://rpi.local:20129/v1` / `auto/best-free`. |
+| `LLM_PROVIDER` | No | `openai` (default) or `gemini`. |
+
+See [.env.example](.env.example) for a copy-paste template.
+
+When `GOOGLE_CLIENT_ID` is missing or still a placeholder, the API logs an
+unambiguous error at startup and refuses to start — so Google sign-in never fails
+silently with a generic `400` on `POST /api/v1/auth/google`.
 
 ### Backend (Local Maven)
 ```bash
