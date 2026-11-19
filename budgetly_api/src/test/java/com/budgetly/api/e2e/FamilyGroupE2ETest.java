@@ -363,4 +363,99 @@ class FamilyGroupE2ETest extends BaseE2ETest {
                 .statusCode(200)
                 .body("$.size()", equalTo(2));
     }
+
+    // ── Default categories are seeded on family creation ────────
+
+    @Test
+    void newFamily_hasDefaultCategoriesImmediately() {
+        UserDocument user = seedUser("g-fam-cat", "Category User", "catseed@fam.com");
+
+        // Both entry points — explicit create and auto-create on first login —
+        // must produce a usable category list without any extra request.
+        String createdFamilyId = givenAuth(user.getId())
+                .body(Map.of("name", "Seeded Family"))
+                .post("/families")
+                .then()
+                .statusCode(201)
+                .extract().path("id");
+
+        givenAuth(user.getId())
+                .get("/families/" + createdFamilyId + "/categories")
+                .then()
+                .statusCode(200)
+                .body("$.size()", greaterThanOrEqualTo(8))
+                .body("name", hasItems(
+                        "Groceries", "Dining", "Transport", "Housing",
+                        "Bills", "Health", "Entertainment", "Shopping"));
+
+        UserDocument freshUser = seedUser("g-fam-cat-auto", "Auto User", "autocat@fam.com");
+
+        String autoFamilyId = givenAuth(freshUser.getId())
+                .get("/families/my")
+                .then()
+                .statusCode(200)
+                .extract().path("id");
+
+        givenAuth(freshUser.getId())
+                .get("/families/" + autoFamilyId + "/categories")
+                .then()
+                .statusCode(200)
+                .body("$.size()", greaterThanOrEqualTo(8));
+    }
+
+    // ── Picking a category persists on the transaction ──────────
+
+    @Test
+    void assigningSeededCategoryToTransactionPersists() {
+        UserDocument user = seedUser("g-fam-cat-tx", "Tx User", "cat@fam.com");
+
+        String familyId = givenAuth(user.getId())
+                .body(Map.of("name", "Category Tx Family"))
+                .post("/families")
+                .then()
+                .statusCode(201)
+                .extract().path("id");
+
+        // An uncategorized SMS-parsed expense, as described in the issue.
+        String transactionId = givenAuth(user.getId())
+                .body(Map.of(
+                        "amount", 4710,
+                        "merchant", "AMAZON PAY IN U",
+                        "type", "EXPENSE",
+                        "currency", "INR",
+                        "transactionDate", java.time.OffsetDateTime.now(java.time.ZoneOffset.UTC).toString()
+                ))
+                .post("/families/" + familyId + "/transactions")
+                .then()
+                .statusCode(201)
+                .body("categoryId", nullValue())
+                .extract().path("id");
+
+        String groceriesId = givenAuth(user.getId())
+                .get("/families/" + familyId + "/categories")
+                .then()
+                .statusCode(200)
+                .extract().path("find { it.name == 'Groceries' }.id");
+
+        givenAuth(user.getId())
+                .body(Map.of("categoryId", groceriesId))
+                .put("/families/" + familyId + "/transactions/" + transactionId)
+                .then()
+                .statusCode(200)
+                .body("categoryId", equalTo(groceriesId));
+
+        givenAuth(user.getId())
+                .get("/families/" + familyId + "/transactions/" + transactionId)
+                .then()
+                .statusCode(200)
+                .body("categoryId", equalTo(groceriesId));
+
+        // The picker's "Uncategorized" row sends an empty string.
+        givenAuth(user.getId())
+                .body(Map.of("categoryId", ""))
+                .put("/families/" + familyId + "/transactions/" + transactionId)
+                .then()
+                .statusCode(200)
+                .body("categoryId", nullValue());
+    }
 }
