@@ -1310,6 +1310,8 @@ components:
           $ref: "#/components/schemas/MessageStatus"
         parseSource:
           $ref: "#/components/schemas/ParseSource"
+        nonFinancialCategory:
+          $ref: "#/components/schemas/NonFinancialCategory"
         matchedPatternId:
           type: string
           description: ID of the regex pattern that matched (if parseSource is REGEX_LOCAL)
@@ -1331,6 +1333,13 @@ components:
     ParseSource:
       type: string
       enum: [REGEX_LOCAL, LLM_SERVER, MANUAL]
+
+    NonFinancialCategory:
+      type: string
+      description: >-
+        Classification of a non-financial message (OTP, promo, etc.). Set by
+        the LLM when a message is not a financial transaction; null otherwise.
+      enum: [OTP, PROMO, PERSONAL, DELIVERY, UNKNOWN]
 
     BulkMessageRequest:
       type: object

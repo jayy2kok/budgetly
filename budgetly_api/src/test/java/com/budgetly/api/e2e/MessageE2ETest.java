@@ -220,6 +220,35 @@ class MessageE2ETest extends BaseE2ETest {
                 .body("$.size()", equalTo(2));
     }
 
+    @Test
+    void getIgnoredMessages_returnsNonFinancialCategoryForIgnoredMessages() {
+        UserDocument user = seedUser("g-msg-4b", "Msg User 4b", "msg4b@test.com");
+        FamilyGroupDocument family = seedFamily(user.getId(), "Msg Family 4b");
+
+        // IGNORED messages carry the LLM's non-financial classification so the
+        // client can split them into the Non-Financial tab (issue #28).
+        MessageDocument otp = seedMessage(user.getId(), family.getId(),
+                "SBIBNK", "Your OTP is 482910. Valid for 5 mins.", "IGNORED");
+        otp.setNonFinancialCategory("OTP");
+        messageRepository.save(otp);
+
+        MessageDocument promo = seedMessage(user.getId(), family.getId(),
+                "AMAZON", "Flash Sale! Up to 80% off.", "IGNORED");
+        promo.setNonFinancialCategory("PROMO");
+        messageRepository.save(promo);
+
+        seedMessage(user.getId(), family.getId(), "HDFCBK", "Rs.500 credited", "PENDING");
+
+        givenAuth(user.getId())
+                .get("/messages/ignored")
+                .then()
+                .statusCode(200)
+                .body("$.size()", equalTo(2))
+                // Match by sender, not index — the query has no guaranteed order.
+                .body("find { it.sender == 'SBIBNK' }.nonFinancialCategory", equalTo("OTP"))
+                .body("find { it.sender == 'AMAZON' }.nonFinancialCategory", equalTo("PROMO"));
+    }
+
     // ── Confirm Message ─────────────────────────────────────────
 
     @Test

@@ -16,6 +16,7 @@ import com.budgetly.api.exception.ResourceNotFoundException;
 import com.budgetly.api.generated.model.CreateTransactionRequest;
 import com.budgetly.api.generated.model.Message;
 import com.budgetly.api.generated.model.MessageStatus;
+import com.budgetly.api.generated.model.NonFinancialCategory;
 import com.budgetly.api.generated.model.BulkMessageRequest;
 import com.budgetly.api.generated.model.BulkMessageResponse;
 import com.budgetly.api.generated.model.ParseSource;
@@ -74,7 +75,8 @@ public class MessageService {
         ProcessMessageResponse response = new ProcessMessageResponse();
 
         if (!llmResult.isFinancial()) {
-            messageDoc.setStatus("IGNORED");
+            messageDoc.setStatus(MessageDocument.STATUS_IGNORED);
+            messageDoc.setNonFinancialCategory(llmResult.getNonFinancialCategory());
             messageRepository.save(messageDoc);
 
             response.setIsFinancial(false);
@@ -290,6 +292,10 @@ public class MessageService {
         }
         if (doc.getParseSource() != null) {
             try { dto.setParseSource(ParseSource.fromValue(doc.getParseSource())); } catch (Exception ignored) {}
+        }
+        if (doc.getNonFinancialCategory() != null) {
+            try { dto.setNonFinancialCategory(NonFinancialCategory.fromValue(doc.getNonFinancialCategory())); }
+            catch (Exception ignored) {}
         }
         dto.setMatchedPatternId(doc.getMatchedPatternId());
         if (doc.getReceivedAt() != null) dto.setReceivedAt(doc.getReceivedAt().atOffset(ZoneOffset.UTC));

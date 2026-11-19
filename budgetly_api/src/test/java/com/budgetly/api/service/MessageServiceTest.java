@@ -8,6 +8,8 @@ import com.budgetly.api.generated.model.BulkMessageItem;
 import com.budgetly.api.generated.model.BulkMessageRequest;
 import com.budgetly.api.generated.model.BulkMessageResponse;
 import com.budgetly.api.generated.model.CreateTransactionRequest;
+import com.budgetly.api.generated.model.Message;
+import com.budgetly.api.generated.model.NonFinancialCategory;
 import com.budgetly.api.generated.model.ProcessMessageRequest;
 import com.budgetly.api.generated.model.Transaction;
 import com.budgetly.api.repository.MessageRepository;
@@ -75,6 +77,51 @@ class MessageServiceTest {
         // First persisted as PENDING then terminal status IGNORED.
         assertThat(saved).anySatisfy(d -> assertThat(d.getStatus()).isEqualTo(MessageDocument.STATUS_PENDING));
         assertThat(saved).anySatisfy(d -> assertThat(d.getStatus()).isEqualTo(MessageDocument.STATUS_IGNORED));
+    }
+
+    // ── Issue #28: non-financial classification persisted on IGNORED ────
+
+    @Test
+    void processMessagePersistsNonFinancialCategoryForIgnoredSms() {
+        when(messageRepository.save(any(MessageDocument.class)))
+                .thenAnswer(inv -> snapshot(inv.getArgument(0, MessageDocument.class)));
+        when(categoryResolver.familyCategories("fam-1")).thenReturn(List.of());
+        when(llmProvider.analyzeMessage(anyString(), anyString(), any()))
+                .thenReturn(LlmAnalysisResult.builder()
+                        .financial(false)
+                        .nonFinancialCategory("OTP")
+                        .build());
+
+        service.processMessage("u1", req("SBIBNK", "Your OTP is 482910. Valid for 5 mins.", "fam-1")).join();
+
+        ArgumentCaptor<MessageDocument> captor = ArgumentCaptor.forClass(MessageDocument.class);
+        verify(messageRepository, times(2)).save(captor.capture());
+        List<MessageDocument> saved = captor.getAllValues();
+        // The terminal IGNORED save must carry the LLM's non-financial class.
+        // snapshot() copies the category at save time, so this verifies the
+        // mapping itself — not the mutated live instance.
+        MessageDocument ignored = saved.stream()
+                .filter(d -> MessageDocument.STATUS_IGNORED.equals(d.getStatus()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(ignored.getNonFinancialCategory()).isEqualTo("OTP");
+    }
+
+    @Test
+    void toMessageDtoIncludesNonFinancialCategory() {
+        MessageDocument doc = MessageDocument.builder()
+                .id("msg-1")
+                .userId("u1")
+                .sender("AMAZON")
+                .rawText("Flash Sale!")
+                .status("IGNORED")
+                .parseSource("LLM_SERVER")
+                .nonFinancialCategory("PROMO")
+                .build();
+
+        Message dto = service.toMessageDto(doc);
+
+        assertThat(dto.getNonFinancialCategory()).isEqualTo(NonFinancialCategory.PROMO);
     }
 
     // ── WORK-006: LLM category → transaction categoryId ──────────
@@ -281,6 +328,7 @@ class MessageServiceTest {
                 .id(in.getId()).messageId(in.getMessageId()).userId(in.getUserId())
                 .familyGroupId(in.getFamilyGroupId()).sender(in.getSender()).rawText(in.getRawText())
                 .status(in.getStatus()).source(in.getSource()).parseSource(in.getParseSource())
+                .nonFinancialCategory(in.getNonFinancialCategory())
                 .receivedAt(in.getReceivedAt()).createdAt(in.getCreatedAt()).build();
     }
 

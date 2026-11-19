@@ -24,6 +24,11 @@ class _IgnoredMessagesScreenState extends ConsumerState<IgnoredMessagesScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    // Load fresh ignored/deleted messages each time the screen opens — data
+    // otherwise only refreshes at the end of an SMS sync (issue #28).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(messageProvider.notifier).loadMessages();
+    });
   }
 
   @override
@@ -125,27 +130,66 @@ class _IgnoredMessagesScreenState extends ConsumerState<IgnoredMessagesScreen>
               child: TabBarView(
                 controller: _tabController,
                 children: [
-                  _MessageList(
+                  _RefreshableMessageList(
                     messages: msgState.nonFinancialMessages,
                     emptyLabel: 'No non-financial messages',
                     emptyIcon: Icons.smart_toy_outlined,
                     showCategory: true,
                     onRestore: (id) =>
                         ref.read(messageProvider.notifier).restoreMessage(id),
+                    onRefresh: () =>
+                        ref.read(messageProvider.notifier).loadMessages(),
                   ),
-                  _MessageList(
+                  _RefreshableMessageList(
                     messages: msgState.deletedMessages,
                     emptyLabel: 'No deleted messages',
                     emptyIcon: Icons.delete_outline,
                     showCategory: false,
                     onRestore: (id) =>
                         ref.read(messageProvider.notifier).restoreMessage(id),
+                    onRefresh: () =>
+                        ref.read(messageProvider.notifier).loadMessages(),
                   ),
                 ],
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Tab content wrapped in a [RefreshIndicator] so pulling down reloads the
+/// ignored/deleted lists. The empty state is itself scrollable (with
+/// [AlwaysScrollableScrollPhysics]) so pull-to-refresh works even when empty.
+class _RefreshableMessageList extends StatelessWidget {
+  final List<Message> messages;
+  final String emptyLabel;
+  final IconData emptyIcon;
+  final bool showCategory;
+  final void Function(String id) onRestore;
+  final Future<void> Function() onRefresh;
+
+  const _RefreshableMessageList({
+    required this.messages,
+    required this.emptyLabel,
+    required this.emptyIcon,
+    required this.showCategory,
+    required this.onRestore,
+    required this.onRefresh,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return RefreshIndicator(
+      onRefresh: onRefresh,
+      child: _MessageList(
+        messages: messages,
+        emptyLabel: emptyLabel,
+        emptyIcon: emptyIcon,
+        showCategory: showCategory,
+        onRestore: onRestore,
       ),
     );
   }
@@ -169,30 +213,40 @@ class _MessageList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (messages.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              emptyIcon,
-              size: 40,
-              color: context.colors.textDim.withValues(alpha: 0.4),
-            ),
-            SizedBox(height: 12),
-            Text(
-              emptyLabel,
-              style: GoogleFonts.inter(
-                fontSize: 15,
-                color: context.colors.textDim,
+      // Scrollable so the enclosing RefreshIndicator still fires on pull.
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          SizedBox(
+            height: MediaQuery.sizeOf(context).height * 0.5,
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    emptyIcon,
+                    size: 40,
+                    color: context.colors.textDim.withValues(alpha: 0.4),
+                  ),
+                  SizedBox(height: 12),
+                  Text(
+                    emptyLabel,
+                    style: GoogleFonts.inter(
+                      fontSize: 15,
+                      color: context.colors.textDim,
+                    ),
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       );
     }
 
     return ListView.separated(
       padding: EdgeInsets.all(16),
+      physics: const AlwaysScrollableScrollPhysics(),
       itemCount: messages.length,
       separatorBuilder: (context, index) => SizedBox(height: 8),
       itemBuilder: (context, index) {

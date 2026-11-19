@@ -19,6 +19,10 @@ public class LlmAnalysisResult {
     private String rawTimestamp;
     private String currency;         // ISO-4217 code, e.g. INR, USD (defaults to INR when absent)
     private String category;         // chosen category name, or "uncategorized" when financial but undetermined; null when not financial
+
+    /** OTP | PROMO | PERSONAL | DELIVERY | UNKNOWN — set only when financial is false. */
+    private String nonFinancialCategory;
+
     private String notes;
 
     private Map<String, String> extractionMap;  // group → field

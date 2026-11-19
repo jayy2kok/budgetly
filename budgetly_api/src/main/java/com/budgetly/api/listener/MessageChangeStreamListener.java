@@ -344,6 +344,7 @@ public class MessageChangeStreamListener {
 
         if (!llmResult.isFinancial()) {
             doc.setStatus(MessageDocument.STATUS_IGNORED);
+            doc.setNonFinancialCategory(llmResult.getNonFinancialCategory());
             return;
         }
 

@@ -76,9 +76,11 @@ public class OpenAiCompatibleLlmProvider implements LlmProvider {
             log.error("OpenAI-compatible LLM call failed for sender={}: {}", sender, e.getMessage(), e);
         }
 
-        // Fallback: non-financial result
+        // Fallback: non-financial result. UNKNOWN (not null) so the message
+        // still surfaces in the Non-Financial tab after the LLM failure (issue #28).
         return LlmAnalysisResult.builder()
                 .financial(false)
+                .nonFinancialCategory("UNKNOWN")
                 .notes("LLM analysis failed — defaulting to non-financial")
                 .build();
     }
