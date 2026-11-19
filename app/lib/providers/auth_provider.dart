@@ -1,7 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/auth_service.dart';
 import '../models/user.dart';
+import 'auth_error.dart';
 import 'family_provider.dart';
 import 'service_providers.dart';
 
@@ -87,10 +89,14 @@ class AuthNotifier extends Notifier<AuthState> {
       // After auth, load (or auto-create) the user's family.
       // This stores the real family ID in familyProvider for all screens to use.
       ref.read(familyProvider.notifier).loadMyFamily();
-    } catch (e) {
+    } catch (e, stackTrace) {
+      // Raw exception details stay in logs; the banner only shows a short
+      // message so it can never leak Dio internals (issue #23).
+      debugPrint('Google sign-in failed: $e');
+      debugPrintStack(stackTrace: stackTrace);
       state = AuthState(
         status: AuthStatus.error,
-        errorMessage: 'Sign-in failed: ${e.toString()}',
+        errorMessage: authErrorMessage(e),
       );
     }
   }
