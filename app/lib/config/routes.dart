@@ -15,6 +15,8 @@ import '../screens/settings/link_family_screen.dart';
 import '../screens/settings/family_group_settings_screen.dart';
 import '../screens/settings/profile_screen.dart';
 import '../screens/settings/join_family_screen.dart';
+import '../screens/settings/pattern_registry_screen.dart';
+import '../screens/settings/pattern_builder_screen.dart';
 
 /// Route path constants.
 class AppRoutes {
@@ -33,6 +35,8 @@ class AppRoutes {
   static const String familySettings = '/settings/family';
   static const String profile = '/settings/profile';
   static const String joinFamily = '/join';
+  static const String patternRegistry = '/settings/patterns';
+  static const String patternBuilder = '/settings/patterns/new';
 }
 
 /// All route definitions, reused by both the default and deep-link routers.
@@ -101,6 +105,16 @@ final List<RouteBase> appRouteList = [
   GoRoute(
     path: AppRoutes.profile,
     builder: (context, state) => const ProfileScreen(),
+  ),
+  GoRoute(
+    path: AppRoutes.patternRegistry,
+    builder: (context, state) => const PatternRegistryScreen(),
+  ),
+  GoRoute(
+    path: AppRoutes.patternBuilder,
+    builder: (context, state) => PatternBuilderScreen(
+      messageId: state.uri.queryParameters['messageId'],
+    ),
   ),
 
   // ── Join Family — from deep link or manual entry ──

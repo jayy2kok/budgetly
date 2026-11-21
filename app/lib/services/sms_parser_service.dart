@@ -44,8 +44,12 @@ class SmsParserService {
           // Extract using extraction map
           final map = pattern.extractionMap;
           if (extracted.containsKey(map.amount)) fields['amount'] = extracted[map.amount]!;
-          if (extracted.containsKey(map.merchant)) fields['merchant'] = extracted[map.merchant]!;
-          if (extracted.containsKey(map.timestamp)) fields['timestamp'] = extracted[map.timestamp]!;
+          if (map.merchant != null && extracted.containsKey(map.merchant)) {
+            fields['merchant'] = extracted[map.merchant]!;
+          }
+          if (map.timestamp != null && extracted.containsKey(map.timestamp)) {
+            fields['timestamp'] = extracted[map.timestamp]!;
+          }
           if (map.accountLast4 != null && extracted.containsKey(map.accountLast4)) {
             fields['accountLast4'] = extracted[map.accountLast4]!;
           }
@@ -66,6 +70,15 @@ class SmsParserService {
       }
     }
     return null;
+  }
+
+  /// Dry-runs a draft [template] against [smsText] — the client-side half of
+  /// the builder's validation (the server re-validates with the same logic).
+  ///
+  /// Returns the extracted token map, or null when the template has no tokens
+  /// or does not match the sample.
+  Map<String, String>? dryRunTemplate(String template, String smsText) {
+    return _parseAnchorTemplate(template, smsText);
   }
 
   /// Extracts variable tokens using left/right literal anchors.

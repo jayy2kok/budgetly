@@ -226,4 +226,49 @@ void main() {
       expect(SmsParserService().parseMessage('BANK', 'anything', []), isNull);
     });
   });
+
+  group('SmsParserService.dryRunTemplate (pattern builder preview)', () {
+    test('amount-only template extracts the amount', () {
+      expect(
+        SmsParserService().dryRunTemplate(
+          'Paid {amount} rupees',
+          'Paid 250 rupees',
+        ),
+        {'amount': '250'},
+      );
+    });
+
+    test('empty token set -> null (no anchors)', () {
+      expect(
+        SmsParserService().dryRunTemplate(
+          'This message has no tokens',
+          'This message has no tokens',
+        ),
+        isNull,
+      );
+    });
+
+    test('non-matching literal anchors -> null', () {
+      expect(
+        SmsParserService().dryRunTemplate(
+          'Spent Rs {amount} at {merchant}',
+          'Received Rs 500 from Rahul',
+        ),
+        isNull,
+      );
+    });
+
+    test('overlapping/adjacent tokens with no literal gap', () {
+      // The anchor parser allows consecutive tokens; each captures the run of
+      // text between anchors. With no right anchor the last token takes the
+      // remainder, so this must not throw.
+      final extracted = SmsParserService().dryRunTemplate(
+        '{amount} {merchant}',
+        '500 Swiggy',
+      );
+      expect(extracted, isNotNull);
+      expect(extracted!['amount'], isNotNull);
+      expect(extracted['merchant'], isNotNull);
+    });
+  });
 }

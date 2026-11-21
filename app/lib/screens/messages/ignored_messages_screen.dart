@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../config/theme.dart';
+import '../../config/routes.dart';
 import '../../models/message.dart';
 import '../../providers/message_provider.dart';
 
@@ -137,6 +138,9 @@ class _IgnoredMessagesScreenState extends ConsumerState<IgnoredMessagesScreen>
                     showCategory: true,
                     onRestore: (id) =>
                         ref.read(messageProvider.notifier).restoreMessage(id),
+                    onCreatePattern: (id) => context.push(
+                      '${AppRoutes.patternBuilder}?messageId=$id',
+                    ),
                     onRefresh: () =>
                         ref.read(messageProvider.notifier).loadMessages(),
                   ),
@@ -169,6 +173,7 @@ class _RefreshableMessageList extends StatelessWidget {
   final IconData emptyIcon;
   final bool showCategory;
   final void Function(String id) onRestore;
+  final void Function(String id)? onCreatePattern;
   final Future<void> Function() onRefresh;
 
   const _RefreshableMessageList({
@@ -177,6 +182,7 @@ class _RefreshableMessageList extends StatelessWidget {
     required this.emptyIcon,
     required this.showCategory,
     required this.onRestore,
+    this.onCreatePattern,
     required this.onRefresh,
   });
 
@@ -190,6 +196,7 @@ class _RefreshableMessageList extends StatelessWidget {
         emptyIcon: emptyIcon,
         showCategory: showCategory,
         onRestore: onRestore,
+        onCreatePattern: onCreatePattern,
       ),
     );
   }
@@ -201,6 +208,7 @@ class _MessageList extends StatelessWidget {
   final IconData emptyIcon;
   final bool showCategory;
   final void Function(String id) onRestore;
+  final void Function(String id)? onCreatePattern;
 
   const _MessageList({
     required this.messages,
@@ -208,6 +216,7 @@ class _MessageList extends StatelessWidget {
     required this.emptyIcon,
     required this.showCategory,
     required this.onRestore,
+    this.onCreatePattern,
   });
 
   @override
@@ -255,6 +264,8 @@ class _MessageList extends StatelessWidget {
           message: msg,
           showCategory: showCategory,
           onRestore: () => onRestore(msg.id),
+          onCreatePattern:
+              onCreatePattern != null ? () => onCreatePattern!(msg.id) : null,
         );
       },
     );
@@ -265,11 +276,13 @@ class _IgnoredMessageRow extends StatelessWidget {
   final Message message;
   final bool showCategory;
   final VoidCallback onRestore;
+  final VoidCallback? onCreatePattern;
 
   const _IgnoredMessageRow({
     required this.message,
     required this.showCategory,
     required this.onRestore,
+    this.onCreatePattern,
   });
 
   Color _categoryColor(NonFinancialCategory? cat) {
@@ -374,6 +387,18 @@ class _IgnoredMessageRow extends StatelessWidget {
                   ],
                 ),
               ),
+
+              // Pattern builder entry (non-financial messages only).
+              if (onCreatePattern != null)
+                IconButton(
+                  onPressed: onCreatePattern,
+                  tooltip: 'Create pattern',
+                  icon: Icon(
+                    Icons.dashboard_customize_outlined,
+                    size: 18,
+                    color: context.colors.textMuted,
+                  ),
+                ),
 
               // Undo button
               TextButton(
