@@ -13,6 +13,7 @@ import '../../providers/category_provider.dart';
 import '../../providers/family_provider.dart';
 import '../../providers/transaction_provider.dart';
 import '../../providers/service_providers.dart';
+import '../../utils/category_display.dart';
 import '../../utils/payer_resolver.dart';
 import '../../widgets/category_icon.dart';
 
@@ -160,7 +161,7 @@ class TransactionDetailScreen extends ConsumerWidget {
                       ),
                       _DetailRow(
                         label: 'Category',
-                        value: _categoryName(txn.categoryId, categories),
+                        value: resolveCategoryName(txn.categoryId, categories),
                         icon: Icons.label_outline,
                         onTap: () => _showCategoryPicker(context, ref, txn),
                       ),
@@ -255,24 +256,6 @@ class TransactionDetailScreen extends ConsumerWidget {
         ],
       ),
     );
-  }
-
-  String _categoryName(String? id, List<Category> categories) {
-    if (id == null || id.isEmpty || id == 'uncategorized') return 'Uncategorized';
-    for (final c in categories) {
-      if (c.id == id) return c.name;
-    }
-    const labels = {
-      'cat_001': 'Groceries',
-      'cat_002': 'Dining',
-      'cat_003': 'Transport',
-      'cat_004': 'Housing',
-      'cat_005': 'Bills',
-      'cat_006': 'Health',
-      'cat_007': 'Entertainment',
-      'cat_008': 'Shopping',
-    };
-    return labels[id] ?? 'Uncategorized';
   }
 
   String _resolvePayerName(String userId, WidgetRef ref) {
