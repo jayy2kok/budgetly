@@ -296,18 +296,28 @@ class _BudgetRingSection extends StatelessWidget {
     required this.isLoading,
   });
 
-  double get _spentPercent =>
-      totalBudget > 0 ? (totalSpent / totalBudget).clamp(0.0, 1.0) : 0.0;
+  /// A family with no monthly budget gets an explicit "set a budget" state
+  /// instead of a ring that cannot be filled.
+  bool get _hasBudget => totalBudget > 0;
 
-  bool get _isOverBudget => totalSpent > totalBudget;
+  double get _spentPercent =>
+      _hasBudget ? (totalSpent / totalBudget).clamp(0.0, 1.0) : 0.0;
+
+  /// Over budget only makes sense once a real budget exists. With no budget
+  /// the empty state (not a warning badge) is shown, so this never claims the
+  /// family is "over budget" for a limit that was never set.
+  bool get _isOverBudget => _hasBudget && totalSpent > totalBudget;
 
   double get _leftToSpend => totalBudget - totalSpent;
 
-  String get _formattedLeft {
-    final abs = _leftToSpend.abs();
-    if (abs >= 100000) return '₹${(abs / 100000).toStringAsFixed(1)}L';
-    if (abs >= 1000) return '₹${NumberFormat('#,##,###').format(abs.toInt())}';
-    return '₹${abs.toStringAsFixed(0)}';
+  /// The overage when [totalSpent] exceeds [totalBudget].
+  double get _overBudgetAmount => totalSpent - totalBudget;
+
+  /// Compact amount without a currency symbol, e.g. `4,710` or `1.0L`.
+  String _formatAmount(double value) {
+    if (value >= 100000) return '${(value / 100000).toStringAsFixed(1)}L';
+    if (value >= 1000) return NumberFormat('#,##,###').format(value.toInt());
+    return value.toStringAsFixed(0);
   }
 
   @override
@@ -317,6 +327,12 @@ class _BudgetRingSection extends StatelessWidget {
         height: 256,
         child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
       );
+    }
+
+    // No budget set — mirror the Budget tab's empty state instead of showing a
+    // ring that would read "OVER BUDGET" next to a positive leftover.
+    if (!_hasBudget) {
+      return _NoBudgetSection(totalSpent: totalSpent);
     }
 
     return SizedBox(
@@ -345,7 +361,7 @@ class _BudgetRingSection extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    'LEFT TO SPEND',
+                    _isOverBudget ? 'OVER BY' : 'LEFT TO SPEND',
                     style: GoogleFonts.inter(
                       fontSize: 9,
                       fontWeight: FontWeight.w700,
@@ -358,7 +374,10 @@ class _BudgetRingSection extends StatelessWidget {
                     TextSpan(
                       children: [
                         TextSpan(
-                          text: '₹',
+                          // Over budget renders a negative figure (−₹X) so the
+                          // ring can never show a positive "left to spend"
+                          // alongside the OVER BUDGET badge.
+                          text: _isOverBudget ? '−₹' : '₹',
                           style: GoogleFonts.jetBrainsMono(
                             fontSize: 30,
                             fontWeight: FontWeight.w400,
@@ -367,7 +386,9 @@ class _BudgetRingSection extends StatelessWidget {
                           ),
                         ),
                         TextSpan(
-                          text: _formattedLeft.replaceAll('₹', ''),
+                          text: _isOverBudget
+                              ? _formatAmount(_overBudgetAmount)
+                              : _formatAmount(_leftToSpend),
                           style: GoogleFonts.jetBrainsMono(
                             fontSize: 30,
                             fontWeight: FontWeight.w700,
@@ -379,7 +400,7 @@ class _BudgetRingSection extends StatelessWidget {
                     ),
                   ),
                   SizedBox(height: 10),
-                  // On Track badge
+                  // On Track / Over Budget badge
                   Container(
                     padding: EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                     decoration: BoxDecoration(
@@ -431,6 +452,101 @@ class _BudgetRingSection extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ─── No Budget Section ───
+/// Shown in place of the budget ring when the family has no monthly budget.
+/// Mirrors the Budget tab's "No budget set / Set a budget to track" language so
+/// the dashboard never shows a contradictory over-budget ring for a zero limit.
+class _NoBudgetSection extends StatelessWidget {
+  final double totalSpent;
+
+  const _NoBudgetSection({required this.totalSpent});
+
+  String get _formattedSpent {
+    if (totalSpent >= 100000) {
+      return '₹${(totalSpent / 100000).toStringAsFixed(1)}L';
+    }
+    if (totalSpent >= 1000) {
+      return '₹${NumberFormat('#,##,###').format(totalSpent.toInt())}';
+    }
+    return '₹${totalSpent.toStringAsFixed(0)}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: 24),
+      padding: EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: context.colors.cardSurface,
+        borderRadius: BorderRadius.circular(BudgetlyTheme.radiusCard),
+        border: Border.all(color: context.colors.borderSubtle),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.account_balance_wallet_outlined,
+            size: 40,
+            color: context.colors.textDim.withValues(alpha: 0.6),
+          ),
+          SizedBox(height: 12),
+          Text(
+            'No budget set',
+            style: GoogleFonts.inter(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: context.colors.textMain,
+            ),
+          ),
+          SizedBox(height: 6),
+          Text(
+            'Set a monthly budget to track your spending and see what is left to spend.',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              height: 1.4,
+              color: context.colors.textDim,
+            ),
+          ),
+          if (totalSpent > 0) ...[
+            SizedBox(height: 10),
+            Text(
+              '$_formattedSpent spent this month',
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: context.colors.textMuted,
+              ),
+            ),
+          ],
+          SizedBox(height: 18),
+          ElevatedButton.icon(
+            onPressed: () => context.go(AppRoutes.budget),
+            icon: Icon(Icons.add, size: 18),
+            label: Text(
+              'Set a budget',
+              style: GoogleFonts.inter(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: context.colors.primary,
+              foregroundColor: Colors.white,
+              padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(
+                  BudgetlyTheme.radiusCard,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
