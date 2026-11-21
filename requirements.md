@@ -49,6 +49,10 @@
 - **FR6.2** Report a pattern (`POST /patterns/{id}/report`); auto-disable after `pattern.report-threshold` reports and move to `rejected_patterns`.
 - **FR6.3** Stats `GET /patterns/stats`.
 - **FR6.4** Override a pattern's resolved category (`PATCH /patterns/{id}/category`).
+- **FR6.5** Browse the cached registry: active **global + caller-family** patterns grouped by sender, showing template, sample, usage count, active state, scope (`GLOBAL`/`FAMILY`), and source (`LLM`/`USER`). Family scoping is enforced server-side, not just in the UI.
+- **FR6.6** Author a pattern from a failed or ignored SMS by **highlighting spans and tagging** them (Amount/Merchant/Date/Type/Account/Notes). The tagged spans derive the literal-anchor `template` and identity `extractionMap`; the token vocabulary is `{amount}` (required), `{merchant}`, `{timestamp}`, `{transactionType}`, `{accountLast4}`, `{notes}`. A client dry-run previews the match; the server re-validates the `(template, sampleMessage)` pair on save and rejects templates that extract no fields or no `amount`. Authored patterns are family-scoped and editable/deletable only by their author. Family admins may promote a family pattern to `GLOBAL` once `usageCount` reaches `pattern.promote-usage-threshold`.
+- **FR6.7** Match precedence: for a given sender, family-scoped active patterns are tried before global ones; within each scope the most recently updated pattern wins.
+- **FR6.8** Failed-message listing (`GET /messages/failed`, paginated) exposing FAILED messages with their `errorMessage` so they can be recovered via the builder.
 
 ### FR7 — Budget & Dashboard
 - **FR7.1** Dashboard aggregation (`GET /families/{fid}/dashboard`).
@@ -57,7 +61,7 @@
 
 ### FR8 — Mobile App (Flutter)
 - **FR8.1** Bottom-nav shell with 4 tabs: Home (Dashboard), Feed, Budget, Settings.
-- **FR8.2** Screens: Login, Dashboard, Transaction Feed, Add Expense, Transaction Detail, Message Inbox (Incomplete/Unprocessed), Ignored Messages, Monthly Budget, Settings, Link Family, Join Family, Family Settings, Profile.
+- **FR8.2** Screens: Login, Dashboard, Transaction Feed, Add Expense, Transaction Detail, Message Inbox (Incomplete/Unprocessed/Failed), Ignored Messages, Pattern Registry, Pattern Builder, Monthly Budget, Settings, Link Family, Join Family, Family Settings, Profile.
 - **FR8.3** SMS permission consent dialog + on-demand inbox sync and pattern-cache sync UX.
 - **FR8.4** Mock data layer (`data/mock`) for offline/dev and remote layer (`data/remote`, Dio) for the real API.
 

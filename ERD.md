@@ -172,12 +172,21 @@ erDiagram
         string sampleMessage
         string categoryName "user-overridden category"
         long usageCount
+        string scope "GLOBAL | FAMILY (default GLOBAL)"
+        string ownerFamilyGroupId FK "→ family_groups; null when GLOBAL"
+        string createdByUserId FK "author; null for LLM-seeded globals"
+        string source "LLM | USER (default LLM)"
         boolean active
         int reportCount
         datetime createdAt
         datetime updatedAt
     }
 ```
+
+- Compound index `sender_scope_owner_active_idx` = `(sender, scope, ownerFamilyGroupId, active)`, used by the family-aware registry lookup.
+- `scope`/`ownerFamilyGroupId` partition the library: global patterns are readable by every family; `FAMILY` patterns are visible only to the owning family.
+- Precedence when matching an incoming SMS (`findActiveBySender(sender, familyGroupId)`): **family-scoped patterns first** (newest `updatedAt`), then globals (newest `updatedAt`).
+- Authored (`source = USER`) family patterns are validated against their `sampleMessage` before insert/update, may be promoted to `GLOBAL` by a family admin once `usageCount` reaches `pattern.promote-usage-threshold`, and stay read-only after promotion.
 
 ### `rejected_patterns`
 

@@ -142,12 +142,53 @@ sequenceDiagram
 
 The pattern engine stores sender templates as literal text with `{token}` placeholders and matches by **left/right literal anchors** using `indexOf` on both Java and Dart — guaranteeing identical behavior across platforms. See [`plans/token_template_sms_parsing.md`](plans/token_template_sms_parsing.md) and the parity tests `AnchorParserTest` (Java) / `sms_parser_service_test.dart` (Dart).
 
+### 4.1 Registry scope & match precedence
+
+`pattern_registry` documents carry `scope` (`GLOBAL`/`FAMILY`), `ownerFamilyGroupId`, `createdByUserId`, and `source` (`LLM`/`USER`). LLM-seeded patterns are global; authoring through the builder creates a family-scoped `USER` pattern. Lookup for an incoming SMS resolves the owning family from the message and tries family patterns **before** globals, newest first within each scope:
+
+```mermaid
+flowchart TD
+    SMS[Incoming SMS: sender + familyGroupId] --> Q[findActiveForSenderAndFamily]
+    Q --> F{FAMILY patterns for<br/>this family?}
+    F -- yes --> FF[Newest updatedAt wins]
+    F -- no --> G{GLOBAL patterns<br/>for this sender?}
+    G -- yes --> GG[Newest updatedAt wins]
+    G -- no --> LLM[No literal-anchor match → LLM analysis]
+    FF --> MATCH[AnchorParserService.parse]
+    GG --> MATCH
+```
+
+- The registry viewer only lists global + caller-family patterns; `GET /patterns` resolves the caller's family server-side, so another family's authored templates are never exposed.
+- Authored patterns are editable/deletable by their author (or a family admin); globals are read-only. A family admin can promote a family pattern once `usageCount >= pattern.promote-usage-threshold`, after which it becomes `GLOBAL` and is shared by every family.
+
+### 4.2 Highlight-and-tag pattern builder
+
+A FAILED or IGNORED message can be recovered by authoring a template from it. The client derives the template, previews the match with the same anchor algorithm, and the server re-validates the effective `(template, sampleMessage)` pair before persisting:
+
+```mermaid
+flowchart LR
+    A[FAILED / IGNORED message] --> B[Select span in raw SMS]
+    B --> C[Tag span: Amount / Merchant / Date / Type / Account / Notes]
+    C --> D[PatternDraftBuilder.fromSpans<br/>literals + tokens, identity extractionMap]
+    D --> E{contains amount?}
+    E -- no --> X[Block: amount required]
+    E -- yes --> F[SmsParserService.dryRunTemplate]
+    F -->|no match| X2[Block: template does not match]
+    F -->|match| G[POST /patterns]
+    G --> H[Server re-validates with AnchorParserService]
+    H -->|400/409| X3[Error banner]
+    H -->|201| I[FAMILY pattern, source=USER, active=true]
+```
+
+- Manual edits to the template bypass the client dry-run but are still validated server-side (400 when no fields or no `amount` extract).
+- Overlapping tagged spans are rejected client-side; the derivation is pure logic (`pattern_draft_builder.dart`) unit-tested independently of the widget.
+
 ## 5. API Contract (Contract-First)
 
 - Canonical spec: `budgetly_api/src/main/resources/api/budgetly-openapi.yml`.
 - `openapi-generator-maven-plugin:7.27.0` generates Spring interfaces (tags → `Auth`, `FamilyGroups`, `Categories`, `Transactions`, `Messages`, `PatternRegistry`, `Dashboard`) and DTO models; controllers implement those interfaces.
 - SpringDoc serves Swagger UI (`/swagger-ui.html`) and OpenAPI JSON (`/api-docs`).
-- ⚠️ Known drift: the root-level `api/budgetly-openapi.yml` is an older copy and the `PATCH /patterns/{id}/category` controller endpoint is not yet in the spec — see [TODO.md](TODO.md).
+- ⚠️ Known drift: the root-level `api/budgetly-openapi.yml` is an older copy of the canonical spec — see [TODO.md](TODO.md).
 
 ## 6. Configuration & Observability
 

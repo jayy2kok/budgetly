@@ -10,7 +10,6 @@
 - [ ] **WORK-302** — Resume-token integration test against a live MongoDB replica set, plus a 1k–10k msg/s ingestion load test.
 
 ### API Contract Hygiene (Contract-First)
-- [ ] Add `PATCH /patterns/{id}/category` to the canonical OpenAPI spec — it is implemented in `PatternRegistryController` but missing from `budgetly_api/src/main/resources/api/budgetly-openapi.yml`.
 - [ ] Reconcile the two OpenAPI files: root `api/budgetly-openapi.yml` (stale) vs `budgetly_api/src/main/resources/api/budgetly-openapi.yml` (canonical, used by the generator). Keep one source of truth.
 
 ### Release Engineering
@@ -25,6 +24,7 @@
 - [ ] Backfill ADRs `0001` and `0002` (only `0003` and `0004` are present in `doc/adr/`).
 
 ## Recently Completed
+- ✅ Cached pattern registry viewer + custom pattern builder (issue #57): `GET /messages/failed`, `POST`/`PUT`/`DELETE /patterns`, `POST /patterns/{id}/promote`, family-scoped match precedence, Flutter registry/builder screens, docs sync.
 - ✅ Java 25 / Spring Boot 4.1.2 upgrade (ADR-0004).
 - ✅ Bulk insert + change-stream message consumer (ADR-0003), duplicate-processing race resolved (WORK-001).
 - ✅ Anchor fast-path before LLM (WORK-002) — literal-anchor parity between Java and Dart.
