@@ -1,6 +1,30 @@
 # Budgetly — Family Harmony Budget App: Development Plan
 
-> **App Concept:** A family-oriented mobile budgeting app that lets household members collaboratively track shared finances, **auto-read and parse bank SMS** (Android, regex-first with server-side LLM fallback), plan monthly budgets by category, and manage family group settings — all backed by Gmail-based authentication.
+> **App Concept:** A family-oriented mobile budgeting app that lets household members collaboratively track shared finances, **auto-read and parse bank SMS** (Android, literal-anchor template matching with server-side LLM fallback), plan monthly budgets by category, and manage family group settings — all backed by Gmail-based authentication.
+
+---
+
+## 0. Current State (as of 2026-11-21)
+
+Phases 1–4 are **functionally complete**: the Flutter app runs against the real Spring Boot API (Dio remote layer), and the backend processes SMS through the bulk-ingestion + MongoDB change-stream pipeline. This section records where the implemented code diverges from the plan below; the plan remains the historical roadmap.
+
+| Plan item | Implemented state |
+|---|---|
+| **Directory names** | Actual: `app/` (Flutter) and `budgetly_api/` (backend). The plan's `budgetly_app/` naming was not used. |
+| **Stack versions** | Java 25, Spring Boot **4.1.2**, SpringDoc 3.2, Flutter/Dart 3.11, Riverpod **3.x**, `go_router` 17, Dio 5.7, `google_sign_in` 7. (ADR-0004.) |
+| **SMS parsing** | "Regex-first" was replaced by **literal-anchor template matching** (no regex, cross-language parity). See `plans/token_template_sms_parsing.md`. |
+| **LLM provider** | Not Gemini-only. `LlmProvider` has **OpenAI-compatible** (`openai`, default) **and** `gemini` implementations. |
+| **Message ingestion** | Synchronous processing replaced by `POST /messages/bulk` + `MessageChangeStreamListener` (change streams, replica set `rs0`). ADR-0003. |
+| **Backend tests** | RestAssured E2E tests run against **Flapdoodle embedded MongoDB 7.0.9** (no Docker). The Testcontainers switch in `plans/e2e_testing_plan.md` was **not** adopted — Flapdoodle was kept and upgraded to `spring4x:4.33.0`. |
+| **OpenAPI generation** | Two generator executions: `Messages` (async interface) and the rest (sync). Uses `useSpringBoot4`, `useJakartaEe`. Controllers implement generated interfaces. |
+| **Endpoints beyond §6** | Added `GET /families/my`, `POST /families/join` (join-by-code), `POST /messages/bulk`, `PATCH /patterns/{id}/category`. |
+| **Currency** | INR default; partial multi-currency via `CurrencyConversionService` (INR-base rates, 12h refresh). Full UI currency selection is deferred. |
+| **Data export (3.12)** | `opencsv` dependency present, but **no `/export` endpoint implemented**. |
+| **Push notifications (4.4)** | **Not implemented** (deferred). |
+| **APK signing (Future)** | **Not implemented**; `release.yml` still builds a debug APK. |
+| **CI** | `ci.yml` (analyze + test + debug build) and `release.yml` present under `.github/workflows/`. |
+
+> See [TODO.md](../TODO.md), [design.md](../design.md), [requirements.md](../requirements.md), and [ERD.md](../ERD.md) for the maintained, current-state documentation.
 
 ---
 
