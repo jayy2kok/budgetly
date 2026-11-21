@@ -23,12 +23,19 @@ class AppShell extends StatelessWidget {
   Widget build(BuildContext context) {
     final index = _currentIndex(context);
 
+    // The add-expense FAB belongs where spending is created or reviewed
+    // (Home/Feed). On Budget and Settings it would hover over interactive
+    // rows, so it must not be shown there.
+    final showFab = index == 0 || index == 1;
+
     return Scaffold(
       body: child,
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => context.push(AppRoutes.addExpense),
-        child: Icon(Icons.add, size: 28),
-      ),
+      floatingActionButton: showFab
+          ? FloatingActionButton(
+              onPressed: () => context.push(AppRoutes.addExpense),
+              child: Icon(Icons.add, size: 28),
+            )
+          : null,
       bottomNavigationBar: NavigationBar(
         selectedIndex: index,
         backgroundColor: context.colors.backgroundAlt,
