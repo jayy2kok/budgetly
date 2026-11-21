@@ -38,6 +38,11 @@ jobs:
             - name: Analyze code
               run: flutter analyze
 
+            - name: Run tests
+              # Real gate: app tests (incl. SmsParser/InboxReader/SmsProvider)
+              # must pass before a release artifact is built.
+              run: flutter test --no-pub
+
             - name: Build debug APK
               run: flutter build apk --debug
 
