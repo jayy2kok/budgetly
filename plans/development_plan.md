@@ -981,3 +981,22 @@ These are **in addition to** the automated tests above:
 3. **Full user flow:** Login → Create Family → Add Member → Add Expense → View Dashboard → Set Budget → View Feed
 4. **Split testing:** Add expense with 3 members, verify percent and share splits calculate correctly on both UI and API
 5. **Docker sanity check:** `docker-compose up -d` → verify all containers start and connect
+
+---
+
+## 12. Planned Feature — Cached Pattern Registry + Custom Pattern Builder
+
+> **Status: Proposed (2026-11-21), not yet implemented.**
+
+New user-facing workflow on top of the existing literal-anchor parsing engine:
+- **Browse** the cached pattern registry (sender → template → sample → usage/active).
+- **Create** a family-scoped pattern from a `FAILED` or `IGNORED` (non-financial) message.
+- **Highlight & tag** spans in the raw SMS as Amount / Merchant / Date / Type / Account /
+  Notes; the app derives the `{token}` template + `extractionMap` automatically.
+- **Preview + validate** via the Dart/Java parity dry-run before going live; family patterns
+  take precedence over global ones for the same sender.
+
+Full requirements, data-model changes, OpenAPI additions, permissions, and test plan:
+[`plans/pattern_registry_builder_workflow.md`](pattern_registry_builder_workflow.md).
+
+Tracked in the backlog under [TODO.md](../TODO.md) when implementation starts.
