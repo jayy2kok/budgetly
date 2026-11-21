@@ -80,4 +80,58 @@ class PatternCacheService {
       // Keep existing cache if the update fails.
     }
   }
+
+  /// Creates a family-scoped pattern authored from a highlighted SMS.
+  /// Returns the created pattern (also added to the local cache).
+  Future<SmsPattern> createPattern({
+    required String sender,
+    required String template,
+    required ExtractionMap extractionMap,
+    required String sampleMessage,
+    String? categoryName,
+  }) async {
+    final response = await _dio.post('/patterns', data: {
+      'sender': sender,
+      'template': template,
+      'extractionMap': extractionMap.toJson(),
+      'sampleMessage': sampleMessage,
+      'categoryName': ?categoryName,
+    });
+    final created = SmsPattern.fromJson(response.data as Map<String, dynamic>);
+    _patterns = [created, ..._patterns];
+    return created;
+  }
+
+  /// Updates an authored family pattern (template / sample / extractionMap).
+  Future<SmsPattern> updatePattern(
+    String patternId, {
+    String? template,
+    ExtractionMap? extractionMap,
+    String? sampleMessage,
+    String? categoryName,
+  }) async {
+    final response = await _dio.put('/patterns/$patternId', data: {
+      'template': ?template,
+      'extractionMap': ?extractionMap?.toJson(),
+      'sampleMessage': ?sampleMessage,
+      'categoryName': ?categoryName,
+    });
+    final updated = SmsPattern.fromJson(response.data as Map<String, dynamic>);
+    _patterns = _patterns.map((p) => p.id == patternId ? updated : p).toList();
+    return updated;
+  }
+
+  /// Deletes an authored family pattern (author or family admin only).
+  Future<void> deletePattern(String patternId) async {
+    await _dio.delete('/patterns/$patternId');
+    _patterns = _patterns.where((p) => p.id != patternId).toList();
+  }
+
+  /// Promotes a family pattern to the global registry (family admin only).
+  Future<SmsPattern> promotePattern(String patternId) async {
+    final response = await _dio.post('/patterns/$patternId/promote');
+    final promoted = SmsPattern.fromJson(response.data as Map<String, dynamic>);
+    _patterns = _patterns.map((p) => p.id == patternId ? promoted : p).toList();
+    return promoted;
+  }
 }
