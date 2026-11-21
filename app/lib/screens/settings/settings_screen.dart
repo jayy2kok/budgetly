@@ -342,7 +342,8 @@ class SettingsScreen extends ConsumerWidget {
                 icon: Icons.group_outlined,
                 label: 'Family Members',
                 trailing: Text(
-                  '${members.length} members',
+                  '${members.length} '
+                  '${members.length == 1 ? 'member' : 'members'}',
                   style: GoogleFonts.inter(
                     fontSize: 14,
                     color: context.colors.textDim,
