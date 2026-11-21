@@ -395,6 +395,19 @@ class SampleData {
       nonFinancialCategory: NonFinancialCategory.promo,
       receivedAt: DateTime.now().subtract(const Duration(days: 1)),
     ),
+
+    // ── Failed: LLM analysis errored, never parsed (issue #57 builder source) ──
+    Message(
+      id: 'msg_011',
+      userId: 'user_001',
+      familyGroupId: 'family_001',
+      sender: 'KOTAKB',
+      rawText:
+          'Rs.499 debited from Kotak a/c **4321 to Swiggy on 12/03/26. UPI Ref 445566778899.',
+      status: MessageStatus.failed,
+      errorMessage: 'LLM analysis failed: upstream provider timeout',
+      receivedAt: DateTime.now().subtract(const Duration(hours: 1)),
+    ),
   ];
 
   // ─── Dashboard (matching Stitch design) ───

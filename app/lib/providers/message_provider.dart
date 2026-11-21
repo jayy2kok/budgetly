@@ -18,6 +18,13 @@ class MessageState {
   /// User-deleted / rejected messages.
   final List<Message> deletedMessages;
 
+  /// Server-persisted FAILED messages (LLM outage / template mismatch) that
+  /// the custom pattern builder can recover.
+  final List<Message> failedMessages;
+
+  /// Total number of FAILED messages across pages (page size may be smaller).
+  final int totalFailed;
+
   /// Message IDs currently being submitted to server.
   final Set<String> processingIds;
 
@@ -29,6 +36,8 @@ class MessageState {
     this.unprocessedMessages = const [],
     this.nonFinancialMessages = const [],
     this.deletedMessages = const [],
+    this.failedMessages = const [],
+    this.totalFailed = 0,
     this.processingIds = const {},
     this.isLoading = false,
     this.error,
@@ -44,6 +53,8 @@ class MessageState {
     List<Message>? unprocessedMessages,
     List<Message>? nonFinancialMessages,
     List<Message>? deletedMessages,
+    List<Message>? failedMessages,
+    int? totalFailed,
     Set<String>? processingIds,
     bool? isLoading,
     String? error,
@@ -53,6 +64,8 @@ class MessageState {
       unprocessedMessages: unprocessedMessages ?? this.unprocessedMessages,
       nonFinancialMessages: nonFinancialMessages ?? this.nonFinancialMessages,
       deletedMessages: deletedMessages ?? this.deletedMessages,
+      failedMessages: failedMessages ?? this.failedMessages,
+      totalFailed: totalFailed ?? this.totalFailed,
       processingIds: processingIds ?? this.processingIds,
       isLoading: isLoading ?? this.isLoading,
       error: error,
@@ -74,6 +87,7 @@ class MessageNotifier extends Notifier<MessageState> {
     try {
       final pending = await _service.getPendingMessages();
       final ignored = await _service.getIgnoredMessages();
+      final failed = await _service.getFailedMessages();
 
       state = MessageState(
         // Incomplete: regex matched (parseSource == regexLocal) but missing fields
@@ -96,6 +110,10 @@ class MessageNotifier extends Notifier<MessageState> {
         deletedMessages: ignored.where((m) {
           return m.status == MessageStatus.rejected;
         }).toList(),
+
+        // Failed: server-side failures the pattern builder can recover
+        failedMessages: failed,
+        totalFailed: failed.length,
 
         isLoading: false,
       );

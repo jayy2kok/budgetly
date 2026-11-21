@@ -26,6 +26,19 @@ class RemoteMessageService implements MessageService {
   }
 
   @override
+  Future<List<Message>> getFailedMessages({int page = 0, int size = 20}) async {
+    final response = await _dio.get(
+      '/messages/failed',
+      queryParameters: {'page': page, 'size': size},
+    );
+    final body = response.data as Map<String, dynamic>;
+    final content = body['content'] as List<dynamic>;
+    return content
+        .map((json) => Message.fromJson(json as Map<String, dynamic>))
+        .toList();
+  }
+
+  @override
   Future<Map<String, dynamic>> processMessage(
       Map<String, dynamic> data) async {
     final response = await _dio.post('/messages/process', data: data);

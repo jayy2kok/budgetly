@@ -23,6 +23,7 @@ Message _$MessageFromJson(Map<String, dynamic> json) => Message(
     (k, e) => MapEntry(k, e as String),
   ),
   linkedTransactionId: json['linkedTransactionId'] as String?,
+  errorMessage: json['errorMessage'] as String?,
   receivedAt: DateTime.parse(json['receivedAt'] as String),
 );
 
@@ -39,6 +40,7 @@ Map<String, dynamic> _$MessageToJson(Message instance) => <String, dynamic>{
       _$NonFinancialCategoryEnumMap[instance.nonFinancialCategory],
   'extractedData': instance.extractedData,
   'linkedTransactionId': instance.linkedTransactionId,
+  'errorMessage': instance.errorMessage,
   'receivedAt': instance.receivedAt.toIso8601String(),
 };
 

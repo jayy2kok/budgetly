@@ -23,6 +23,14 @@ class MockMessageService implements MessageService {
   }
 
   @override
+  Future<List<Message>> getFailedMessages({int page = 0, int size = 20}) async {
+    await Future.delayed(const Duration(milliseconds: 300));
+    return SampleData.messages
+        .where((m) => m.status == MessageStatus.failed)
+        .toList();
+  }
+
+  @override
   Future<Map<String, dynamic>> processMessage(
       Map<String, dynamic> data) async {
     // Simulate LLM processing time

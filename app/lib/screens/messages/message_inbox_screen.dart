@@ -10,7 +10,7 @@ import '../../providers/family_provider.dart';
 import '../../providers/message_provider.dart';
 import '../../providers/sms_provider.dart';
 
-/// Message Inbox — Two-tab layout: Incomplete + Unprocessed.
+/// Message Inbox — Three-tab layout: Incomplete + Unprocessed + Failed.
 class MessageInboxScreen extends ConsumerStatefulWidget {
   const MessageInboxScreen({super.key});
 
@@ -25,7 +25,7 @@ class _MessageInboxScreenState extends ConsumerState<MessageInboxScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       // 1. Load remote messages from API. Await this before merging device SMS:
       //    loadMessages() replaces the whole message state, so if it resolves
@@ -163,6 +163,7 @@ class _MessageInboxScreenState extends ConsumerState<MessageInboxScreen>
                   Tab(
                       text:
                           'Unprocessed (${msgState.totalUnprocessed})'),
+                  Tab(text: 'Failed (${msgState.totalFailed})'),
                 ],
               ),
             ),
@@ -196,6 +197,13 @@ class _MessageInboxScreenState extends ConsumerState<MessageInboxScreen>
                           ref.read(messageProvider.notifier).submitToServer(id, ref.read(familyProvider).currentFamily?.id ?? ''),
                       onReject: (id) =>
                           ref.read(messageProvider.notifier).rejectMessage(id),
+                    ),
+                    // ── FAILED TAB ──
+                    _FailedTab(
+                      messages: msgState.failedMessages,
+                      onCreatePattern: (id) => context.push(
+                        '${AppRoutes.patternBuilder}?messageId=$id',
+                      ),
                     ),
                   ],
                 ),
@@ -674,6 +682,162 @@ class _UnprocessedCard extends StatelessWidget {
     if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
     if (diff.inHours < 24) return '${diff.inHours}h ago';
     return '${diff.inDays}d ago';
+  }
+}
+
+// ─── Failed Tab ───
+class _FailedTab extends StatelessWidget {
+  final List<Message> messages;
+  final void Function(String id) onCreatePattern;
+
+  const _FailedTab({
+    required this.messages,
+    required this.onCreatePattern,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (messages.isEmpty) {
+      return _EmptyState(
+        icon: Icons.error_outline,
+        label: 'No failed messages',
+        subtitle: 'Messages that could not be parsed appear here',
+      );
+    }
+
+    return ListView.separated(
+      padding: EdgeInsets.all(16),
+      itemCount: messages.length,
+      separatorBuilder: (context, index) => SizedBox(height: 10),
+      itemBuilder: (context, index) {
+        final msg = messages[index];
+        return _FailedCard(
+          message: msg,
+          onCreatePattern: () => onCreatePattern(msg.id),
+        );
+      },
+    );
+  }
+}
+
+// ─── Failed Card ───
+class _FailedCard extends StatelessWidget {
+  final Message message;
+  final VoidCallback onCreatePattern;
+
+  const _FailedCard({
+    required this.message,
+    required this.onCreatePattern,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: context.colors.cardSurface,
+        borderRadius: BorderRadius.circular(BudgetlyTheme.radiusCard),
+        border: Border.all(color: context.colors.accentCoral.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: context.colors.primary.withValues(alpha: 0.1),
+                  borderRadius:
+                      BorderRadius.circular(BudgetlyTheme.radiusPill),
+                ),
+                child: Text(
+                  message.sender,
+                  style: GoogleFonts.jetBrainsMono(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: context.colors.primaryLight,
+                  ),
+                ),
+              ),
+              Spacer(),
+              Icon(Icons.error_outline,
+                  size: 14, color: context.colors.accentCoral),
+              SizedBox(width: 4),
+              Text(
+                'Failed',
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: context.colors.accentCoral,
+                ),
+              ),
+            ],
+          ),
+
+          if (message.errorMessage != null) ...[
+            SizedBox(height: 10),
+            Text(
+              message.errorMessage!,
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: context.colors.accentCoral,
+                height: 1.4,
+              ),
+            ),
+          ],
+
+          SizedBox(height: 12),
+
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: context.colors.background,
+              borderRadius:
+                  BorderRadius.circular(BudgetlyTheme.radiusSmall),
+              border: Border.all(
+                color: context.colors.surfaceHighlight.withValues(alpha: 0.3),
+              ),
+            ),
+            child: Text(
+              message.rawText,
+              style: GoogleFonts.jetBrainsMono(
+                fontSize: 11,
+                color: context.colors.textDim,
+                height: 1.6,
+              ),
+              maxLines: 4,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+
+          SizedBox(height: 14),
+
+          SizedBox(
+            width: double.infinity,
+            height: 44,
+            child: ElevatedButton.icon(
+              onPressed: onCreatePattern,
+              icon: Icon(Icons.dashboard_customize_outlined, size: 18),
+              label: Text(
+                'Create pattern',
+                style: GoogleFonts.inter(
+                    fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: context.colors.primary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius:
+                      BorderRadius.circular(BudgetlyTheme.radiusMedium),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

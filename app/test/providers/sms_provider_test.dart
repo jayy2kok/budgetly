@@ -74,6 +74,10 @@ class RecordingMessageService implements MessageService {
   Future<List<Message>> getIgnoredMessages() async => [];
 
   @override
+  Future<List<Message>> getFailedMessages({int page = 0, int size = 20}) async =>
+      [];
+
+  @override
   Future<Message> confirmMessage(String messageId) =>
       throw UnimplementedError();
 

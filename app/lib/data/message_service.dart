@@ -5,6 +5,10 @@ abstract class MessageService {
   Future<List<Message>> getPendingMessages();
   Future<List<Message>> getIgnoredMessages();
 
+  /// Server-persisted FAILED messages (LLM outage / template mismatch),
+  /// paginated. The builder's main source surface.
+  Future<List<Message>> getFailedMessages({int page, int size});
+
   /// Submit an unprocessed SMS for LLM analysis. Returns parsed result.
   Future<Map<String, dynamic>> processMessage(Map<String, dynamic> data);
 

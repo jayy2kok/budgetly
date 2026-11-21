@@ -69,6 +69,10 @@ class Message {
   final Map<String, String>? extractedData;
 
   final String? linkedTransactionId;
+
+  /// Failure reason for [MessageStatus.failed] messages.
+  final String? errorMessage;
+
   final DateTime receivedAt;
 
   const Message({
@@ -83,6 +87,7 @@ class Message {
     this.nonFinancialCategory,
     this.extractedData,
     this.linkedTransactionId,
+    this.errorMessage,
     required this.receivedAt,
   });
 
