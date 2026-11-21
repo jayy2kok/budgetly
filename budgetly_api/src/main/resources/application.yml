@@ -33,7 +33,7 @@ openai:
 
 # Gemini LLM
 gemini:
-  api-key: ${GEMI...key}
+  api-key: ${GEMINI_API_KEY:}
   api-url: https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent
 
 # Pattern registry
