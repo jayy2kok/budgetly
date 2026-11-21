@@ -132,7 +132,8 @@ class FamilyGroupSettingsScreen extends ConsumerWidget {
                     ),
                     SizedBox(height: 4),
                     Text(
-                      '${members.length} members',
+                      '${members.length} '
+                      '${members.length == 1 ? 'member' : 'members'}',
                       style: GoogleFonts.inter(
                         fontSize: 13,
                         color: context.colors.textDim,

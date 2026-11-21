@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:budgetly/config/budgetly_colors.dart';
 import 'package:budgetly/data/mock/sample_data.dart';
+import 'package:budgetly/models/family_member.dart';
 import 'package:budgetly/models/user.dart';
 import 'package:budgetly/providers/auth_provider.dart';
 import 'package:budgetly/providers/family_provider.dart';
@@ -51,7 +52,10 @@ class _FakeSmsNotifier extends SmsNotifier {
 
 late ProviderContainer container;
 
-Future<void> pumpApp(WidgetTester tester) async {
+Future<void> pumpApp(
+  WidgetTester tester, {
+  List<FamilyMember>? members,
+}) async {
   GoogleFonts.config.allowRuntimeFetching = false;
 
   // The settings screen is a tall CustomScrollView; give the test a tall
@@ -67,7 +71,7 @@ Future<void> pumpApp(WidgetTester tester) async {
         () => _FakeFamilyNotifier(
           FamilyState(
             currentFamily: SampleData.familyGroup,
-            members: SampleData.members,
+            members: members ?? SampleData.members,
             isLoading: false,
           ),
         ),
@@ -229,6 +233,21 @@ void main() {
           reason: '"$label" should render a navigation chevron',
         );
       }
+    });
+  });
+
+  group('family member count is singular-aware', () {
+    testWidgets('single-member family renders "1 member"', (tester) async {
+      await pumpApp(tester, members: [SampleData.members.first]);
+
+      expect(find.text('1 member'), findsOneWidget);
+      expect(find.text('1 members'), findsNothing);
+    });
+
+    testWidgets('multi-member family renders "N members"', (tester) async {
+      await pumpApp(tester);
+
+      expect(find.text('3 members'), findsOneWidget);
     });
   });
 }
