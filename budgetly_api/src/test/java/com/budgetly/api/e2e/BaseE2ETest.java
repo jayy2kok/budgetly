@@ -206,6 +206,22 @@ public abstract class BaseE2ETest {
         return messageRepository.save(msg);
     }
 
+    /** Seed a FAILED message with an error message. Returns the message doc. */
+    protected MessageDocument seedFailedMessage(String userId, String familyGroupId,
+            String sender, String rawText, String errorMessage) {
+        MessageDocument msg = MessageDocument.builder()
+                .userId(userId)
+                .familyGroupId(familyGroupId)
+                .sender(sender)
+                .rawText(rawText)
+                .status(MessageDocument.STATUS_FAILED)
+                .parseSource("LLM_SERVER")
+                .receivedAt(Instant.now())
+                .errorMessage(errorMessage)
+                .build();
+        return messageRepository.save(msg);
+    }
+
     /** Seed an SMS pattern document. Returns the pattern doc. */
     protected SmsPatternDocument seedPattern(String sender, String sampleMessage) {
         SmsPatternDocument pattern = SmsPatternDocument.builder()
@@ -215,6 +231,26 @@ public abstract class BaseE2ETest {
                 .usageCount(1)
                 .active(true)
                 .reportCount(0)
+                .createdAt(Instant.now())
+                .build();
+        return patternRegistryRepository.save(pattern);
+    }
+
+    /** Seed a FAMILY-scoped, USER-authored pattern. Returns the pattern doc. */
+    protected SmsPatternDocument seedFamilyPattern(String ownerFamilyGroupId, String createdByUserId,
+            String sender, String template, String sampleMessage, long usageCount) {
+        SmsPatternDocument pattern = SmsPatternDocument.builder()
+                .sender(sender)
+                .template(template)
+                .extractionMap(Map.of("amount", "amount", "merchant", "merchant", "timestamp", "timestamp"))
+                .sampleMessage(sampleMessage)
+                .usageCount(usageCount)
+                .active(true)
+                .reportCount(0)
+                .scope(SmsPatternDocument.SCOPE_FAMILY)
+                .ownerFamilyGroupId(ownerFamilyGroupId)
+                .createdByUserId(createdByUserId)
+                .source(SmsPatternDocument.SOURCE_USER)
                 .createdAt(Instant.now())
                 .build();
         return patternRegistryRepository.save(pattern);

@@ -35,6 +35,7 @@ class MessageServiceTest {
     private PatternRegistryService patternRegistryService;
     private LlmProvider llmProvider;
     private CategoryResolver categoryResolver;
+    private FamilyGroupService familyGroupService;
     private MessageService service;
 
     @BeforeEach
@@ -44,8 +45,9 @@ class MessageServiceTest {
         patternRegistryService = mock(PatternRegistryService.class);
         llmProvider = mock(LlmProvider.class);
         categoryResolver = mock(CategoryResolver.class);
+        familyGroupService = mock(FamilyGroupService.class);
         service = new MessageService(messageRepository, transactionService,
-                patternRegistryService, llmProvider, new TransactionDateParser(), categoryResolver);
+                patternRegistryService, llmProvider, new TransactionDateParser(), categoryResolver, familyGroupService);
         ReflectionTestUtils.setField(service, "maxBatchSize", 500);
     }
 

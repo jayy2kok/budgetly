@@ -227,7 +227,7 @@ public class MessageChangeStreamListener {
     // ── FAST PATH: server-side anchor-template match ─────────────
 
     private boolean tryAnchorMatch(MessageDocument doc) {
-        List<SmsPatternDocument> patterns = patternRegistryService.findActiveBySender(doc.getSender());
+        List<SmsPatternDocument> patterns = patternRegistryService.findActiveBySender(doc.getSender(), doc.getFamilyGroupId());
         if (patterns.isEmpty()) {
             return false;
         }

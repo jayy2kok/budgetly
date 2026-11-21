@@ -8,6 +8,10 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import com.budgetly.api.document.CategoryDocument;
@@ -15,6 +19,7 @@ import com.budgetly.api.document.MessageDocument;
 import com.budgetly.api.exception.ResourceNotFoundException;
 import com.budgetly.api.generated.model.CreateTransactionRequest;
 import com.budgetly.api.generated.model.Message;
+import com.budgetly.api.generated.model.MessagePage;
 import com.budgetly.api.generated.model.MessageStatus;
 import com.budgetly.api.generated.model.NonFinancialCategory;
 import com.budgetly.api.generated.model.BulkMessageRequest;
@@ -46,6 +51,7 @@ public class MessageService {
     private final LlmProvider llmProvider;
     private final TransactionDateParser transactionDateParser;
     private final CategoryResolver categoryResolver;
+    private final FamilyGroupService familyGroupService;
 
     @Async
     public CompletableFuture<ProcessMessageResponse> processMessage(String userId, ProcessMessageRequest request) {
@@ -158,6 +164,21 @@ public class MessageService {
         // (REJECTED). The client splits these into nonFinancial / deleted buckets.
         return messageRepository.findByUserIdAndStatusIn(userId, List.of("IGNORED", "REJECTED"))
                 .stream().map(this::toMessageDto).collect(Collectors.toList());
+    }
+
+    /** Paginated listing of FAILED messages for the caller's family (newest first). */
+    public MessagePage getFailedMessages(String userId, int page, int size) {
+        String familyGroupId = familyGroupService.getMyFamily(userId).getId();
+        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Page<MessageDocument> docPage = messageRepository.findByFamilyGroupIdAndStatus(familyGroupId, "FAILED", pageable);
+        MessagePage result = new MessagePage();
+        result.setContent(docPage.getContent().stream().map(this::toMessageDto).collect(Collectors.toList()));
+        result.setPage(docPage.getNumber());
+        result.setSize(docPage.getSize());
+        result.setTotalElements(docPage.getTotalElements());
+        result.setTotalPages(docPage.getTotalPages());
+        result.setLast(docPage.isLast());
+        return result;
     }
 
     @Value("${budgetly.change-stream.max-batch-size:500}")
@@ -299,6 +320,7 @@ public class MessageService {
         }
         dto.setMatchedPatternId(doc.getMatchedPatternId());
         if (doc.getReceivedAt() != null) dto.setReceivedAt(doc.getReceivedAt().atOffset(ZoneOffset.UTC));
+        dto.setErrorMessage(doc.getErrorMessage());
         return dto;
     }
 }

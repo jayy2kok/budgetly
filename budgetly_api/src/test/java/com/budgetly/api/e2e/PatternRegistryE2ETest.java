@@ -1,5 +1,6 @@
 package com.budgetly.api.e2e;
 
+import com.budgetly.api.document.FamilyGroupDocument;
 import com.budgetly.api.document.SmsPatternDocument;
 import com.budgetly.api.document.UserDocument;
 import org.junit.jupiter.api.Test;
@@ -131,5 +132,210 @@ class PatternRegistryE2ETest extends BaseE2ETest {
                 .statusCode(200)
                 .body("totalPatterns", equalTo(2))
                 .body("totalSenders", equalTo(2));
+    }
+
+    // ── Create Pattern ──────────────────────────────────────────
+
+    @Test
+    void createPattern_validTemplate_createsFamilyScopedPattern() {
+        UserDocument user = seedUser("g-pat-7", "Author", "author@test.com");
+        FamilyGroupDocument family = seedFamily(user.getId(), "Author Family");
+
+        givenAuth(user.getId())
+                .body(Map.of(
+                        "sender", "HDFCBK",
+                        "template", "Rs.{amount} debited for {merchant}",
+                        "sampleMessage", "Rs.500 debited for Amazon",
+                        "extractionMap", Map.of("amount", "amount", "merchant", "merchant")))
+                .post("/patterns")
+                .then()
+                .statusCode(201)
+                .body("sender", equalTo("HDFCBK"))
+                .body("scope", equalTo("FAMILY"))
+                .body("source", equalTo("USER"))
+                .body("ownerFamilyGroupId", equalTo(family.getId()))
+                .body("createdByUserId", equalTo(user.getId()))
+                .body("active", equalTo(true))
+                .body("usageCount", equalTo(0));
+    }
+
+    @Test
+    void createPattern_templateDoesNotMatchSample_returns400() {
+        UserDocument user = seedUser("g-pat-8", "Bad Author", "bad@test.com");
+        seedFamily(user.getId(), "Bad Family");
+
+        givenAuth(user.getId())
+                .body(Map.of(
+                        "sender", "HDFCBK",
+                        "template", "Hello {amount} world",
+                        "sampleMessage", "Rs.500 debited for Amazon",
+                        "extractionMap", Map.of("amount", "amount")))
+                .post("/patterns")
+                .then()
+                .statusCode(400);
+    }
+
+    @Test
+    void createPattern_missingAmountTag_returns400() {
+        UserDocument user = seedUser("g-pat-9", "NoAmount", "noamount@test.com");
+        seedFamily(user.getId(), "NoAmount Family");
+
+        givenAuth(user.getId())
+                .body(Map.of(
+                        "sender", "HDFCBK",
+                        "template", "Spent {merchant}",
+                        "sampleMessage", "Spent Amazon",
+                        "extractionMap", Map.of("amount", "amount", "merchant", "merchant")))
+                .post("/patterns")
+                .then()
+                .statusCode(400);
+    }
+
+    @Test
+    void createPattern_duplicateTemplate_returns409() {
+        UserDocument user = seedUser("g-pat-10", "Dup Author", "dup@test.com");
+        FamilyGroupDocument family = seedFamily(user.getId(), "Dup Family");
+        seedFamilyPattern(family.getId(), user.getId(), "HDFCBK",
+                "Rs.{amount} debited for {merchant}", "Rs.500 debited for Amazon", 1);
+
+        givenAuth(user.getId())
+                .body(Map.of(
+                        "sender", "HDFCBK",
+                        "template", "Rs.{amount} debited for {merchant}",
+                        "sampleMessage", "Rs.500 debited for Amazon",
+                        "extractionMap", Map.of("amount", "amount", "merchant", "merchant")))
+                .post("/patterns")
+                .then()
+                .statusCode(409);
+    }
+
+    // ── Family isolation ────────────────────────────────────────
+
+    @Test
+    void getPatterns_familyScoped_notVisibleToOtherFamily() {
+        UserDocument userA = seedUser("g-pat-11-a", "Fam A", "fama@test.com");
+        FamilyGroupDocument famA = seedFamily(userA.getId(), "Family A");
+        UserDocument userB = seedUser("g-pat-11-b", "Fam B", "famb@test.com");
+        FamilyGroupDocument famB = seedFamily(userB.getId(), "Family B");
+
+        // Global pattern is visible to everyone; family-A pattern is private.
+        seedPattern("GLOBALBK", "global sample");
+        seedFamilyPattern(famA.getId(), userA.getId(), "HDFCBK",
+                "Rs.{amount} debited for {merchant}", "Rs.500 debited for Amazon", 1);
+
+        givenAuth(userB.getId())
+                .get("/patterns")
+                .then()
+                .statusCode(200)
+                .body("$.size()", equalTo(1))
+                .body("[0].sender", equalTo("GLOBALBK"));
+
+        givenAuth(userA.getId())
+                .get("/patterns")
+                .then()
+                .statusCode(200)
+                .body("$.size()", equalTo(2));
+    }
+
+    // ── Update / Delete ownership ───────────────────────────────
+
+    @Test
+    void updatePattern_authorAllowed_otherFamilyForbidden() {
+        UserDocument userA = seedUser("g-pat-12-a", "Owner A", "ownera@test.com");
+        FamilyGroupDocument famA = seedFamily(userA.getId(), "Family A");
+        UserDocument userB = seedUser("g-pat-12-b", "Intruder B", "intruder@test.com");
+        seedFamily(userB.getId(), "Family B");
+
+        SmsPatternDocument pattern = seedFamilyPattern(famA.getId(), userA.getId(), "HDFCBK",
+                "Rs.{amount} debited for {merchant}", "Rs.500 debited for Amazon", 1);
+
+        givenAuth(userA.getId())
+                .body(Map.of(
+                        "template", "Rs.{amount} debited at {merchant}",
+                        "sampleMessage", "Rs.500 debited at Amazon",
+                        "extractionMap", Map.of("amount", "amount", "merchant", "merchant")))
+                .put("/patterns/" + pattern.getId())
+                .then()
+                .statusCode(200)
+                .body("template", equalTo("Rs.{amount} debited at {merchant}"));
+
+        givenAuth(userB.getId())
+                .body(Map.of("template", "Hacked {amount}"))
+                .put("/patterns/" + pattern.getId())
+                .then()
+                .statusCode(403);
+    }
+
+    @Test
+    void deletePattern_authorAllowed_otherFamilyForbidden() {
+        UserDocument userA = seedUser("g-pat-13-a", "Owner A", "delownera@test.com");
+        FamilyGroupDocument famA = seedFamily(userA.getId(), "Family A");
+        UserDocument userB = seedUser("g-pat-13-b", "Intruder B", "delintruder@test.com");
+        seedFamily(userB.getId(), "Family B");
+
+        SmsPatternDocument pattern = seedFamilyPattern(famA.getId(), userA.getId(), "HDFCBK",
+                "Rs.{amount} debited for {merchant}", "Rs.500 debited for Amazon", 1);
+
+        givenAuth(userB.getId())
+                .delete("/patterns/" + pattern.getId())
+                .then()
+                .statusCode(403);
+
+        givenAuth(userA.getId())
+                .delete("/patterns/" + pattern.getId())
+                .then()
+                .statusCode(204);
+
+        givenAuth(userA.getId())
+                .get("/patterns")
+                .then()
+                .statusCode(200)
+                .body("find { it.id == '" + pattern.getId() + "' }", nullValue());
+    }
+
+    // ── Promote ─────────────────────────────────────────────────
+
+    @Test
+    void promotePattern_belowThreshold_returns409() {
+        UserDocument admin = seedUser("g-pat-14", "Admin", "admin@test.com");
+        FamilyGroupDocument famA = seedFamily(admin.getId(), "Family A");
+        SmsPatternDocument pattern = seedFamilyPattern(famA.getId(), admin.getId(), "HDFCBK",
+                "Rs.{amount} debited for {merchant}", "Rs.500 debited for Amazon", 1);
+
+        givenAuth(admin.getId())
+                .post("/patterns/" + pattern.getId() + "/promote")
+                .then()
+                .statusCode(409);
+    }
+
+    @Test
+    void promotePattern_aboveThreshold_setsGlobal() {
+        UserDocument admin = seedUser("g-pat-15", "Admin2", "admin2@test.com");
+        FamilyGroupDocument famA = seedFamily(admin.getId(), "Family A");
+        SmsPatternDocument pattern = seedFamilyPattern(famA.getId(), admin.getId(), "HDFCBK",
+                "Rs.{amount} debited for {merchant}", "Rs.500 debited for Amazon", 5);
+
+        givenAuth(admin.getId())
+                .post("/patterns/" + pattern.getId() + "/promote")
+                .then()
+                .statusCode(200)
+                .body("scope", equalTo("GLOBAL"))
+                .body("ownerFamilyGroupId", nullValue());
+    }
+
+    @Test
+    void promotePattern_nonAdmin_returns403() {
+        UserDocument admin = seedUser("g-pat-16-a", "Admin", "padmin@test.com");
+        FamilyGroupDocument famA = seedFamily(admin.getId(), "Family A");
+        SmsPatternDocument pattern = seedFamilyPattern(famA.getId(), admin.getId(), "HDFCBK",
+                "Rs.{amount} debited for {merchant}", "Rs.500 debited for Amazon", 5);
+
+        UserDocument member = seedUser("g-pat-16-b", "Member", "pmember@test.com");
+        seedMember(member.getId(), famA.getId());
+
+        givenAuth(member.getId())
+                .post("/patterns/" + pattern.getId() + "/promote")
+                .then()
+                .statusCode(403);
     }
 }

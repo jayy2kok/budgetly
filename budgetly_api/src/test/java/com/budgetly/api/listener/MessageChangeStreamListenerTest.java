@@ -144,7 +144,7 @@ class MessageChangeStreamListenerTest {
 
         // Anchor fast-path consulted the registry (no active pattern) then
         // classified non-financial — no transaction, no new pattern.
-        verify(patternRegistryService).findActiveBySender("HDFCBK");
+        verify(patternRegistryService).findActiveBySender("HDFCBK", "fam-1");
         verify(patternRegistryService, never()).savePattern(any());
         verifyNoInteractions(transactionService);
         assertThat(counter("started").count()).isEqualTo(1.0);
@@ -358,7 +358,7 @@ class MessageChangeStreamListenerTest {
         assertThat(captor.getValue().getStatus()).isEqualTo(MessageDocument.STATUS_FAILED);
         assertThat(captor.getValue().getErrorMessage()).contains("LLM outage");
 
-        verify(patternRegistryService).findActiveBySender("HDFCBK");
+        verify(patternRegistryService).findActiveBySender("HDFCBK", "fam-1");
         verify(patternRegistryService, never()).savePattern(any());
         verifyNoInteractions(transactionService);
         verify(tokenRepository, never()).save(any());
@@ -412,7 +412,7 @@ class MessageChangeStreamListenerTest {
     @Test
     void anchorMatchProcessesWithoutLlmAndUsesTimestampAsTransactionDate() {
         claimIngress(pendingDoc());
-        when(patternRegistryService.findActiveBySender("HDFCBK")).thenReturn(List.of(
+        when(patternRegistryService.findActiveBySender("HDFCBK", "fam-1")).thenReturn(List.of(
                 patternDoc("Spent Rs {amount} at {merchant} on {timestamp}",
                         Map.of("amount", "amount", "merchant", "merchant", "timestamp", "timestamp"))));
         when(patternRegistryService.savePattern(any()))
@@ -465,7 +465,7 @@ class MessageChangeStreamListenerTest {
         claimIngress(pendingDoc());
         // Template anchors match but only {amount} is present in the template:
         // no merchant/timestamp → treated as incomplete, like the app does.
-        when(patternRegistryService.findActiveBySender("HDFCBK")).thenReturn(List.of(
+        when(patternRegistryService.findActiveBySender("HDFCBK", "fam-1")).thenReturn(List.of(
                 patternDoc("Rs.{amount} debited", Map.of("amount", "amount"))));
         when(llmProvider.analyzeMessage(any(), any(), any()))
                 .thenReturn(LlmAnalysisResult.builder().financial(false).build());
@@ -481,7 +481,7 @@ class MessageChangeStreamListenerTest {
     @Test
     void noRegisteredPatternFallsBackToLlm() {
         claimIngress(pendingDoc());
-        when(patternRegistryService.findActiveBySender("HDFCBK")).thenReturn(List.of());
+        when(patternRegistryService.findActiveBySender("HDFCBK", "fam-1")).thenReturn(List.of());
         when(llmProvider.analyzeMessage(any(), any(), any()))
                 .thenReturn(LlmAnalysisResult.builder().financial(false).build());
 

@@ -314,6 +314,41 @@ class MessageE2ETest extends BaseE2ETest {
                 .path("$[-1].id");
     }
 
+    // ── Failed Messages ─────────────────────────────────────────
+
+    @Test
+    void getFailedMessages_returnsOnlyOwnFamilyPaginatedWithError() {
+        UserDocument userA = seedUser("g-msg-20-a", "Fam A", "fmsg@test.com");
+        FamilyGroupDocument famA = seedFamily(userA.getId(), "Family A");
+        UserDocument userB = seedUser("g-msg-20-b", "Fam B", "fmsgb@test.com");
+        FamilyGroupDocument famB = seedFamily(userB.getId(), "Family B");
+
+        seedFailedMessage(userA.getId(), famA.getId(), "HDFCBK",
+                "Rs.500 debited from a/c XX1234 for Amazon on 13-03-26", "LLM outage");
+        seedFailedMessage(userA.getId(), famA.getId(), "SBIUPI",
+                "Rs.200 sent to PhonePe", "template mismatch");
+        seedFailedMessage(userB.getId(), famB.getId(), "HDFCBK",
+                "other family failed message", "secret failure");
+
+        givenAuth(userA.getId())
+                .queryParam("size", 1)
+                .get("/messages/failed")
+                .then()
+                .statusCode(200)
+                .body("totalElements", equalTo(2))
+                .body("totalPages", equalTo(2))
+                .body("content.size()", equalTo(1))
+                .body("content[0].status", equalTo("FAILED"))
+                .body("content[0].errorMessage", notNullValue());
+
+        givenAuth(userB.getId())
+                .get("/messages/failed")
+                .then()
+                .statusCode(200)
+                .body("totalElements", equalTo(1))
+                .body("content[0].errorMessage", equalTo("secret failure"));
+    }
+
     private String getLinkedTransactionId(String messageId) {
         // Need to refetch in a test context where we can access UserDocument ID
         return RestAssured.given()

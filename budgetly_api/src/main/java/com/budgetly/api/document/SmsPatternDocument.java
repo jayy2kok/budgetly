@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
@@ -16,7 +17,16 @@ import java.util.Map;
 @NoArgsConstructor
 @AllArgsConstructor
 @Document(collection = "pattern_registry")
+@CompoundIndex(name = "sender_scope_owner_active_idx", def = "{'sender': 1, 'scope': 1, 'ownerFamilyGroupId': 1, 'active': 1}")
 public class SmsPatternDocument {
+
+    /** Pattern visibility scope. GLOBAL patterns serve all families; FAMILY patterns are family-owned. */
+    public static final String SCOPE_GLOBAL = "GLOBAL";
+    public static final String SCOPE_FAMILY = "FAMILY";
+
+    /** Pattern origin. LLM = learned by the first-sighting pipeline; USER = authored via the pattern builder. */
+    public static final String SOURCE_LLM = "LLM";
+    public static final String SOURCE_USER = "USER";
 
     @Id
     private String id;
@@ -42,6 +52,20 @@ public class SmsPatternDocument {
 
     @Builder.Default
     private int reportCount = 0;
+
+    /** GLOBAL (serves all families) or FAMILY (family-owned). */
+    @Builder.Default
+    private String scope = SCOPE_GLOBAL;
+
+    /** Family that authored this pattern; null for GLOBAL patterns. */
+    private String ownerFamilyGroupId;
+
+    /** User who authored this pattern; null for LLM-learned patterns. */
+    private String createdByUserId;
+
+    /** LLM (first-sighting pipeline) or USER (authored via pattern builder). */
+    @Builder.Default
+    private String source = SOURCE_LLM;
 
     @Builder.Default
     private Instant createdAt = Instant.now();

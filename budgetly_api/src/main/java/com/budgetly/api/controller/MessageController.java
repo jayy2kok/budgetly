@@ -37,6 +37,14 @@ public class MessageController implements MessagesApi {
     }
 
     @Override
+    public CompletableFuture<ResponseEntity<MessagePage>> getFailedMessages(Integer page, Integer size) {
+        String userId = ControllerUtils.getCurrentUserId();
+        MessagePage result = messageService.getFailedMessages(
+                userId, page != null ? page : 0, size != null ? size : 20);
+        return CompletableFuture.completedFuture(ResponseEntity.ok(result));
+    }
+
+    @Override
     public CompletableFuture<ResponseEntity<Transaction>> confirmMessage(String id) {
         String userId = ControllerUtils.getCurrentUserId();
         return CompletableFuture.completedFuture(ResponseEntity.ok(messageService.confirmMessage(userId, id)));

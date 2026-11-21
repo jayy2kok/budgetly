@@ -1,6 +1,8 @@
 package com.budgetly.api.repository;
 
 import com.budgetly.api.document.MessageDocument;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.stereotype.Repository;
 
@@ -12,6 +14,7 @@ public interface MessageRepository extends MongoRepository<MessageDocument, Stri
     List<MessageDocument> findByUserIdAndStatus(String userId, String status);
     List<MessageDocument> findByUserIdAndStatusIn(String userId, List<String> statuses);
     List<MessageDocument> findByFamilyGroupIdAndStatus(String familyGroupId, String status);
+    Page<MessageDocument> findByFamilyGroupIdAndStatus(String familyGroupId, String status, Pageable pageable);
     Optional<MessageDocument> findByIdAndUserId(String id, String userId);
     long countByFamilyGroupIdAndStatus(String familyGroupId, String status);
     Optional<MessageDocument> findByMessageId(String messageId);
