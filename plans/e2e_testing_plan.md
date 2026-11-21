@@ -1,5 +1,7 @@
 # Budgetly API — E2E Testing Plan (RestAssured + Docker MongoDB)
 
+> **Status (2026-11-21):** The RestAssured E2E suites below **were implemented and land in `budgetly_api/src/test/java/com/budgetly/api/e2e/`** (all 8 suites + `BaseE2ETest`), but the **Testcontainers/MongoDB approach was NOT adopted**. The team kept and upgraded **Flapdoodle embedded MongoDB** (`de.flapdoodle.embed.mongo.spring4x:4.33.0`, MongoDB 7.0.9) — tests run via `mvn test` with **no Docker required** (see ADR-0004 and `application-test.yml`). Mocking moved from `@MockBean` to test-scoped beans (`TestBeanConfig`, `TestGoogleTokenVerifier`, `TestLlmProvider`). The sections below are retained as the historical plan.
+
 > **Goal:** Implement comprehensive E2E tests for all Budgetly API endpoints using **RestAssured** framework with **Docker-based MongoDB** (via Testcontainers) — replacing the Flapdoodle embedded MongoDB approach entirely.
 
 ---

@@ -6,10 +6,11 @@
 > Java and Dart behave identically by construction, with no cross-language regex
 > divergence.
 >
-> **Status (2026-11-14)** – Implemented. `AnchorParserService` (Java) + `_parseAnchorTemplate`
-> (Dart) share the same literal-anchor algorithm, asserted against a mirrored corpus in
-> `AnchorParserTest` and `sms_parser_service_test.dart`. The original `TemplateRegexService`
-> plan below was **abandoned** — see §4 (Decision) for why.
+> **Status (2026-11-14, re-verified 2026-11-21)** – Implemented. `AnchorParserService` (Java) +
+> `_parseAnchorTemplate` (Dart) share the same literal-anchor algorithm, asserted against a
+> mirrored corpus in `AnchorParserTest` and `sms_parser_service_test.dart`. The original
+> `TemplateRegexService` plan below was **abandoned** — see §4 (Decision) for why. The data
+> model has since grown a few fields (see §3); the algorithm and parity guarantees are unchanged.
 
 ---
 
@@ -57,13 +58,15 @@ fields, e.g. `accountLast4 → accountLast4`, `merchant → merchant`, `amount �
 
 *   **`SmsPatternDocument`** (`pattern_registry` collection): `sender`, `template`,
     `extractionMap`, `sampleMessage` (the SMS that generated the pattern), `usageCount`
-    (incremented per successful server-side anchor match), `active`, `createdAt`.
-*   **`MessageDocument`** (`messages` collection): `status`
+    (incremented per successful server-side anchor match), `active`, `createdAt` — plus
+    `categoryName` (user-overridden category resolved per-family), `reportCount`, `updatedAt`.
+*   **`MessageDocument`** (`messages` collection): `messageId` (UUID), `status`
     (`PENDING/IN_PROGRESS/PROCESSED/CONFIRMED/REJECTED/IGNORED/FAILED`), **`source`**
     (`BULK` from `/messages/bulk` vs `DIRECT` from the legacy synchronous
     `POST /messages/process`), `parseSource` (`REGEX_LOCAL` when matched server-side
-    without the LLM, `LLM_SERVER` otherwise), `parsedTransactionData`, `errorMessage`,
-    `processedAt`.
+    without the LLM, `LLM_SERVER` otherwise), `nonFinancialCategory`
+    (`OTP/PROMO/PERSONAL/DELIVERY/UNKNOWN`), `parsedTransactionData`, `retryCount`,
+    `errorMessage`, `processedAt`.
 *   **`LlmAnalysisResult`**: `isFinancial`, `amount`, `merchant`, `transactionType`,
     `rawTimestamp`, `notes`, `template`, `extractionMap`.
 
