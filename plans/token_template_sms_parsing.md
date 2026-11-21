@@ -109,6 +109,11 @@ nearest literal occurrences, so a malformed-but-anchored SMS still extracts some
 - **Client (sync)** — `SmsNotifier.syncInboxMessages`: complete local match → `addTransaction`
   immediately; everything else → batched `POST /messages/bulk` for the listener, then one
   `refreshPatterns()` so next-sync anchors are fresh.
+- **User-authored patterns (proposed)** — the same template shape the LLM emits can be
+  authored by users in the app (highlight spans → tag `{amount}`/`{merchant}`/`{timestamp}`/
+  `{transactionType}`/`{accountLast4}`/`{notes}`), stored **family-scoped** and validated by
+  the same `AnchorParserService`. See
+  [`plans/pattern_registry_builder_workflow.md`](pattern_registry_builder_workflow.md).
 
 ---
 
