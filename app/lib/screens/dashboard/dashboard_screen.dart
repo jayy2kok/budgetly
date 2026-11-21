@@ -15,7 +15,9 @@ import '../../providers/transaction_provider.dart';
 import '../../providers/sms_provider.dart';
 import '../../models/transaction.dart';
 import '../../models/family_member.dart';
+import '../../utils/category_display.dart';
 import '../../utils/payer_resolver.dart';
+import '../../widgets/category_icon.dart';
 import '../../widgets/sms_consent_dialog.dart';
 
 /// Dashboard — Budget ring, stat cards, activity list.
@@ -64,7 +66,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final budget = ref.watch(budgetProvider);
     final txnState = ref.watch(transactionProvider);
     final categories = ref.watch(categoryProvider).categories;
-    final catMap = {for (final c in categories) c.id: c.name};
     final familyMembers = ref.watch(familyProvider).members;
     final currentUserId = ref.watch(authProvider).user?.id;
 
@@ -198,7 +199,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   final txn = txnState.transactions[index];
                   return _ActivityTile(
                     transaction: txn,
-                    categoryName: catMap[txn.categoryId],
+                    categoryName: resolveCategoryName(txn.categoryId, categories),
+                    categoryIcon: resolveCategoryIcon(txn.categoryId, categories),
                     members: familyMembers,
                     currentUserId: currentUserId,
                     onTap: () => context.push(
@@ -734,6 +736,7 @@ class _MiniStatCard extends StatelessWidget {
 class _ActivityTile extends StatelessWidget {
   final Transaction transaction;
   final String? categoryName;
+  final String? categoryIcon;
   final List<FamilyMember> members;
   final String? currentUserId;
   final VoidCallback? onTap;
@@ -741,21 +744,11 @@ class _ActivityTile extends StatelessWidget {
   const _ActivityTile({
     required this.transaction,
     this.categoryName,
+    this.categoryIcon,
     this.members = const [],
     this.currentUserId,
     this.onTap,
   });
-
-  static const _categoryIcons = {
-    'cat_001': Icons.shopping_bag,
-    'cat_002': Icons.restaurant,
-    'cat_003': Icons.directions_car,
-    'cat_004': Icons.payments,
-    'cat_005': Icons.receipt_long,
-    'cat_006': Icons.medical_services,
-    'cat_007': Icons.movie,
-    'cat_008': Icons.shopping_cart,
-  };
 
   String _timeAgo(DateTime date) {
     final diff = DateTime.now().difference(date);
@@ -765,27 +758,11 @@ class _ActivityTile extends StatelessWidget {
     return DateFormat('MMM d').format(date);
   }
 
-  String _categoryLabel(String? categoryId) {
-    if (categoryName != null && categoryName!.isNotEmpty) {
-      return categoryName!;
-    }
-    const labels = {
-      'cat_001': 'Groceries',
-      'cat_002': 'Dining',
-      'cat_003': 'Transport',
-      'cat_004': 'Housing',
-      'cat_005': 'Bills',
-      'cat_006': 'Health',
-      'cat_007': 'Entertainment',
-      'cat_008': 'Shopping',
-    };
-    return labels[categoryId] ?? 'Other';
-  }
-
   @override
   Widget build(BuildContext context) {
     final isIncome = transaction.type == TransactionType.income;
-    final icon = _categoryIcons[transaction.categoryId] ?? Icons.receipt;
+    final icon = categoryIcon ?? '';
+    final label = categoryName ?? 'Other';
 
     return GestureDetector(
       onTap: onTap,
@@ -820,13 +797,21 @@ class _ActivityTile extends StatelessWidget {
                         BudgetlyTheme.radiusCard,
                       ),
                     ),
-                    child: Icon(
-                      icon,
-                      color: isIncome
-                          ? context.colors.accentMint
-                          : context.colors.primaryLight,
-                      size: 22,
-                    ),
+                    child: icon.isEmpty
+                        ? Icon(
+                            Icons.receipt,
+                            color: isIncome
+                                ? context.colors.accentMint
+                                : context.colors.primaryLight,
+                            size: 22,
+                          )
+                        : CategoryIcon(
+                            icon: icon,
+                            color: isIncome
+                                ? context.colors.accentMint
+                                : context.colors.primaryLight,
+                            size: 22,
+                          ),
                   ),
                   // Small avatar badge
                   Positioned(
@@ -883,7 +868,7 @@ class _ActivityTile extends StatelessWidget {
                   ),
                   SizedBox(height: 3),
                   Text(
-                    '${_categoryLabel(transaction.categoryId)} • ${_timeAgo(transaction.transactionDate)}',
+                    '$label • ${_timeAgo(transaction.transactionDate)}',
                     style: GoogleFonts.inter(
                       fontSize: 12,
                       color: context.colors.textDim,

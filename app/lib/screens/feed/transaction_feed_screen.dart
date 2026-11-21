@@ -11,7 +11,9 @@ import '../../providers/auth_provider.dart';
 import '../../providers/category_provider.dart';
 import '../../providers/family_provider.dart';
 import '../../providers/transaction_provider.dart';
+import '../../utils/category_display.dart';
 import '../../utils/payer_resolver.dart';
+import '../../widgets/category_icon.dart';
 
 /// Transaction Feed — Date-grouped list with filter chips.
 class TransactionFeedScreen extends ConsumerStatefulWidget {
@@ -154,7 +156,6 @@ class _TransactionFeedScreenState extends ConsumerState<TransactionFeedScreen> {
     Map<String, List<Transaction>> grouped,
   ) {
     final categories = ref.watch(categoryProvider).categories;
-    final catMap = {for (final c in categories) c.id: c.name};
     final members = ref.watch(familyProvider).members;
     final currentUserId = ref.watch(authProvider).user?.id;
     final slivers = <Widget>[];
@@ -191,7 +192,8 @@ class _TransactionFeedScreenState extends ConsumerState<TransactionFeedScreen> {
               );
               return _FeedTile(
                 transaction: txn,
-                categoryName: catMap[txn.categoryId],
+                categoryName: resolveCategoryName(txn.categoryId, categories),
+                categoryIcon: resolveCategoryIcon(txn.categoryId, categories),
                 payer: payerInfo.name,
                 initial: payerInfo.initial,
                 onTap: () =>
@@ -461,6 +463,7 @@ class _HeaderIconButton extends StatelessWidget {
 class _FeedTile extends StatelessWidget {
   final Transaction transaction;
   final String? categoryName;
+  final String? categoryIcon;
   final String payer;
   final String initial;
   final VoidCallback? onTap;
@@ -468,38 +471,17 @@ class _FeedTile extends StatelessWidget {
   const _FeedTile({
     required this.transaction,
     this.categoryName,
+    this.categoryIcon,
     required this.payer,
     required this.initial,
     this.onTap,
   });
 
-  static const _categoryIcons = {
-    'cat_001': Icons.shopping_bag,
-    'cat_002': Icons.restaurant,
-    'cat_003': Icons.directions_car,
-    'cat_004': Icons.payments,
-    'cat_005': Icons.receipt_long,
-    'cat_006': Icons.medical_services,
-    'cat_007': Icons.sports_esports,
-    'cat_008': Icons.shopping_cart,
-  };
-
-  static const _categoryLabels = {
-    'cat_001': 'Household',
-    'cat_002': 'Dining',
-    'cat_003': 'Transport',
-    'cat_004': 'Home',
-    'cat_005': 'Bills',
-    'cat_006': 'Health',
-    'cat_007': 'Leisure',
-    'cat_008': 'Shopping',
-  };
-
   @override
   Widget build(BuildContext context) {
     final isIncome = transaction.type == TransactionType.income;
-    final icon = _categoryIcons[transaction.categoryId] ?? Icons.receipt;
-    final category = categoryName ?? _categoryLabels[transaction.categoryId] ?? 'Other';
+    final icon = categoryIcon ?? '';
+    final category = categoryName ?? 'Other';
 
     return GestureDetector(
       onTap: onTap,
@@ -535,13 +517,21 @@ class _FeedTile extends StatelessWidget {
                         BudgetlyTheme.radiusMedium,
                       ),
                     ),
-                    child: Icon(
-                      icon,
-                      color: isIncome
-                          ? context.colors.accentMint
-                          : context.colors.primaryLight,
-                      size: 22,
-                    ),
+                    child: icon.isEmpty
+                        ? Icon(
+                            Icons.receipt,
+                            color: isIncome
+                                ? context.colors.accentMint
+                                : context.colors.primaryLight,
+                            size: 22,
+                          )
+                        : CategoryIcon(
+                            icon: icon,
+                            color: isIncome
+                                ? context.colors.accentMint
+                                : context.colors.primaryLight,
+                            size: 22,
+                          ),
                   ),
                   Positioned(
                     bottom: -3,
