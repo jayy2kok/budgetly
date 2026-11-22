@@ -880,7 +880,10 @@ paths:
       summary: Override the category for a pattern
       description: >
         Sets a user-overridden category name for transactions parsed by this
-        template. A blank or null name clears the override.
+        template. A blank or null name clears the override. FAMILY patterns
+        require the caller to be the author or a family admin; GLOBAL patterns
+        may be categorised by any caller (per family, without mutating the
+        shared pattern).
       security:
         - bearerAuth: []
       requestBody:
@@ -896,6 +899,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SmsPattern"
+        "403":
+          description: Caller is not the author or a family admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Pattern not found
           content:

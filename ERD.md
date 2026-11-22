@@ -244,4 +244,4 @@ erDiagram
 ## Notes
 
 - **No separate JPA/SQL schema** — entities are MongoDB documents. There is no redundant mapping layer; controllers consume the generated OpenAPI models and map to/from documents in the service layer.
-- The OpenAPI domain models (`api/budgetly-openapi.yml` / `budgetly_api/src/main/resources/api/budgetly-openapi.yml`) mirror these documents; see [design.md](design.md) for the mapping flow.
+- The OpenAPI domain models (`budgetly_api/src/main/resources/api/budgetly-openapi.yml`) mirror these documents; see [design.md](design.md) for the mapping flow.

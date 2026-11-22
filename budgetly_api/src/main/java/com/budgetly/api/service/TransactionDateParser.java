@@ -9,6 +9,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.time.format.ResolverStyle;
 import java.util.List;
 
 /**
@@ -23,27 +24,35 @@ import java.util.List;
  * {@code dd-MM-yy} ({@code 26} → 2026), each optionally with a
  * {@code HH:mm[:ss]} time part. Date-only values resolve to the received
  * time-of-day (see {@link #resolveTransactionDate}).
+ *
+ * <p>Strict resolution rejects impossible calendar dates ({@code 31/02/2026})
+ * instead of silently rolling them forward to a real date — a rolled date
+ * would land transactions in the wrong budget month.
  */
 @Component
 public class TransactionDateParser {
 
+    private static DateTimeFormatter strict(String pattern) {
+        return DateTimeFormatter.ofPattern(pattern).withResolverStyle(ResolverStyle.STRICT);
+    }
+
     private static final List<DateTimeFormatter> DATE_FORMATS = List.of(
-            DateTimeFormatter.ofPattern("dd/MM/yyyy"),
-            DateTimeFormatter.ofPattern("dd-MM-yyyy"),
-            DateTimeFormatter.ofPattern("dd/MM/yy"),
-            DateTimeFormatter.ofPattern("dd-MM-yy"),
+            strict("dd/MM/uuuu"),
+            strict("dd-MM-uuuu"),
+            strict("dd/MM/uu"),
+            strict("dd-MM-uu"),
             DateTimeFormatter.ISO_LOCAL_DATE
     );
 
     private static final List<DateTimeFormatter> DATE_TIME_FORMATS = List.of(
-            DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss"),
-            DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"),
-            DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss"),
-            DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm"),
-            DateTimeFormatter.ofPattern("dd/MM/yy HH:mm:ss"),
-            DateTimeFormatter.ofPattern("dd/MM/yy HH:mm"),
-            DateTimeFormatter.ofPattern("dd-MM-yy HH:mm:ss"),
-            DateTimeFormatter.ofPattern("dd-MM-yy HH:mm"),
+            strict("dd/MM/uuuu HH:mm:ss"),
+            strict("dd/MM/uuuu HH:mm"),
+            strict("dd-MM-uuuu HH:mm:ss"),
+            strict("dd-MM-uuuu HH:mm"),
+            strict("dd/MM/uu HH:mm:ss"),
+            strict("dd/MM/uu HH:mm"),
+            strict("dd-MM-uu HH:mm:ss"),
+            strict("dd-MM-uu HH:mm"),
             DateTimeFormatter.ISO_LOCAL_DATE_TIME
     );
 

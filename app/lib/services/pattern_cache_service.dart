@@ -74,24 +74,17 @@ class PatternCacheService {
   }
 
   /// Updates the category override for a template on the server and in cache.
+  /// Errors propagate so the caller can surface them; the cache is refreshed so
+  /// a GLOBAL override's family copy and hide marker arrive too.
   Future<void> updatePatternCategory(
     String patternId,
     String? categoryName,
   ) async {
-    try {
-      final response = await _dio.patch(
-        '/patterns/$patternId/category',
-        data: {'categoryName': categoryName},
-      );
-      final updated = SmsPattern.fromJson(
-        response.data as Map<String, dynamic>,
-      );
-      _patterns = _patterns
-          .map((p) => p.id == patternId ? updated : p)
-          .toList();
-    } catch (e) {
-      // Keep existing cache if the update fails.
-    }
+    await _dio.patch(
+      '/patterns/$patternId/category',
+      data: {'categoryName': categoryName},
+    );
+    await refreshPatterns();
   }
 
   /// Creates a family-scoped pattern authored from a highlighted SMS.
@@ -100,7 +93,7 @@ class PatternCacheService {
     required String sender,
     required String template,
     required ExtractionMap extractionMap,
-    Map<String, String> fixedValues = const {},
+    Map<String, String>? fixedValues,
     required String sampleMessage,
     String? categoryName,
   }) async {
@@ -112,7 +105,7 @@ class PatternCacheService {
         'extractionMap': extractionMap.toJson(),
         'fixedValues': fixedValues,
         'sampleMessage': sampleMessage,
-        'categoryName': ?categoryName,
+        'categoryName': categoryName,
       },
     );
     final created = SmsPattern.fromJson(response.data as Map<String, dynamic>);
@@ -124,6 +117,10 @@ class PatternCacheService {
   /// or updates this family's copy and hides the global for the family only.
   /// The server returns the resulting FAMILY pattern; the cache is then
   /// refreshed so the hide marker is reflected too.
+  ///
+  /// The keys are sent even when null: JSON `null` fixedValues clears the
+  /// stored literals and JSON `null` categoryName leaves it unchanged, while an
+  /// empty string clears the category override (see the OpenAPI contract).
   Future<SmsPattern> updatePattern(
     String patternId, {
     String? sender,
@@ -136,12 +133,12 @@ class PatternCacheService {
     final response = await _dio.put(
       '/patterns/$patternId',
       data: {
-        'sender': ?sender,
-        'template': ?template,
-        'extractionMap': ?extractionMap?.toJson(),
-        'fixedValues': ?fixedValues,
-        'sampleMessage': ?sampleMessage,
-        'categoryName': ?categoryName,
+        'sender': sender,
+        'template': template,
+        'extractionMap': extractionMap?.toJson(),
+        'fixedValues': fixedValues,
+        'sampleMessage': sampleMessage,
+        'categoryName': categoryName,
       },
     );
     final updated = SmsPattern.fromJson(response.data as Map<String, dynamic>);

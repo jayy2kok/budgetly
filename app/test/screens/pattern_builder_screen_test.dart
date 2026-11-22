@@ -40,7 +40,7 @@ class _FakePatternCacheService extends PatternCacheService {
     required String sender,
     required String template,
     required ExtractionMap extractionMap,
-    Map<String, String> fixedValues = const {},
+    Map<String, String>? fixedValues,
     required String sampleMessage,
     String? categoryName,
   }) async {
@@ -57,7 +57,7 @@ class _FakePatternCacheService extends PatternCacheService {
       sender: sender,
       template: template,
       extractionMap: extractionMap,
-      fixedValues: fixedValues,
+      fixedValues: fixedValues ?? const {},
       sampleMessage: sampleMessage,
       categoryName: categoryName,
       scope: PatternScope.family,
@@ -483,7 +483,9 @@ void main() {
 
       expect(harness.cache.created, hasLength(1));
       expect(harness.cache.created.single['categoryName'], 'Groceries');
-      expect(harness.cache.created.single['fixedValues'], isEmpty);
+      // All fixed-value fields blank → the API receives null (clear), not an
+      // empty map (unchanged).
+      expect(harness.cache.created.single['fixedValues'], isNull);
     });
 
     testWidgets('an unparsed message keeps the saved-pattern snackbar', (

@@ -77,6 +77,13 @@ class TransactionDateParserTest {
     }
 
     @Test
+    void rejectsImpossibleCalendarDatesInsteadOfRollingThem() {
+        assertThat(parser.parse("31/02/2026")).isEmpty(); // Feb has no 31st
+        assertThat(parser.parse("29/02/2026")).isEmpty(); // 2026 is not a leap year
+        assertThat(parser.parse("29/02/2024")).contains(Instant.parse("2024-02-29T00:00:00Z"));
+    }
+
+    @Test
     void resolveTransactionDate_bodyDateTimeWinsOverReceivedTime() {
         Instant received = Instant.parse("2026-11-14T18:30:00Z");
         assertThat(parser.resolveTransactionDate(received, "01/10/2026 14:30", ZONE))

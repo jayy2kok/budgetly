@@ -14,6 +14,10 @@ import com.budgetly.api.document.RejectedPatternDocument;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -32,6 +36,7 @@ public class PatternRegistryService {
     private final FamilyGroupService familyGroupService;
     private final FamilyMemberRepository familyMemberRepository;
     private final AnchorParserService anchorParserService;
+    private final MongoTemplate mongoTemplate;
 
     @Value("${pattern.report-threshold:5}")
     private int reportThreshold;
@@ -76,49 +81,99 @@ public class PatternRegistryService {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Flags a pattern as incorrect. A user's report is counted once; when the
+     * report count reaches the threshold the pattern is auto-disabled and
+     * snapshotted into rejected_patterns. GLOBAL patterns are the shared
+     * library, so a report only hides the pattern for the caller's family
+     * (FAMILY patterns are reported by their own family and reactivate there).
+     */
     public Map<String, Object> reportPattern(String patternId, String userId, PatternReportRequest request) {
         SmsPatternDocument pattern = patternRepository.findById(patternId)
                 .orElseThrow(() -> new ResourceNotFoundException("SmsPattern", patternId));
+        String familyGroupId = callerFamilyGroupId(userId);
 
-        pattern.setReportCount(pattern.getReportCount() + 1);
+        // A per-user duplicate report would inflate the count; count the user
+        // once, and reactivate a pattern reported by this user before so a
+        // previously disabled pattern is not resurrected by the threshold.
+        if (!addUniqueReporter(patternId, userId)) {
+            return reportResult(pattern, familyGroupId, false);
+        }
 
-        boolean removed = false;
-        if (pattern.getReportCount() >= reportThreshold) {
+        // $inc keeps concurrent reports from losing updates (read-modify-write
+        // would drop one report's count under load).
+        int reportCount = incrementReportCount(patternId);
+        pattern.setReportCount(reportCount);
+
+        boolean removed = reportCount >= reportThreshold;
+        if (removed) {
             pattern.setActive(false);
-            removed = true;
-            log.info("Pattern {} auto-disabled after {} reports", patternId, pattern.getReportCount());
+            pattern.setUpdatedAt(Instant.now());
+            patternRepository.save(pattern);
+            log.info("Pattern {} auto-disabled after {} reports", patternId, reportCount);
+            snapshotRejectedPattern(pattern, request.getSampleMessage(), userId, reportCount);
 
-            // Move to rejected_patterns
-            Optional<RejectedPatternDocument> existing = rejectedPatternRepository.findByPatternId(patternId);
-            if (existing.isPresent()) {
-                RejectedPatternDocument rp = existing.get();
-                if (!rp.getReportedByUserIds().contains(userId)) {
-                    rp.getReportedByUserIds().add(userId);
-                }
-                rp.setReportCount(rp.getReportCount() + 1);
-                rejectedPatternRepository.save(rp);
-            } else {
-                RejectedPatternDocument rp = RejectedPatternDocument.builder()
-                        .patternId(patternId)
-                        .template(pattern.getTemplate())
-                        .sampleMessage(request.getSampleMessage())
-                        .reportedByUserIds(new ArrayList<>(List.of(userId)))
-                        .reportCount(pattern.getReportCount())
-                        .build();
-                rejectedPatternRepository.save(rp);
+            if (SmsPatternDocument.SCOPE_GLOBAL.equals(pattern.getScope())) {
+                hideForFamily(familyGroupId, patternId, userId);
             }
         }
-        patternRepository.save(pattern);
 
+        return reportResult(pattern, familyGroupId, removed);
+    }
+
+    /** Rejects patterns the caller cannot see; FAMILY patterns require the author or a family admin. */
+    public Map<String, Object> reportResult(SmsPatternDocument pattern, String familyGroupId, boolean removed) {
         Map<String, Object> result = new LinkedHashMap<>();
-        result.put("patternId", patternId);
+        result.put("patternId", pattern.getId());
         result.put("reportCount", pattern.getReportCount());
         result.put("removed", removed);
         return result;
     }
 
-    public PatternStatsResponse getStats() {
-        List<SmsPatternDocument> active = patternRepository.findByActiveTrue();
+    private boolean addUniqueReporter(String patternId, String userId) {
+        Long added = mongoTemplate.updateFirst(
+                Query.query(Criteria.where("_id").is(patternId)),
+                new Update().addToSet("reportedByUserIds", userId),
+                SmsPatternDocument.class).getModifiedCount();
+        return added != null && added > 0;
+    }
+
+    private int incrementReportCount(String patternId) {
+        SmsPatternDocument updated = mongoTemplate.findAndModify(
+                Query.query(Criteria.where("_id").is(patternId)),
+                new Update().inc("reportCount", 1),
+                org.springframework.data.mongodb.core.FindAndModifyOptions.options().returnNew(true),
+                SmsPatternDocument.class);
+        return updated != null ? updated.getReportCount() : 0;
+    }
+
+    private void snapshotRejectedPattern(SmsPatternDocument pattern, String sampleMessage,
+                                         String userId, int reportCount) {
+        Optional<RejectedPatternDocument> existing = rejectedPatternRepository.findByPatternId(pattern.getId());
+        if (existing.isPresent()) {
+            RejectedPatternDocument rp = existing.get();
+            if (!rp.getReportedByUserIds().contains(userId)) {
+                rp.getReportedByUserIds().add(userId);
+            }
+            rp.setReportCount(reportCount);
+            rejectedPatternRepository.save(rp);
+        } else {
+            rejectedPatternRepository.save(RejectedPatternDocument.builder()
+                    .patternId(pattern.getId())
+                    .template(pattern.getTemplate())
+                    .sampleMessage(sampleMessage)
+                    .reportedByUserIds(new ArrayList<>(List.of(userId)))
+                    .reportCount(reportCount)
+                    .build());
+        }
+    }
+
+    /** Statistics for the caller's family: its active patterns plus the active globals it can see. */
+    public PatternStatsResponse getStats(String userId) {
+        String familyGroupId = callerFamilyGroupId(userId);
+        List<SmsPatternDocument> active = patternRepository.findVisibleForFamily(familyGroupId).stream()
+                .filter(SmsPatternDocument::isActive)
+                .collect(Collectors.toList());
         long totalUsage = active.stream().mapToLong(SmsPatternDocument::getUsageCount).sum();
         Map<String, long[]> senderStats = new LinkedHashMap<>();
         for (SmsPatternDocument p : active) {
@@ -140,15 +195,38 @@ public class PatternRegistryService {
     }
 
     /**
-     * Persists a user's category override on a template. A blank or {@code null}
-     * name clears the override so future matches fall back to uncategorized.
+     * Sets or clears the caller's category override on a template. A blank or
+     * {@code null} name clears the override so future matches fall back to
+     * uncategorized. A FAMILY pattern is editable by its author or a family
+     * admin; a GLOBAL pattern is never mutated, so the caller's family gets a
+     * family copy carrying the category (copy-on-write, like an edit).
      */
     public SmsPattern updatePatternCategory(String patternId, String userId, String categoryName) {
         SmsPatternDocument pattern = patternRepository.findById(patternId)
                 .orElseThrow(() -> new ResourceNotFoundException("SmsPattern", patternId));
-        pattern.setCategoryName(categoryName == null || categoryName.isBlank() ? null : categoryName.trim());
+        String familyGroupId = callerFamilyGroupId(userId);
+        String normalized = categoryName == null || categoryName.isBlank() ? null : categoryName.trim();
+
+        if (SmsPatternDocument.SCOPE_GLOBAL.equals(pattern.getScope())) {
+            // The category is family-specific: customize the global into the
+            // caller's family copy instead of mutating the shared template.
+            return customizeGlobalForFamily(pattern, userId,
+                    categoryUpdateRequest(normalized));
+        }
+
+        requireEditable(pattern, userId);
+        pattern.setCategoryName(normalized);
         pattern.setUpdatedAt(Instant.now());
-        return toDto(patternRepository.save(pattern));
+        return toDto(patternRepository.save(pattern), false);
+    }
+
+    /** A category-only update request (fixed values, template and sample untouched). */
+    private UpdatePatternRequest categoryUpdateRequest(String categoryName) {
+        UpdatePatternRequest request = new UpdatePatternRequest();
+        // An explicit empty string clears the category; null would mean "leave
+        // the stored category unchanged" (see applyUpdate).
+        request.setCategoryName(categoryName == null ? "" : categoryName);
+        return request;
     }
 
     /**
@@ -186,6 +264,10 @@ public class PatternRegistryService {
         doc.setOwnerFamilyGroupId(familyGroupId);
         doc.setCreatedByUserId(userId);
         doc.setSource(SmsPatternDocument.SOURCE_USER);
+        // A reactivated template was authored here, so it must not keep a link
+        // to a global it was copied from (that would make a later edit update
+        // the wrong family copy).
+        doc.setDerivedFromPatternId(null);
         doc.setActive(true);
         // Match precedence within a scope is "newest updatedAt wins", so a
         // freshly authored pattern must carry the timestamp from the start.
@@ -237,6 +319,14 @@ public class PatternRegistryService {
         if (SmsPatternDocument.SCOPE_GLOBAL.equals(doc.getScope())) {
             String familyGroupId = callerFamilyGroupId(userId);
             hiddenPatternRepository.deleteByFamilyGroupIdAndPatternId(familyGroupId, patternId);
+            // A family copy created by a prior edit would still shadow the
+            // re-enabled global (family-first precedence), so deactivate it.
+            patternRepository.findByOwnerFamilyGroupIdAndDerivedFromPatternId(familyGroupId, patternId)
+                    .ifPresent(copy -> {
+                        copy.setActive(false);
+                        copy.setUpdatedAt(Instant.now());
+                        patternRepository.save(copy);
+                    });
             return toDto(doc, false);
         }
 
@@ -270,8 +360,23 @@ public class PatternRegistryService {
                     + " uses to be promoted (currently " + doc.getUsageCount() + ")");
         }
 
+        // A promoted pattern becomes the shared template for its sender; a
+        // conflicting active GLOBAL would silently lose matches to the
+        // family-first precedence rule, so refuse to create that shadow.
+        boolean globalDuplicate = patternRepository
+                .findBySenderAndTemplateAndScope(doc.getSender(), doc.getTemplate(),
+                        SmsPatternDocument.SCOPE_GLOBAL).stream()
+                .anyMatch(SmsPatternDocument::isActive);
+        if (globalDuplicate) {
+            throw new IllegalStateException("An active global pattern with this template already exists for sender "
+                    + doc.getSender());
+        }
+
         doc.setScope(SmsPatternDocument.SCOPE_GLOBAL);
         doc.setOwnerFamilyGroupId(null);
+        // A promoted pattern is a first-class global, not the copy of another
+        // global, so it must not keep a derivedFrom pointer.
+        doc.setDerivedFromPatternId(null);
         // Family literals (e.g. "Pan Shop") must not leak into the shared library.
         doc.setFixedValues(null);
         doc.setUpdatedAt(Instant.now());
@@ -391,8 +496,10 @@ public class PatternRegistryService {
             copy.setFixedValues(global.getFixedValues());
             copy.setSampleMessage(global.getSampleMessage());
             copy.setCategoryName(global.getCategoryName());
-            copy.setActive(true);
         }
+        // An existing copy may have been disabled for this family; editing the
+        // global again re-activates it — the family is actively using it.
+        copy.setActive(true);
 
         String sender = request.getSender() != null
                 ? requireText(request.getSender(), "sender cannot be blank")

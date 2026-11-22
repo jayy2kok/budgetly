@@ -305,12 +305,13 @@ class TransactionDetailScreen extends ConsumerWidget {
       builder: (_) => CategoryPickerSheet(
         categories: categories,
         selectedCategoryId: txn.categoryId,
-        onSelected: (category) => _applyCategory(ref, txn, category),
+        onSelected: (category) => _applyCategory(context, ref, txn, category),
       ),
     );
   }
 
   Future<void> _applyCategory(
+    BuildContext context,
     WidgetRef ref,
     Transaction txn,
     Category? category,
@@ -319,9 +320,21 @@ class TransactionDetailScreen extends ConsumerWidget {
       'categoryId': category?.id ?? '',
     });
     if (txn.matchedPatternId != null) {
-      await ref
-          .read(patternCacheServiceProvider)
-          .updatePatternCategory(txn.matchedPatternId!, category?.name);
+      try {
+        await ref
+            .read(patternCacheServiceProvider)
+            .updatePatternCategory(txn.matchedPatternId!, category?.name);
+      } catch (e) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Transaction saved, but the pattern category was not updated: $e',
+              style: GoogleFonts.inter(),
+            ),
+          ),
+        );
+      }
     }
   }
 }

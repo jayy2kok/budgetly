@@ -62,7 +62,7 @@ class PatternRegistryNotifier extends Notifier<PatternRegistryState> {
     required String sender,
     required String template,
     required ExtractionMap extractionMap,
-    Map<String, String> fixedValues = const {},
+    Map<String, String>? fixedValues,
     required String sampleMessage,
     String? categoryName,
   }) async {

@@ -2,11 +2,13 @@ package com.budgetly.api.service;
 
 import com.budgetly.api.document.FamilyMemberDocument;
 import com.budgetly.api.document.HiddenPatternDocument;
+import com.budgetly.api.document.RejectedPatternDocument;
 import com.budgetly.api.document.SmsPatternDocument;
 import com.budgetly.api.exception.ForbiddenException;
 import com.budgetly.api.generated.model.CreatePatternRequest;
 import com.budgetly.api.generated.model.ExtractionMap;
 import com.budgetly.api.generated.model.FamilyGroup;
+import com.budgetly.api.generated.model.PatternReportRequest;
 import com.budgetly.api.generated.model.PatternScope;
 import com.budgetly.api.generated.model.PatternSource;
 import com.budgetly.api.generated.model.SmsPattern;
@@ -18,6 +20,9 @@ import com.budgetly.api.repository.RejectedPatternRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import com.mongodb.client.result.UpdateResult;
+import org.springframework.data.mongodb.core.FindAndModifyOptions;
+import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
@@ -28,6 +33,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 class PatternRegistryServiceTest {
@@ -41,6 +47,7 @@ class PatternRegistryServiceTest {
     private RejectedPatternRepository rejectedPatternRepository;
     private FamilyGroupService familyGroupService;
     private FamilyMemberRepository familyMemberRepository;
+    private MongoTemplate mongoTemplate;
     private PatternRegistryService service;
 
     @BeforeEach
@@ -50,9 +57,10 @@ class PatternRegistryServiceTest {
         rejectedPatternRepository = mock(RejectedPatternRepository.class);
         familyGroupService = mock(FamilyGroupService.class);
         familyMemberRepository = mock(FamilyMemberRepository.class);
+        mongoTemplate = mock(MongoTemplate.class);
         service = new PatternRegistryService(patternRepository, hiddenPatternRepository,
                 rejectedPatternRepository, familyGroupService, familyMemberRepository,
-                new AnchorParserService());
+                new AnchorParserService(), mongoTemplate);
         ReflectionTestUtils.setField(service, "promoteUsageThreshold", 3);
     }
 
@@ -586,5 +594,222 @@ class PatternRegistryServiceTest {
 
         assertThat(senders).hasSize(1);
         assertThat(senders.get(0)).containsEntry("sender", SENDER).containsEntry("patternCount", 1);
+    }
+
+    // ── updatePatternCategory ────────────────────────────────────
+
+    @Test
+    void updatePatternCategory_familyAuthor_setsCategory() {
+        SmsPatternDocument doc = familyPattern("p1", "fam-1", "u1", 1);
+        when(patternRepository.findById("p1")).thenReturn(Optional.of(doc));
+        when(familyGroupService.getMyFamily("u1")).thenReturn(family("fam-1"));
+        when(patternRepository.save(any(SmsPatternDocument.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        SmsPattern result = service.updatePatternCategory("p1", "u1", " Food ");
+
+        assertThat(result.getCategoryName()).isEqualTo("Food");
+        assertThat(doc.getCategoryName()).isEqualTo("Food");
+    }
+
+    @Test
+    void updatePatternCategory_familyBlank_clearsCategory() {
+        SmsPatternDocument doc = familyPattern("p1", "fam-1", "u1", 1);
+        doc.setCategoryName("Food");
+        when(patternRepository.findById("p1")).thenReturn(Optional.of(doc));
+        when(familyGroupService.getMyFamily("u1")).thenReturn(family("fam-1"));
+        when(patternRepository.save(any(SmsPatternDocument.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        SmsPattern result = service.updatePatternCategory("p1", "u1", "  ");
+
+        assertThat(result.getCategoryName()).isNull();
+    }
+
+    @Test
+    void updatePatternCategory_familyNonAuthor_forbidden() {
+        SmsPatternDocument doc = familyPattern("p1", "fam-1", "u1", 1);
+        when(patternRepository.findById("p1")).thenReturn(Optional.of(doc));
+        when(familyGroupService.getMyFamily("u2")).thenReturn(family("fam-1"));
+        when(familyMemberRepository.findByUserIdAndFamilyGroupId("u2", "fam-1"))
+                .thenReturn(Optional.of(member("u2", "fam-1", "MEMBER")));
+
+        assertThatThrownBy(() -> service.updatePatternCategory("p1", "u2", "Food"))
+                .isInstanceOf(ForbiddenException.class);
+    }
+
+    @Test
+    void updatePatternCategory_global_copiesCategoryToFamilyCopy() {
+        SmsPatternDocument global = globalPattern("g1");
+        when(patternRepository.findById("g1")).thenReturn(Optional.of(global));
+        when(familyGroupService.getMyFamily("u1")).thenReturn(family("fam-1"));
+        when(patternRepository.save(any(SmsPatternDocument.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        SmsPattern result = service.updatePatternCategory("g1", "u1", "Travel");
+
+        assertThat(result.getScope()).isEqualTo(PatternScope.FAMILY);
+        assertThat(result.getCategoryName()).isEqualTo("Travel");
+        // The shared global keeps its own (empty) category.
+        assertThat(global.getCategoryName()).isNull();
+        ArgumentCaptor<HiddenPatternDocument> hidden = ArgumentCaptor.forClass(HiddenPatternDocument.class);
+        verify(hiddenPatternRepository).save(hidden.capture());
+        assertThat(hidden.getValue().getPatternId()).isEqualTo("g1");
+    }
+
+    @Test
+    void updatePatternCategory_globalBlank_clearsFamilyCopyCategory() {
+        SmsPatternDocument global = globalPattern("g1");
+        when(patternRepository.findById("g1")).thenReturn(Optional.of(global));
+        when(familyGroupService.getMyFamily("u1")).thenReturn(family("fam-1"));
+        when(patternRepository.save(any(SmsPatternDocument.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        SmsPattern result = service.updatePatternCategory("g1", "u1", null);
+
+        assertThat(result.getCategoryName()).isNull();
+        assertThat(global.getCategoryName()).isNull();
+    }
+
+    // ── reportPattern ────────────────────────────────────────────
+
+    private UpdateResult modifiedCount(long count) {
+        UpdateResult result = mock(UpdateResult.class);
+        when(result.getModifiedCount()).thenReturn(count);
+        return result;
+    }
+
+    @Test
+    void reportPattern_duplicateReporter_noOp() {
+        SmsPatternDocument doc = familyPattern("p1", "fam-1", "u1", 1);
+        doc.setReportCount(2);
+        when(patternRepository.findById("p1")).thenReturn(Optional.of(doc));
+        when(familyGroupService.getMyFamily("u1")).thenReturn(family("fam-1"));
+        UpdateResult noOp = modifiedCount(0);
+        when(mongoTemplate.updateFirst(any(), any(), eq(SmsPatternDocument.class))).thenReturn(noOp);
+
+        Map<String, Object> result = service.reportPattern("p1", "u1", new PatternReportRequest());
+
+        assertThat(result).containsEntry("removed", false).containsEntry("reportCount", 2);
+        // No increment, no save, no hide marker for a no-op report.
+        verify(mongoTemplate, never()).findAndModify(any(), any(), any(FindAndModifyOptions.class),
+                eq(SmsPatternDocument.class));
+        verify(patternRepository, never()).save(any(SmsPatternDocument.class));
+    }
+
+    @Test
+    void reportPattern_newReporter_removesAtThreshold() {
+        ReflectionTestUtils.setField(service, "reportThreshold", 2);
+        SmsPatternDocument doc = familyPattern("p1", "fam-1", "u1", 1);
+        when(patternRepository.findById("p1")).thenReturn(Optional.of(doc));
+        when(familyGroupService.getMyFamily("u1")).thenReturn(family("fam-1"));
+        UpdateResult added = modifiedCount(1);
+        when(mongoTemplate.updateFirst(any(), any(), eq(SmsPatternDocument.class))).thenReturn(added);
+        SmsPatternDocument incremented = familyPattern("p1", "fam-1", "u1", 1);
+        incremented.setReportCount(2);
+        when(mongoTemplate.findAndModify(any(), any(), any(FindAndModifyOptions.class),
+                eq(SmsPatternDocument.class))).thenReturn(incremented);
+        when(patternRepository.save(any(SmsPatternDocument.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(rejectedPatternRepository.save(any(RejectedPatternDocument.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Map<String, Object> result = service.reportPattern("p1", "u1", new PatternReportRequest());
+
+        assertThat(result).containsEntry("removed", true).containsEntry("reportCount", 2);
+        assertThat(doc.isActive()).isFalse();
+        verify(rejectedPatternRepository).save(any(RejectedPatternDocument.class));
+    }
+
+    @Test
+    void reportPattern_globalRemoval_hidesForFamily() {
+        ReflectionTestUtils.setField(service, "reportThreshold", 2);
+        SmsPatternDocument doc = globalPattern("g1");
+        when(patternRepository.findById("g1")).thenReturn(Optional.of(doc));
+        when(familyGroupService.getMyFamily("u1")).thenReturn(family("fam-1"));
+        UpdateResult added = modifiedCount(1);
+        when(mongoTemplate.updateFirst(any(), any(), eq(SmsPatternDocument.class))).thenReturn(added);
+        SmsPatternDocument incremented = globalPattern("g1");
+        incremented.setReportCount(2);
+        when(mongoTemplate.findAndModify(any(), any(), any(FindAndModifyOptions.class),
+                eq(SmsPatternDocument.class))).thenReturn(incremented);
+        when(patternRepository.save(any(SmsPatternDocument.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.reportPattern("g1", "u1", new PatternReportRequest());
+
+        ArgumentCaptor<HiddenPatternDocument> hidden = ArgumentCaptor.forClass(HiddenPatternDocument.class);
+        verify(hiddenPatternRepository).save(hidden.capture());
+        assertThat(hidden.getValue().getFamilyGroupId()).isEqualTo("fam-1");
+        assertThat(hidden.getValue().getPatternId()).isEqualTo("g1");
+    }
+
+    // ── enablePattern: copy-on-write ─────────────────────────────
+
+    @Test
+    void enablePattern_global_deactivatesFamilyCopy() {
+        SmsPatternDocument global = globalPattern("g1");
+        SmsPatternDocument copy = familyPattern("c1", "fam-1", "u1", 2);
+        copy.setDerivedFromPatternId("g1");
+        when(patternRepository.findById("g1")).thenReturn(Optional.of(global));
+        when(familyGroupService.getMyFamily("u1")).thenReturn(family("fam-1"));
+        when(patternRepository.findByOwnerFamilyGroupIdAndDerivedFromPatternId("fam-1", "g1"))
+                .thenReturn(Optional.of(copy));
+        when(patternRepository.save(any(SmsPatternDocument.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        SmsPattern result = service.enablePattern("g1", "u1");
+
+        assertThat(result.getHiddenForFamily()).isFalse();
+        verify(hiddenPatternRepository).deleteByFamilyGroupIdAndPatternId("fam-1", "g1");
+        // The copy must not keep shadowing the re-enabled global.
+        ArgumentCaptor<SmsPatternDocument> saved = ArgumentCaptor.forClass(SmsPatternDocument.class);
+        verify(patternRepository).save(saved.capture());
+        assertThat(saved.getValue().getId()).isEqualTo("c1");
+        assertThat(saved.getValue().isActive()).isFalse();
+    }
+
+    // ── promotePattern: global duplicate + derived cleanup ───────
+
+    @Test
+    void promotePattern_activeGlobalDuplicate_throws() {
+        SmsPatternDocument doc = familyPattern("p1", "fam-1", "u1", 5);
+        when(patternRepository.findById("p1")).thenReturn(Optional.of(doc));
+        when(familyMemberRepository.findByUserIdAndFamilyGroupId("u1", "fam-1"))
+                .thenReturn(Optional.of(member("u1", "fam-1", "ADMIN")));
+        when(patternRepository.findBySenderAndTemplateAndScope(SENDER, TEMPLATE, "GLOBAL"))
+                .thenReturn(List.of(globalPattern("g9")));
+
+        assertThatThrownBy(() -> service.promotePattern("p1", "u1"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("global");
+        verify(patternRepository, never()).save(any(SmsPatternDocument.class));
+    }
+
+    @Test
+    void promotePattern_inactiveGlobalDuplicate_allowed() {
+        SmsPatternDocument doc = familyPattern("p1", "fam-1", "u1", 5);
+        SmsPatternDocument inactiveGlobal = globalPattern("g9");
+        inactiveGlobal.setActive(false);
+        when(patternRepository.findById("p1")).thenReturn(Optional.of(doc));
+        when(familyMemberRepository.findByUserIdAndFamilyGroupId("u1", "fam-1"))
+                .thenReturn(Optional.of(member("u1", "fam-1", "ADMIN")));
+        when(patternRepository.findBySenderAndTemplateAndScope(SENDER, TEMPLATE, "GLOBAL"))
+                .thenReturn(List.of(inactiveGlobal));
+        when(patternRepository.save(any(SmsPatternDocument.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        SmsPattern result = service.promotePattern("p1", "u1");
+
+        assertThat(result.getScope()).isEqualTo(PatternScope.GLOBAL);
+    }
+
+    @Test
+    void promotePattern_clearsDerivedFromPatternId() {
+        SmsPatternDocument doc = familyPattern("p1", "fam-1", "u1", 5);
+        doc.setDerivedFromPatternId("g1");
+        when(patternRepository.findById("p1")).thenReturn(Optional.of(doc));
+        when(familyMemberRepository.findByUserIdAndFamilyGroupId("u1", "fam-1"))
+                .thenReturn(Optional.of(member("u1", "fam-1", "ADMIN")));
+        when(patternRepository.findBySenderAndTemplateAndScope(SENDER, TEMPLATE, "GLOBAL"))
+                .thenReturn(List.of());
+        when(patternRepository.save(any(SmsPatternDocument.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.promotePattern("p1", "u1");
+
+        ArgumentCaptor<SmsPatternDocument> saved = ArgumentCaptor.forClass(SmsPatternDocument.class);
+        verify(patternRepository).save(saved.capture());
+        assertThat(saved.getValue().getDerivedFromPatternId()).isNull();
     }
 }

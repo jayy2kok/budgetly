@@ -56,7 +56,8 @@ public class PatternRegistryController implements PatternRegistryApi {
 
     @Override
     public ResponseEntity<PatternStatsResponse> getPatternStats() {
-        return ResponseEntity.ok(patternRegistryService.getStats());
+        String userId = ControllerUtils.getCurrentUserId();
+        return ResponseEntity.ok(patternRegistryService.getStats(userId));
     }
 
     @Override

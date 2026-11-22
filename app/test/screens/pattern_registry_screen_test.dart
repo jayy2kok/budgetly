@@ -58,7 +58,7 @@ class _FakePatternCacheService extends PatternCacheService {
   @override
   Future<SmsPattern> promotePattern(String patternId) async {
     promoted.add(patternId);
-    throw const _PromoteFailure();
+    return _withState(patternId, hiddenForFamily: false, active: true);
   }
 
   void _replace(SmsPattern updated) {
@@ -95,12 +95,6 @@ class _FakePatternCacheService extends PatternCacheService {
   }
 }
 
-class _PromoteFailure implements Exception {
-  const _PromoteFailure();
-  @override
-  String toString() => 'Promote not supported in this test';
-}
-
 const _userId = 'user-1';
 
 User _user() => User(
@@ -128,6 +122,7 @@ SmsPattern _pattern({
   PatternScope scope = PatternScope.global,
   PatternSource source = PatternSource.llm,
   String? createdByUserId,
+  Map<String, String> fixedValues = const {},
   int usageCount = 0,
   bool active = true,
   bool hiddenForFamily = false,
@@ -137,6 +132,7 @@ SmsPattern _pattern({
       sender: sender,
       template: template,
       extractionMap: const ExtractionMap(amount: 'amount', merchant: 'merchant'),
+      fixedValues: fixedValues,
       sampleMessage: 'sample for $sender',
       usageCount: usageCount,
       scope: scope,
@@ -287,7 +283,7 @@ void main() {
       expect(find.text('New pattern'), findsNothing);
     });
 
-    testWidgets('every visible pattern offers Edit and Disable', (tester) async {
+    testWidgets('every editable pattern offers Edit and Disable', (tester) async {
       await _pumpRegistryScreen(
         tester,
         patterns: [
@@ -298,6 +294,8 @@ void main() {
             template: 'Rs.{amount} debited',
             scope: PatternScope.family,
             source: PatternSource.user,
+            // Author of the family pattern → can edit.
+            createdByUserId: _userId,
           ),
         ],
       );
@@ -309,6 +307,32 @@ void main() {
         findsNWidgets(2),
       );
       expect(find.byTooltip('Delete pattern'), findsNothing);
+    });
+
+    testWidgets('a family pattern by someone else is not editable for a '
+        'non-admin member', (tester) async {
+      await _pumpRegistryScreen(
+        tester,
+        patterns: [
+          _pattern(
+            id: 'p-family',
+            sender: 'SBIBNK',
+            template: 'Rs.{amount} debited',
+            scope: PatternScope.family,
+            source: PatternSource.user,
+            createdByUserId: 'someone-else',
+          ),
+        ],
+        members: [_member(userId: _userId)],
+      );
+
+      // Status still renders…
+      expect(find.text('Family'), findsOneWidget);
+      expect(find.text('Active'), findsOneWidget);
+      // …but there is no Edit / Disable / Enable / Promote for this caller.
+      expect(find.byKey(const Key('pattern-edit-p-family')), findsNothing);
+      expect(find.byKey(const Key('pattern-toggle-p-family')), findsNothing);
+      expect(find.byTooltip('Promote to global'), findsNothing);
     });
 
     testWidgets('disabled and hidden patterns show their status and Enable', (
@@ -329,6 +353,7 @@ void main() {
             template: 'Disabled {amount}',
             scope: PatternScope.family,
             source: PatternSource.user,
+            createdByUserId: _userId,
             active: false,
           ),
           _pattern(id: 'p-active', sender: 'ICICI', template: 'Active {amount}'),
@@ -371,6 +396,7 @@ void main() {
             template: 'Rs.{amount} debited',
             scope: PatternScope.family,
             source: PatternSource.user,
+            createdByUserId: _userId,
           ),
         ],
       );
@@ -394,6 +420,7 @@ void main() {
             template: 'Rs.{amount} debited',
             scope: PatternScope.family,
             source: PatternSource.user,
+            createdByUserId: _userId,
             active: false,
           ),
         ],
@@ -417,6 +444,7 @@ void main() {
             template: 'Rs.{amount} debited',
             scope: PatternScope.family,
             source: PatternSource.user,
+            createdByUserId: _userId,
           ),
         ],
       );
@@ -470,6 +498,75 @@ void main() {
       );
 
       expect(find.byTooltip('Promote to global'), findsNothing);
+    });
+
+    testWidgets('promoting a pattern with fixed values warns they are dropped', (
+      tester,
+    ) async {
+      await _pumpRegistryScreen(
+        tester,
+        patterns: [
+          _pattern(
+            id: 'p-family',
+            sender: 'SBIBNK',
+            template: 'Rs.{amount} debited',
+            scope: PatternScope.family,
+            source: PatternSource.user,
+            createdByUserId: 'someone-else',
+            fixedValues: {'merchant': 'Pan Shop'},
+          ),
+        ],
+        members: [_member(userId: _userId, role: MemberRole.admin)],
+      );
+
+      await tester.tap(find.byKey(const Key('pattern-promote-p-family')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Promote to global?'), findsOneWidget);
+      expect(
+        find.textContaining('fixed values (Pan Shop) are family-specific'),
+        findsOneWidget,
+      );
+
+      // Confirm proceeds with the promote call.
+      await tester.tap(find.widgetWithText(TextButton, 'Promote'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('"SBIBNK" pattern is now global'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('cancelling the promote dialog does not promote', (tester) async {
+      await _pumpRegistryScreen(
+        tester,
+        patterns: [
+          _pattern(
+            id: 'p-family',
+            sender: 'SBIBNK',
+            template: 'Rs.{amount} debited',
+            scope: PatternScope.family,
+            source: PatternSource.user,
+            createdByUserId: 'someone-else',
+          ),
+        ],
+        members: [_member(userId: _userId, role: MemberRole.admin)],
+      );
+
+      await tester.tap(find.byKey(const Key('pattern-promote-p-family')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('This pattern will be shared with every family.'),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+      await tester.pumpAndSettle();
+
+      // No promote was attempted, and the dialog is gone.
+      expect(find.text('Promote to global?'), findsNothing);
     });
 
     testWidgets('empty registry points to the inbox', (tester) async {

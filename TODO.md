@@ -10,7 +10,7 @@
 - [ ] **WORK-302** — Resume-token integration test against a live MongoDB replica set, plus a 1k–10k msg/s ingestion load test.
 
 ### API Contract Hygiene (Contract-First)
-- [ ] Reconcile the two OpenAPI files: root `api/budgetly-openapi.yml` (stale — still lists the removed message-triage endpoints and `DELETE /patterns/{id}`) vs `budgetly_api/src/main/resources/api/budgetly-openapi.yml` (canonical, used by the generator). Keep one source of truth.
+- [ ] Regenerate the Flutter/Dart client SDK from `budgetly_api/src/main/resources/api/budgetly-openapi.yml` and switch `app/lib/data/remote/` to the generated client (today the Dio calls are hand-written). The stale root-level `api/budgetly-openapi.yml` was deleted (2026-11-22); `budgetly_api/src/main/resources/api/budgetly-openapi.yml` is the single source of truth.
 
 ### Release Engineering
 - [ ] **APK signing for release builds** (`SIGN.1`–`SIGN.5`): generate keystore, wire `key.properties` + `signingConfigs.release`, store secrets, and make `release.yml` emit a signed `--release` APK (today it builds a debug APK).

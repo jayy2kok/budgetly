@@ -29,6 +29,10 @@ public interface PatternRegistryRepository extends MongoRepository<SmsPatternDoc
             + " ] }")
     List<SmsPatternDocument> findVisibleForFamilySince(String familyGroupId, Instant since);
 
+    /** All patterns with the given sender+template in the global scope, any state. */
+    List<SmsPatternDocument> findBySenderAndTemplateAndScope(
+            String sender, String template, String scope);
+
     /** Active patterns visible to a family for a specific sender. */
     @Query("{ 'sender': ?0, 'active': true, $or: [ { 'scope': { $ne': 'FAMILY' } }, { 'ownerFamilyGroupId': ?1 } ] }")
     List<SmsPatternDocument> findActiveForSenderAndFamily(String sender, String familyGroupId);

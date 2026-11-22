@@ -10,6 +10,7 @@ import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 
 @Data
@@ -63,11 +64,23 @@ public class SmsPatternDocument {
     @Builder.Default
     private String scope = SCOPE_GLOBAL;
 
-    /** Family that authored this pattern; null for GLOBAL patterns. */
+    /**
+     * Family that authored this pattern; null for GLOBAL patterns. When a
+     * FAMILY copy is created from a GLOBAL (see {@link #derivedFromPatternId}),
+     * this is the copy's authoring family.
+     */
     private String ownerFamilyGroupId;
 
     /** User who authored this pattern; null for LLM-learned patterns. */
     private String createdByUserId;
+
+    /**
+     * Users who reported this pattern, most recent first (capped at
+     * {@code pattern.report-threshold}). A user is counted once: reporting a
+     * pattern they already reported is a no-op.
+     */
+    @Builder.Default
+    private List<String> reportedByUserIds = new java.util.ArrayList<>();
 
     /**
      * For a FAMILY copy created by editing a GLOBAL pattern, the id of that

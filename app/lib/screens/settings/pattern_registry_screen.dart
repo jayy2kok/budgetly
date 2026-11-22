@@ -61,7 +61,12 @@ class _PatternRegistryScreenState extends ConsumerState<PatternRegistryScreen> {
           ? 'Pattern hidden for your family'
           : 'Pattern disabled';
 
+  /// Promotes a family pattern to the global registry. Family-specific fixed
+  /// values (e.g. "Pan Shop") are stripped by the server, so warn before
+  /// promoting a pattern that pins any.
   Future<void> _promote(SmsPattern pattern) async {
+    final confirm = await _confirmPromote(pattern);
+    if (confirm != true || !mounted) return;
     try {
       await ref
           .read(patternRegistryProvider.notifier)
@@ -72,6 +77,54 @@ class _PatternRegistryScreenState extends ConsumerState<PatternRegistryScreen> {
       if (!mounted) return;
       _snack(e.toString());
     }
+  }
+
+  Future<bool?> _confirmPromote(SmsPattern pattern) async {
+    final dropsFixedValues = pattern.fixedValues.isNotEmpty;
+    return showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: context.colors.cardSurface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(BudgetlyTheme.radiusCard),
+        ),
+        title: Text(
+          'Promote to global?',
+          style: GoogleFonts.ibmPlexSans(
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            color: context.colors.textMain,
+          ),
+        ),
+        content: Text(
+          dropsFixedValues
+              ? 'This pattern will be shared with all families. Its fixed '
+                  'values (${pattern.fixedValues.values.join(', ')}) are '
+                  'family-specific and will not be carried over.'
+              : 'This pattern will be shared with every family.',
+          style: GoogleFonts.inter(fontSize: 13, color: context.colors.textMuted),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(
+              'Cancel',
+              style: GoogleFonts.inter(color: context.colors.textMuted),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(
+              'Promote',
+              style: GoogleFonts.inter(
+                color: context.colors.primaryLight,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   void _snack(String message) {
@@ -186,6 +239,13 @@ class _PatternRegistryScreenState extends ConsumerState<PatternRegistryScreen> {
                                     _PatternTile(
                                       pattern: p,
                                       isAdmin: isAdmin,
+                                      // GLOBALs are customizable by any member
+                                      // (copy-on-write); FAMILY patterns need the
+                                      // author or a family admin.
+                                      canEdit:
+                                          p.scope == PatternScope.global ||
+                                          p.createdByUserId == userId ||
+                                          isAdmin,
                                       busy: state.busyPatternIds.contains(p.id),
                                       onEdit: () => context.push(
                                         '${AppRoutes.patternBuilder}'
@@ -255,6 +315,10 @@ class _SenderHeader extends StatelessWidget {
 class _PatternTile extends StatelessWidget {
   final SmsPattern pattern;
   final bool isAdmin;
+
+  /// Whether the caller may edit/disable/enable this pattern: any member for a
+  /// GLOBAL (copy-on-write), the author or a family admin for a FAMILY pattern.
+  final bool canEdit;
   final bool busy;
   final VoidCallback onEdit;
   final VoidCallback onToggle;
@@ -263,6 +327,7 @@ class _PatternTile extends StatelessWidget {
   const _PatternTile({
     required this.pattern,
     required this.isAdmin,
+    required this.canEdit,
     required this.busy,
     required this.onEdit,
     required this.onToggle,
@@ -349,7 +414,7 @@ class _PatternTile extends StatelessWidget {
                   height: 16,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
-              else ...[
+              else if (canEdit) ...[
                 TextButton(
                   key: Key('pattern-edit-${pattern.id}'),
                   onPressed: onEdit,

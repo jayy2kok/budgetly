@@ -61,6 +61,10 @@ class _PatternBuilderScreenState extends ConsumerState<PatternBuilderScreen> {
   /// Category override applied to transactions this pattern parses.
   String? _categoryName;
 
+  /// True once the user has explicitly chosen (or deselected) a category, so a
+  /// deselected category can be sent as a clear rather than "unchanged".
+  bool _categoryTouched = false;
+
   /// User-pinned literal values; empty means "use the tagged value".
   final TextEditingController _fixedMerchant = TextEditingController();
   final TextEditingController _fixedAccount = TextEditingController();
@@ -285,15 +289,20 @@ class _PatternBuilderScreenState extends ConsumerState<PatternBuilderScreen> {
         categories: categories,
         selectedCategoryId: selected,
         onSelected: (category) => setState(
-          () => _categoryName = category?.name,
+          () {
+            _categoryName = category?.name;
+            _categoryTouched = true;
+          },
         ),
       ),
     );
   }
 
   /// Non-blank fixed values, keyed by transaction field. Fixed wins over the
-  /// value extracted by the template.
-  Map<String, String> _fixedValues() {
+  /// value extracted by the template. Returns null when every field is blank —
+  /// the API treats an explicit null as "clear the stored literals", whereas an
+  /// empty map would mean "leave them unchanged".
+  Map<String, String>? _fixedValues() {
     final values = <String, String>{};
     void add(String field, TextEditingController controller) {
       final value = controller.text.trim();
@@ -304,8 +313,13 @@ class _PatternBuilderScreenState extends ConsumerState<PatternBuilderScreen> {
     add('accountLast4', _fixedAccount);
     add('bankName', _fixedBank);
     add('notes', _fixedNotes);
-    return values;
+    return values.isEmpty ? null : values;
   }
+
+  /// The category value to send: the chosen name, an empty string when the user
+  /// explicitly deselected a category (the server clears it), or null when
+  /// untouched (the server keeps the stored override).
+  String? _categoryToSend() => _categoryName ?? (_categoryTouched ? '' : null);
 
   Future<void> _save() async {
     final result = _deriveDraft();
@@ -337,7 +351,7 @@ class _PatternBuilderScreenState extends ConsumerState<PatternBuilderScreen> {
               extractionMap: draft.extractionMap,
               fixedValues: _fixedValues(),
               sampleMessage: _sourceText,
-              categoryName: _categoryName,
+              categoryName: _categoryToSend(),
             );
         await ref.read(inboxProvider.notifier).refresh();
         if (!mounted) return;
@@ -350,7 +364,7 @@ class _PatternBuilderScreenState extends ConsumerState<PatternBuilderScreen> {
               extractionMap: draft.extractionMap,
               fixedValues: _fixedValues(),
               sampleMessage: _sourceText,
-              categoryName: _categoryName,
+              categoryName: _categoryToSend(),
             );
         // The sync checkpoint means this message is never re-read, so record it
         // now if the new pattern parses it completely.

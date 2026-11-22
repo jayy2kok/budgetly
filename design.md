@@ -285,7 +285,6 @@ flowchart LR
 - Canonical spec: `budgetly_api/src/main/resources/api/budgetly-openapi.yml`.
 - `openapi-generator-maven-plugin:7.27.0` generates Spring interfaces (tags → `Auth`, `FamilyGroups`, `Categories`, `Transactions`, `Messages`, `PatternRegistry`, `Dashboard`) and DTO models; controllers implement those interfaces.
 - SpringDoc serves Swagger UI (`/swagger-ui.html`) and OpenAPI JSON (`/api-docs`).
-- ⚠️ Known drift: the root-level `api/budgetly-openapi.yml` is an older copy of the canonical spec — see [TODO.md](TODO.md).
 
 ## 6. Configuration & Observability
 
