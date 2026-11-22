@@ -31,6 +31,98 @@ void main() {
       final r = reader(granted: false, cache: cacheWith([hdfcPattern()]));
       expect(await r.readInbox(userId: 'u1'), isEmpty);
     });
+
+    test('readAllInbox also honours the permission gate', () async {
+      final r = reader(granted: false, cache: cacheWith([]));
+      expect(await r.readAllInbox(userId: 'u1'), isEmpty);
+    });
+  });
+
+  group('SmsInboxReader all-inbox read', () {
+    test('includes every SMS, financial or not', () async {
+      final r = reader(
+        granted: true,
+        cache: cacheWith([hdfcPattern()]),
+        inbox: [
+          sms(1, 'HDFCBK', 'Spent Rs 500 at Grocery Mart on 01/10/2026', now),
+          sms(2, 'ADVRT', 'Happy Diwali! Flat 20% off everything.', now),
+          sms(3, 'OTPBNK', 'Your OTP for login is 482913. Do not share.', now),
+        ],
+      );
+
+      final messages = await r.readAllInbox(userId: 'u1');
+
+      expect(messages, hasLength(3));
+      // The inbox view is raw: no parsing or sender filtering.
+      expect(messages.every((m) => m.parseSource == null), isTrue);
+      expect(messages.every((m) => m.status == MessageStatus.pending), isTrue);
+      expect(messages.map((m) => m.rawText), [
+        'Spent Rs 500 at Grocery Mart on 01/10/2026',
+        'Happy Diwali! Flat 20% off everything.',
+        'Your OTP for login is 482913. Do not share.',
+      ]);
+    });
+
+    test('uses the received time, not the send time', () async {
+      final sent = DateTime.utc(2026, 11, 1, 11);
+      final received = DateTime.utc(2026, 11, 1, 12);
+      final r = reader(
+        granted: true,
+        cache: cacheWith([]),
+        inbox: [sms(1, 'HDFCBK', 'Rs.100 debited', sent, receivedAt: received)],
+      );
+
+      final messages = await r.readAllInbox(userId: 'u1');
+
+      expect(
+        messages.single.receivedAt.isAtSameMomentAs(received),
+        isTrue,
+        reason: 'the received (arrival) time must win over date_sent',
+      );
+      expect(messages.single.id, 'sms_1');
+    });
+
+    test('skips SMS with empty sender or body', () async {
+      final r = reader(
+        granted: true,
+        cache: cacheWith([]),
+        inbox: [
+          sms(1, '', 'Rs.100 debited', now),
+          sms(2, 'SBIUPI', '', now),
+        ],
+      );
+
+      expect(await r.readAllInbox(userId: 'u1'), isEmpty);
+    });
+  });
+
+  group('SmsInboxReader matchable patterns', () {
+    test('a pattern hidden for the family does not parse messages', () async {
+      final hidden = SmsPattern(
+        id: 'p-hidden',
+        sender: 'HDFCBK',
+        template: 'Spent Rs {amount} at {merchant} on {timestamp}',
+        extractionMap: inboxIdentityMap,
+        sampleMessage: 'Spent Rs 500 at Grocery Mart on 01/10/2026',
+        hiddenForFamily: true,
+        createdAt: DateTime.utc(2026, 1, 1),
+      );
+      final r = reader(
+        granted: true,
+        cache: cacheWith([hidden]),
+        inbox: [
+          sms(1, 'HDFCBK', 'Spent Rs 500 at Grocery Mart on 01/10/2026', now),
+        ],
+      );
+
+      final messages = await r.readInbox(userId: 'u1');
+
+      // Hidden means the sender is no longer known locally; the financial
+      // heuristic still queues the message for server analysis.
+      expect(messages, hasLength(1));
+      expect(messages.single.parseSource, isNull);
+      expect(messages.single.matchedPatternId, isNull);
+    });
   });
 
   group('SmsInboxReader known-sender strategy', () {

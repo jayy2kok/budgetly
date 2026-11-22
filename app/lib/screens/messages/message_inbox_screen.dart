@@ -2,15 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 
-import '../../config/theme.dart';
 import '../../config/routes.dart';
+import '../../config/theme.dart';
 import '../../models/message.dart';
-import '../../providers/family_provider.dart';
-import '../../providers/message_provider.dart';
+import '../../models/transaction.dart';
+import '../../providers/inbox_provider.dart';
 import '../../providers/sms_provider.dart';
 
-/// Message Inbox — Three-tab layout: Incomplete + Unprocessed + Failed.
+/// Message Inbox — mirrors the device SMS inbox with two tabs:
+/// Recorded Transactions and Non-Transactions.
 class MessageInboxScreen extends ConsumerStatefulWidget {
   const MessageInboxScreen({super.key});
 
@@ -20,27 +22,14 @@ class MessageInboxScreen extends ConsumerStatefulWidget {
 
 class _MessageInboxScreenState extends ConsumerState<MessageInboxScreen>
     with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+  late final TabController _tabController;
+  bool _refreshing = false;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      // 1. Load remote messages from API. Await this before merging device SMS:
-      //    loadMessages() replaces the whole message state, so if it resolves
-      //    after the local merge it wipes out the messages read from the inbox.
-      await ref.read(messageProvider.notifier).loadMessages();
-
-      // 2. Request SMS permission (shows OS dialog if not yet decided)
-      final smsNotifier = ref.read(smsProvider.notifier);
-      final granted = await smsNotifier.requestPermission();
-
-      // 3. If granted, read existing SMS from device and merge into pipeline
-      if (granted) {
-        smsNotifier.loadAndMergeInboxMessages();
-      }
-    });
+    _tabController = TabController(length: 2, vsync: this);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _refresh());
   }
 
   @override
@@ -49,9 +38,33 @@ class _MessageInboxScreenState extends ConsumerState<MessageInboxScreen>
     super.dispose();
   }
 
+  /// Requests SMS access, reads the device inbox, runs the sync pipeline, then
+  /// re-reads so freshly recorded messages move to the Recorded tab.
+  Future<void> _refresh() async {
+    if (_refreshing) return;
+    setState(() => _refreshing = true);
+    try {
+      final sms = ref.read(smsProvider.notifier);
+      await sms.recheckPermission();
+      var granted = ref.read(smsProvider).smsPermissionGranted;
+      if (!granted) {
+        granted = await sms.requestPermission();
+      }
+      if (!granted) {
+        await ref.read(inboxProvider.notifier).refresh();
+        return;
+      }
+      await ref.read(inboxProvider.notifier).refresh();
+      await sms.syncInboxMessages();
+      await ref.read(inboxProvider.notifier).refresh();
+    } finally {
+      if (mounted) setState(() => _refreshing = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final msgState = ref.watch(messageProvider);
+    final inbox = ref.watch(inboxProvider);
 
     return Scaffold(
       body: SafeArea(
@@ -59,7 +72,7 @@ class _MessageInboxScreenState extends ConsumerState<MessageInboxScreen>
           children: [
             // ── Header ──
             Padding(
-              padding: EdgeInsets.fromLTRB(8, 12, 8, 0),
+              padding: const EdgeInsets.fromLTRB(8, 12, 8, 0),
               child: Row(
                 children: [
                   IconButton(
@@ -80,69 +93,37 @@ class _MessageInboxScreenState extends ConsumerState<MessageInboxScreen>
                       ),
                     ),
                   ),
-                  TextButton(
-                    onPressed: () => context.push(AppRoutes.ignoredMessages),
-                    child: Text(
-                      'Ignored',
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: context.colors.primary,
-                      ),
-                    ),
+                  IconButton(
+                    onPressed: _refreshing ? null : _refresh,
+                    icon: _refreshing
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Icon(
+                            Icons.refresh,
+                            color: context.colors.textMuted,
+                          ),
+                    tooltip: 'Refresh inbox',
                   ),
                 ],
               ),
             ),
-
-            // ── Auto-post banner ──
-            Container(
-              margin: EdgeInsets.fromLTRB(20, 8, 20, 4),
-              padding: EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: context.colors.accentMint.withValues(alpha: 0.08),
-                borderRadius:
-                    BorderRadius.circular(BudgetlyTheme.radiusMedium),
-                border: Border.all(
-                  color: context.colors.accentMint.withValues(alpha: 0.2),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.check_circle,
-                      size: 16, color: context.colors.accentMint),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Fully parsed messages are auto-posted as transactions',
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        color: context.colors.accentMint,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            SizedBox(height: 8),
 
             // ── Tabs ──
             Container(
-              margin: EdgeInsets.symmetric(horizontal: 20),
-              padding: EdgeInsets.all(4),
+              margin: const EdgeInsets.fromLTRB(20, 8, 20, 8),
+              padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
                 color: context.colors.cardSurface,
-                borderRadius:
-                    BorderRadius.circular(BudgetlyTheme.radiusPill),
+                borderRadius: BorderRadius.circular(BudgetlyTheme.radiusPill),
               ),
               child: TabBar(
                 controller: _tabController,
                 indicator: BoxDecoration(
                   color: context.colors.surfaceHighlight,
-                  borderRadius:
-                      BorderRadius.circular(BudgetlyTheme.radiusPill),
+                  borderRadius: BorderRadius.circular(BudgetlyTheme.radiusPill),
                 ),
                 indicatorSize: TabBarIndicatorSize.tab,
                 dividerHeight: 0,
@@ -157,54 +138,42 @@ class _MessageInboxScreenState extends ConsumerState<MessageInboxScreen>
                 labelColor: context.colors.textMain,
                 unselectedLabelColor: context.colors.textMuted,
                 tabs: [
-                  Tab(
-                      text:
-                          'Incomplete (${msgState.totalIncomplete})'),
-                  Tab(
-                      text:
-                          'Unprocessed (${msgState.totalUnprocessed})'),
-                  Tab(text: 'Failed (${msgState.totalFailed})'),
+                  Tab(text: 'Recorded (${inbox.recordedMessages.length})'),
+                  Tab(text: 'Non-Transactions (${inbox.nonTransactions.length})'),
                 ],
               ),
             ),
 
-            SizedBox(height: 8),
+            if (inbox.error != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Text(
+                  inbox.error!,
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    color: context.colors.accentCoral,
+                  ),
+                ),
+              ),
 
-            // ── Tab Content ──
-            if (msgState.isLoading)
+            // ── Tab content ──
+            if (inbox.isLoading && inbox.recordedMessages.isEmpty &&
+                inbox.nonTransactions.isEmpty)
               const Expanded(
-                child:
-                    Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
               )
+            else if (inbox.permissionDenied)
+              Expanded(child: _PermissionState(onGrant: _refresh))
             else
               Expanded(
                 child: TabBarView(
                   controller: _tabController,
                   children: [
-                    // ── INCOMPLETE TAB ──
-                    _IncompleteTab(
-                      messages: msgState.incompleteMessages,
-                      onConfirm: (id) =>
-                          ref.read(messageProvider.notifier).confirmMessage(id),
-                      onReject: (id) =>
-                          ref.read(messageProvider.notifier).rejectMessage(id),
+                    _RecordedTab(
+                      messages: inbox.recordedMessages,
+                      transactions: inbox.transactionByMessageId,
                     ),
-                    // ── UNPROCESSED TAB ──
-                    _UnprocessedTab(
-                      messages: msgState.unprocessedMessages,
-                      processingIds: msgState.processingIds,
-                      onSubmit: (id) =>
-                          ref.read(messageProvider.notifier).submitToServer(id, ref.read(familyProvider).currentFamily?.id ?? ''),
-                      onReject: (id) =>
-                          ref.read(messageProvider.notifier).rejectMessage(id),
-                    ),
-                    // ── FAILED TAB ──
-                    _FailedTab(
-                      messages: msgState.failedMessages,
-                      onCreatePattern: (id) => context.push(
-                        '${AppRoutes.patternBuilder}?messageId=$id',
-                      ),
-                    ),
+                    _NonTransactionsTab(messages: inbox.nonTransactions),
                   ],
                 ),
               ),
@@ -215,63 +184,193 @@ class _MessageInboxScreenState extends ConsumerState<MessageInboxScreen>
   }
 }
 
-// ─── Incomplete Tab ───
-class _IncompleteTab extends StatelessWidget {
-  final List<Message> messages;
-  final void Function(String id) onConfirm;
-  final void Function(String id) onReject;
+// ─── Recorded Transactions ───
 
-  const _IncompleteTab({
-    required this.messages,
-    required this.onConfirm,
-    required this.onReject,
-  });
+class _RecordedTab extends StatelessWidget {
+  final List<Message> messages;
+  final Map<String, Transaction> transactions;
+
+  const _RecordedTab({required this.messages, required this.transactions});
 
   @override
   Widget build(BuildContext context) {
     if (messages.isEmpty) {
-      return _EmptyState(
-        icon: Icons.check_circle_outline,
-        label: 'No incomplete messages',
-        subtitle: 'All regex-matched messages were fully parsed',
+      return const _EmptyState(
+        icon: Icons.receipt_long_outlined,
+        label: 'No recorded transactions',
+        subtitle: 'Messages that produce a transaction appear here',
       );
     }
 
-    return ListView.separated(
-      padding: EdgeInsets.all(16),
-      itemCount: messages.length,
-      separatorBuilder: (context, index) => SizedBox(height: 10),
-      itemBuilder: (context, index) {
-        final msg = messages[index];
-        return _IncompleteCard(
-          message: msg,
-          onConfirm: () => onConfirm(msg.id),
-          onReject: () => onReject(msg.id),
-        );
-      },
+    return RefreshIndicator(
+      onRefresh: () => _refreshInbox(context),
+      child: ListView.separated(
+        padding: const EdgeInsets.all(16),
+        itemCount: messages.length,
+        separatorBuilder: (_, _) => const SizedBox(height: 10),
+        itemBuilder: (context, index) {
+          final message = messages[index];
+          return _RecordedCard(
+            message: message,
+            transaction: transactions[message.id],
+          );
+        },
+      ),
     );
   }
 }
 
-// ─── Incomplete Card ───
-class _IncompleteCard extends StatelessWidget {
+class _RecordedCard extends StatelessWidget {
   final Message message;
-  final VoidCallback onConfirm;
-  final VoidCallback onReject;
+  final Transaction? transaction;
 
-  const _IncompleteCard({
-    required this.message,
-    required this.onConfirm,
-    required this.onReject,
-  });
+  const _RecordedCard({required this.message, this.transaction});
 
   @override
   Widget build(BuildContext context) {
-    final data = message.extractedData ?? {};
-    final mandatoryFields = ['amount', 'merchant', 'timestamp'];
+    final tx = transaction;
+    return InkWell(
+      onTap: tx == null
+          ? null
+          : () => context.push(
+              '${AppRoutes.transactionDetail}/${tx.id}',
+              extra: tx,
+            ),
+      borderRadius: BorderRadius.circular(BudgetlyTheme.radiusCard),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: context.colors.cardSurface,
+          borderRadius: BorderRadius.circular(BudgetlyTheme.radiusCard),
+          border: Border.all(color: context.colors.borderSubtle),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                _SenderChip(sender: message.sender),
+                const Spacer(),
+                Icon(
+                  Icons.check_circle_outline,
+                  size: 14,
+                  color: context.colors.accentMint,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  'Recorded',
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: context.colors.accentMint,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              message.rawText,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                color: context.colors.textMuted,
+                height: 1.4,
+              ),
+            ),
+            if (tx != null) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: context.colors.background,
+                  borderRadius:
+                      BorderRadius.circular(BudgetlyTheme.radiusSmall),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        tx.merchant,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.inter(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: context.colors.textMain,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      '${tx.isExpense ? '-' : '+'}${tx.currencySymbol}'
+                      '${tx.amount.toStringAsFixed(0)}',
+                      style: GoogleFonts.jetBrainsMono(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: tx.isExpense
+                            ? context.colors.textMain
+                            : context.colors.accentMint,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                _formatDate(tx.transactionDate),
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  color: context.colors.textDim,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
 
+// ─── Non-Transactions ───
+
+class _NonTransactionsTab extends StatelessWidget {
+  final List<Message> messages;
+
+  const _NonTransactionsTab({required this.messages});
+
+  @override
+  Widget build(BuildContext context) {
+    if (messages.isEmpty) {
+      return const _EmptyState(
+        icon: Icons.mark_email_read_outlined,
+        label: 'No non-transaction messages',
+        subtitle: 'Every SMS in the device inbox produced a transaction',
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: () => _refreshInbox(context),
+      child: ListView.separated(
+        padding: const EdgeInsets.all(16),
+        itemCount: messages.length,
+        separatorBuilder: (_, _) => const SizedBox(height: 10),
+        itemBuilder: (context, index) =>
+            _NonTransactionCard(message: messages[index]),
+      ),
+    );
+  }
+}
+
+class _NonTransactionCard extends StatelessWidget {
+  final Message message;
+
+  const _NonTransactionCard({required this.message});
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: context.colors.cardSurface,
         borderRadius: BorderRadius.circular(BudgetlyTheme.radiusCard),
@@ -280,31 +379,12 @@ class _IncompleteCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Sender
           Row(
             children: [
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: context.colors.primary.withValues(alpha: 0.1),
-                  borderRadius:
-                      BorderRadius.circular(BudgetlyTheme.radiusPill),
-                ),
-                child: Text(
-                  message.sender,
-                  style: GoogleFonts.jetBrainsMono(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: context.colors.primaryLight,
-                  ),
-                ),
-              ),
-              Spacer(),
-              Icon(Icons.pattern, size: 14,
-                  color: context.colors.textDim),
-              SizedBox(width: 4),
+              _SenderChip(sender: message.sender),
+              const Spacer(),
               Text(
-                'Regex matched',
+                _formatDate(message.receivedAt),
                 style: GoogleFonts.inter(
                   fontSize: 11,
                   color: context.colors.textDim,
@@ -312,522 +392,40 @@ class _IncompleteCard extends StatelessWidget {
               ),
             ],
           ),
-
-          SizedBox(height: 14),
-
-          // Extracted fields
-          ...mandatoryFields.map((field) {
-            final hasValue = data.containsKey(field);
-            return Padding(
-              padding: EdgeInsets.only(bottom: 6),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 80,
-                    child: Text(
-                      field.capitalize(),
-                      style: GoogleFonts.inter(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: context.colors.textDim,
-                      ),
-                    ),
-                  ),
-                  if (hasValue)
-                    Text(
-                      data[field]!,
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: context.colors.textMain,
-                      ),
-                    )
-                  else
-                    Container(
-                      padding: EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: Colors.amber.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        'Missing',
-                        style: GoogleFonts.inter(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.amber.shade700,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            );
-          }),
-
-          SizedBox(height: 8),
-
-          // Raw SMS
-          Container(
-            width: double.infinity,
-            padding: EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: context.colors.background,
-              borderRadius:
-                  BorderRadius.circular(BudgetlyTheme.radiusSmall),
-              border: Border.all(
-                color: context.colors.surfaceHighlight.withValues(alpha: 0.3),
-              ),
-            ),
-            child: Text(
-              message.rawText,
-              style: GoogleFonts.jetBrainsMono(
-                fontSize: 11,
-                color: context.colors.textDim,
-                height: 1.6,
-              ),
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
+          const SizedBox(height: 10),
+          Text(
+            message.rawText,
+            maxLines: 4,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              color: context.colors.textMuted,
+              height: 1.5,
             ),
           ),
-
-          SizedBox(height: 14),
-
-          // Actions
-          IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: onReject,
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: context.colors.accentCoral,
-                      side: BorderSide(
-                        color: context.colors.accentCoral
-                            .withValues(alpha: 0.3),
-                      ),
-                      // Compact padding: the global button theme uses
-                      // vertical: 16, which leaves no room for the 13px
-                      // label when the height is constrained.
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      minimumSize: const Size(0, 44),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(
-                            BudgetlyTheme.radiusMedium),
-                      ),
-                    ),
-                    child: Text('Reject',
-                        style: GoogleFonts.inter(
-                            fontSize: 13, fontWeight: FontWeight.w600)),
-                  ),
-                ),
-                SizedBox(width: 10),
-                Expanded(
-                  flex: 2,
-                  child: ElevatedButton.icon(
-                    onPressed: onConfirm,
-                    icon: Icon(Icons.check, size: 16),
-                    label: Text('Complete & Confirm',
-                        style: GoogleFonts.inter(
-                            fontSize: 13, fontWeight: FontWeight.w600)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: context.colors.primary,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      minimumSize: const Size(0, 44),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(
-                            BudgetlyTheme.radiusMedium),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─── Unprocessed Tab ───
-class _UnprocessedTab extends StatelessWidget {
-  final List<Message> messages;
-  final Set<String> processingIds;
-  final void Function(String id) onSubmit;
-  final void Function(String id) onReject;
-
-  const _UnprocessedTab({
-    required this.messages,
-    required this.processingIds,
-    required this.onSubmit,
-    required this.onReject,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    if (messages.isEmpty) {
-      return _EmptyState(
-        icon: Icons.mark_email_read_outlined,
-        label: 'No unprocessed messages',
-        subtitle: 'All incoming SMS matched a known pattern',
-      );
-    }
-
-    return ListView.separated(
-      padding: EdgeInsets.all(16),
-      itemCount: messages.length,
-      separatorBuilder: (context, index) => SizedBox(height: 10),
-      itemBuilder: (context, index) {
-        final msg = messages[index];
-        final isProcessing = processingIds.contains(msg.id);
-        return _UnprocessedCard(
-          message: msg,
-          isProcessing: isProcessing,
-          onSubmit: () => onSubmit(msg.id),
-          onReject: () => onReject(msg.id),
-        );
-      },
-    );
-  }
-}
-
-// ─── Unprocessed Card ───
-class _UnprocessedCard extends StatelessWidget {
-  final Message message;
-  final bool isProcessing;
-  final VoidCallback onSubmit;
-  final VoidCallback onReject;
-
-  const _UnprocessedCard({
-    required this.message,
-    required this.isProcessing,
-    required this.onSubmit,
-    required this.onReject,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: context.colors.cardSurface,
-        borderRadius: BorderRadius.circular(BudgetlyTheme.radiusCard),
-        border: Border.all(color: context.colors.borderSubtle),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Sender + timestamp
-          Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: context.colors.surfaceHighlight,
-                  borderRadius:
-                      BorderRadius.circular(BudgetlyTheme.radiusMedium),
-                ),
-                child: Center(
-                  child: Text(
-                    message.sender[0],
-                    style: GoogleFonts.jetBrainsMono(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                      color: context.colors.textMuted,
-                    ),
-                  ),
-                ),
-              ),
-              SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      message.sender,
-                      style: GoogleFonts.inter(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: context.colors.textMain,
-                      ),
-                    ),
-                    Text(
-                      _timeAgo(message.receivedAt),
-                      style: GoogleFonts.inter(
-                        fontSize: 11,
-                        color: context.colors.textDim,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: Colors.orange.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  'No match',
-                  style: GoogleFonts.inter(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.orange.shade700,
-                  ),
-                ),
-              ),
-            ],
-          ),
-
-          SizedBox(height: 12),
-
-          // Raw SMS text
-          Container(
-            width: double.infinity,
-            padding: EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: context.colors.background,
-              borderRadius:
-                  BorderRadius.circular(BudgetlyTheme.radiusSmall),
-              border: Border.all(
-                color: context.colors.surfaceHighlight.withValues(alpha: 0.3),
-              ),
-            ),
-            child: Text(
-              message.rawText,
-              style: GoogleFonts.jetBrainsMono(
-                fontSize: 11,
-                color: context.colors.textMuted,
-                height: 1.6,
-              ),
-              maxLines: 4,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-
-          SizedBox(height: 14),
-
-          // Actions
-          IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                OutlinedButton(
-                  onPressed: isProcessing ? null : onReject,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: context.colors.textDim,
-                    side: BorderSide(color: context.colors.borderSubtle),
-                    // Compact padding: the global button theme uses
-                    // vertical: 16, which clips the 13px label inside a
-                    // fixed-height button.
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    minimumSize: const Size(0, 44),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(
-                          BudgetlyTheme.radiusMedium),
-                    ),
-                  ),
-                  child: Text('Dismiss',
-                      style: GoogleFonts.inter(
-                          fontSize: 13, fontWeight: FontWeight.w500)),
-                ),
-                SizedBox(width: 10),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: isProcessing ? null : onSubmit,
-                    icon: isProcessing
-                        ? SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : Icon(Icons.cloud_upload_outlined, size: 18),
-                    label: Text(
-                      isProcessing ? 'Analyzing...' : 'Submit to Server',
-                      style: GoogleFonts.inter(
-                          fontSize: 13, fontWeight: FontWeight.w600),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: context.colors.primary,
-                      foregroundColor: Colors.white,
-                      disabledBackgroundColor:
-                          context.colors.primary.withValues(alpha: 0.6),
-                      disabledForegroundColor:
-                          Colors.white.withValues(alpha: 0.7),
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      minimumSize: const Size(0, 44),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(
-                            BudgetlyTheme.radiusMedium),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _timeAgo(DateTime dt) {
-    final diff = DateTime.now().difference(dt);
-    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-    if (diff.inHours < 24) return '${diff.inHours}h ago';
-    return '${diff.inDays}d ago';
-  }
-}
-
-// ─── Failed Tab ───
-class _FailedTab extends StatelessWidget {
-  final List<Message> messages;
-  final void Function(String id) onCreatePattern;
-
-  const _FailedTab({
-    required this.messages,
-    required this.onCreatePattern,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    if (messages.isEmpty) {
-      return _EmptyState(
-        icon: Icons.error_outline,
-        label: 'No failed messages',
-        subtitle: 'Messages that could not be parsed appear here',
-      );
-    }
-
-    return ListView.separated(
-      padding: EdgeInsets.all(16),
-      itemCount: messages.length,
-      separatorBuilder: (context, index) => SizedBox(height: 10),
-      itemBuilder: (context, index) {
-        final msg = messages[index];
-        return _FailedCard(
-          message: msg,
-          onCreatePattern: () => onCreatePattern(msg.id),
-        );
-      },
-    );
-  }
-}
-
-// ─── Failed Card ───
-class _FailedCard extends StatelessWidget {
-  final Message message;
-  final VoidCallback onCreatePattern;
-
-  const _FailedCard({
-    required this.message,
-    required this.onCreatePattern,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: context.colors.cardSurface,
-        borderRadius: BorderRadius.circular(BudgetlyTheme.radiusCard),
-        border: Border.all(color: context.colors.accentCoral.withValues(alpha: 0.25)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: context.colors.primary.withValues(alpha: 0.1),
-                  borderRadius:
-                      BorderRadius.circular(BudgetlyTheme.radiusPill),
-                ),
-                child: Text(
-                  message.sender,
-                  style: GoogleFonts.jetBrainsMono(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: context.colors.primaryLight,
-                  ),
-                ),
-              ),
-              Spacer(),
-              Icon(Icons.error_outline,
-                  size: 14, color: context.colors.accentCoral),
-              SizedBox(width: 4),
-              Text(
-                'Failed',
-                style: GoogleFonts.inter(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: context.colors.accentCoral,
-                ),
-              ),
-            ],
-          ),
-
-          if (message.errorMessage != null) ...[
-            SizedBox(height: 10),
-            Text(
-              message.errorMessage!,
-              style: GoogleFonts.inter(
-                fontSize: 12,
-                color: context.colors.accentCoral,
-                height: 1.4,
-              ),
-            ),
-          ],
-
-          SizedBox(height: 12),
-
-          Container(
-            width: double.infinity,
-            padding: EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: context.colors.background,
-              borderRadius:
-                  BorderRadius.circular(BudgetlyTheme.radiusSmall),
-              border: Border.all(
-                color: context.colors.surfaceHighlight.withValues(alpha: 0.3),
-              ),
-            ),
-            child: Text(
-              message.rawText,
-              style: GoogleFonts.jetBrainsMono(
-                fontSize: 11,
-                color: context.colors.textDim,
-                height: 1.6,
-              ),
-              maxLines: 4,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-
-          SizedBox(height: 14),
-
+          const SizedBox(height: 12),
           SizedBox(
             width: double.infinity,
-            height: 44,
-            child: ElevatedButton.icon(
-              onPressed: onCreatePattern,
-              icon: Icon(Icons.dashboard_customize_outlined, size: 18),
-              label: Text(
-                'Create pattern',
-                style: GoogleFonts.inter(
-                    fontSize: 13, fontWeight: FontWeight.w600),
+            height: 42,
+            child: OutlinedButton.icon(
+              key: const Key('define-pattern-button'),
+              onPressed: () => context.push(
+                '${AppRoutes.patternBuilder}'
+                '?messageId=${Uri.encodeComponent(message.id)}',
               ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: context.colors.primary,
-                foregroundColor: Colors.white,
+              icon: const Icon(Icons.dashboard_customize_outlined, size: 16),
+              label: Text(
+                'Define pattern',
+                style: GoogleFonts.inter(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: context.colors.primaryLight,
+                side: BorderSide(
+                  color: context.colors.primaryLight.withValues(alpha: 0.4),
+                ),
                 shape: RoundedRectangleBorder(
                   borderRadius:
                       BorderRadius.circular(BudgetlyTheme.radiusMedium),
@@ -841,7 +439,100 @@ class _FailedCard extends StatelessWidget {
   }
 }
 
-// ─── Empty State ───
+// ─── Shared pieces ───
+
+class _SenderChip extends StatelessWidget {
+  final String sender;
+
+  const _SenderChip({required this.sender});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: context.colors.primary.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(BudgetlyTheme.radiusPill),
+      ),
+      child: Text(
+        sender,
+        style: GoogleFonts.jetBrainsMono(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          color: context.colors.primaryLight,
+        ),
+      ),
+    );
+  }
+}
+
+class _PermissionState extends StatelessWidget {
+  final Future<void> Function() onGrant;
+
+  const _PermissionState({required this.onGrant});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: context.colors.primary.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.sms_outlined,
+                size: 32,
+                color: context.colors.primaryLight,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'SMS access required',
+              style: GoogleFonts.ibmPlexSans(
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                color: context.colors.textMain,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Allow SMS access to see the messages on this device.',
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                color: context.colors.textDim,
+              ),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: onGrant,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: context.colors.primary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius:
+                      BorderRadius.circular(BudgetlyTheme.radiusMedium),
+                ),
+              ),
+              child: Text(
+                'Grant access',
+                style: GoogleFonts.inter(fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _EmptyState extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -868,7 +559,7 @@ class _EmptyState extends StatelessWidget {
             ),
             child: Icon(icon, size: 32, color: context.colors.accentMint),
           ),
-          SizedBox(height: 16),
+          const SizedBox(height: 16),
           Text(
             label,
             style: GoogleFonts.ibmPlexSans(
@@ -877,9 +568,10 @@ class _EmptyState extends StatelessWidget {
               color: context.colors.textMain,
             ),
           ),
-          SizedBox(height: 6),
+          const SizedBox(height: 6),
           Text(
             subtitle,
+            textAlign: TextAlign.center,
             style: GoogleFonts.inter(
               fontSize: 13,
               color: context.colors.textDim,
@@ -891,10 +583,13 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
-// ─── Helper ───
-extension _StringCap on String {
-  String capitalize() {
-    if (isEmpty) return this;
-    return "${this[0].toUpperCase()}${substring(1)}";
-  }
+/// Pull-to-refresh hook for the tab lists.
+Future<void> _refreshInbox(BuildContext context) async {
+  final container = ProviderScope.containerOf(context);
+  await container.read(inboxProvider.notifier).refresh();
 }
+
+final DateFormat _dateFormat = DateFormat('dd MMM yyyy, HH:mm');
+
+/// Date-led timestamp: "22 Nov 2026, 14:05".
+String _formatDate(DateTime date) => _dateFormat.format(date.toLocal());

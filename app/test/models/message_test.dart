@@ -59,19 +59,6 @@ void main() {
           receivedAt: DateTime.utc(2026, 10, 1),
         );
 
-    test('isPending', () {
-      expect(messageWith().isPending, isTrue);
-      expect(messageWith(status: MessageStatus.processed).isPending, isFalse);
-    });
-
-    test('isUnprocessed requires pending + null parseSource', () {
-      expect(messageWith().isUnprocessed, isTrue);
-      expect(messageWith(parseSource: ParseSource.regexLocal).isUnprocessed,
-          isFalse);
-      expect(messageWith(status: MessageStatus.confirmed).isUnprocessed,
-          isFalse);
-    });
-
     test('isIncomplete only for regex-local matches missing a field', () {
       expect(messageWith(parseSource: ParseSource.regexLocal).isIncomplete,
           isTrue);
@@ -93,20 +80,6 @@ void main() {
           isFalse);
       expect(messageWith(parseSource: ParseSource.llmServer).isIncomplete,
           isFalse);
-    });
-
-    test('isFullyParsed requires all three mandatory fields', () {
-      expect(messageWith().isFullyParsed, isFalse);
-      expect(
-          messageWith(
-            parseSource: ParseSource.regexLocal,
-            extractedData: {
-              'amount': '500',
-              'merchant': 'Grocery Mart',
-              'timestamp': '01/10/2026',
-            },
-          ).isFullyParsed,
-          isTrue);
     });
   });
 }

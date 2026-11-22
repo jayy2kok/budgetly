@@ -97,6 +97,11 @@ class SmsPattern {
   /// Whether the pattern is active (in the registry).
   final bool active;
 
+  /// True when the caller's family has hidden this GLOBAL pattern (via
+  /// Disable or by editing it into a family copy). Always false for FAMILY
+  /// patterns, where [active] carries the state.
+  final bool hiddenForFamily;
+
   final DateTime createdAt;
 
   /// Last modification time (null for legacy LLM-seeded patterns).
@@ -116,6 +121,7 @@ class SmsPattern {
     this.createdByUserId,
     this.source = PatternSource.llm,
     this.active = true,
+    this.hiddenForFamily = false,
     required this.createdAt,
     this.updatedAt,
   });
@@ -128,8 +134,7 @@ class SmsPattern {
   /// Whether this pattern was authored by a user (family-scoped or promoted).
   bool get isAuthored => source == PatternSource.user;
 
-  /// Whether the current viewer may edit/delete this pattern: family-scoped
-  /// patterns are editable by their author; global patterns are read-only.
-  bool canEdit(String userId) =>
-      scope == PatternScope.family && createdByUserId == userId;
+  /// Whether this pattern currently matches messages for the caller's family:
+  /// active and not hidden.
+  bool get isEnabledForFamily => active && !hiddenForFamily;
 }

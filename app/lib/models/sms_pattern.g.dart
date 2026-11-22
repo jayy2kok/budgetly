@@ -50,6 +50,7 @@ SmsPattern _$SmsPatternFromJson(Map<String, dynamic> json) => SmsPattern(
       $enumDecodeNullable(_$PatternSourceEnumMap, json['source']) ??
       PatternSource.llm,
   active: json['active'] as bool? ?? true,
+  hiddenForFamily: json['hiddenForFamily'] as bool? ?? false,
   createdAt: DateTime.parse(json['createdAt'] as String),
   updatedAt: json['updatedAt'] == null
       ? null
@@ -71,6 +72,7 @@ Map<String, dynamic> _$SmsPatternToJson(SmsPattern instance) =>
       'createdByUserId': instance.createdByUserId,
       'source': _$PatternSourceEnumMap[instance.source]!,
       'active': instance.active,
+      'hiddenForFamily': instance.hiddenForFamily,
       'createdAt': instance.createdAt.toIso8601String(),
       'updatedAt': instance.updatedAt?.toIso8601String(),
     };

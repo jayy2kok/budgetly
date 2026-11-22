@@ -15,7 +15,6 @@ import 'package:budgetly/models/user.dart';
 import 'package:budgetly/providers/auth_provider.dart';
 import 'package:budgetly/providers/category_provider.dart';
 import 'package:budgetly/providers/family_provider.dart';
-import 'package:budgetly/providers/message_provider.dart';
 import 'package:budgetly/providers/service_providers.dart';
 import 'package:budgetly/providers/sms_provider.dart';
 import 'package:budgetly/providers/transaction_provider.dart';
@@ -43,20 +42,12 @@ class FakePermissionHandler extends PermissionHandlerPlatform {
   ) async => {for (final p in permissions) p: status};
 }
 
-/// A [MessageService] that never touches the network and records submissions.
+/// A [MessageService] that never touches the network and records bulk
+/// submissions.
 class RecordingMessageService implements MessageService {
-  final List<Map<String, dynamic>> processCalls = [];
-  Map<String, dynamic> processResponse = {};
-
   /// Bulk submissions, each recorded as
   /// `{'familyGroupId': String, 'messages': [{'sender', 'rawText', 'receivedAt'}, ...]}`.
   final List<Map<String, dynamic>> bulkCalls = [];
-
-  @override
-  Future<Map<String, dynamic>> processMessage(Map<String, dynamic> data) async {
-    processCalls.add(data);
-    return processResponse;
-  }
 
   @override
   Future<int> bulkInsertMessages({
@@ -66,29 +57,6 @@ class RecordingMessageService implements MessageService {
     bulkCalls.add({'familyGroupId': familyGroupId, 'messages': messages});
     return messages.length;
   }
-
-  @override
-  Future<List<Message>> getPendingMessages() async => [];
-
-  @override
-  Future<List<Message>> getIgnoredMessages() async => [];
-
-  @override
-  Future<List<Message>> getFailedMessages({
-    int page = 0,
-    int size = 20,
-  }) async => [];
-
-  @override
-  Future<Message> confirmMessage(String messageId) =>
-      throw UnimplementedError();
-
-  @override
-  Future<Message> rejectMessage(String messageId) => throw UnimplementedError();
-
-  @override
-  Future<Message> restoreMessage(String messageId) =>
-      throw UnimplementedError();
 }
 
 /// A [PatternCacheService] that records refreshPatterns() calls.
@@ -204,20 +172,6 @@ class RecordingTransactionNotifier extends TransactionNotifier {
       isLoading: false,
       transactions: getTransactionsResult,
     );
-  }
-}
-
-/// MessageNotifier whose loadMessages is a no-op counter.
-class FakeMessageNotifier extends MessageNotifier {
-  int loadCalls = 0;
-
-  @override
-  MessageState build() => const MessageState();
-
-  @override
-  Future<void> loadMessages() async {
-    loadCalls++;
-    state = const MessageState();
   }
 }
 
@@ -340,7 +294,6 @@ ProviderContainer buildContainer({
       if (budgetService != null)
         budgetServiceProvider.overrideWithValue(budgetService),
       transactionProvider.overrideWith(() => transactions),
-      messageProvider.overrideWith(() => FakeMessageNotifier()),
     ],
   );
 }
@@ -422,13 +375,42 @@ void main() {
         // No category override on the pattern → no categoryId key.
         expect(tx.containsKey('categoryId'), isFalse);
 
-        expect(messageService.processCalls, isEmpty);
         expect(messageService.bulkCalls, isEmpty);
         // No server-bound messages → no pattern refresh (avoids a wasted round-trip).
         expect(cache.refreshCalls, 0);
         expect(reader.readCalls, 1);
       },
     );
+
+    test('records a date-only body at the received time-of-day', () async {
+      reader.canned = [
+        smsMsg(
+          id: 1,
+          body: 'Spent Rs 500 at Grocery Mart on 01/10/2026',
+          at: now,
+          parseSource: ParseSource.regexLocal,
+          extractedData: fullExtraction(),
+          matchedPatternId: 'p-hdfc',
+        ),
+      ];
+
+      await sync();
+
+      final transactionDate = DateTime.parse(
+        transactions.addCalls.single['transactionDate'] as String,
+      ).toLocal();
+      // Date comes from the body; the received time (12:00) fills the time.
+      expect(
+        [
+          transactionDate.year,
+          transactionDate.month,
+          transactionDate.day,
+          transactionDate.hour,
+          transactionDate.minute,
+        ],
+        [2026, 10, 1, 12, 0],
+      );
+    });
 
     test('forwards accountLast4, bankName and notes to the transaction',
         () async {
@@ -531,6 +513,78 @@ void main() {
     );
   });
 
+  group('recordLocally — record the source message after authoring a pattern',
+      () {
+    test('parses with the fresh cache and creates the transaction', () async {
+      cache.debugSetPatterns([kPattern()]);
+      final budgetService = RecordingBudgetService();
+      final recordContainer = buildContainer(
+        reader: reader,
+        messageService: messageService,
+        transactions: transactions,
+        cache: cache,
+        user: kUser(),
+        family: kFamily(),
+        budgetService: budgetService,
+      );
+      addTearDown(recordContainer.dispose);
+      await settleInitFor(recordContainer);
+
+      final recorded = await recordContainer
+          .read(smsProvider.notifier)
+          .recordLocally(
+            smsMsg(
+              id: 40,
+              body: 'Spent Rs 500 at Grocery Mart on 01/10/2026',
+              at: now,
+            ),
+          );
+
+      expect(recorded, isTrue);
+      final tx = transactions.addCalls.single;
+      expect(tx['amount'], 500.0);
+      expect(tx['merchant'], 'Grocery Mart');
+      expect(tx['matchedPatternId'], 'p-hdfc');
+      expect(tx['sourceRawText'], 'Spent Rs 500 at Grocery Mart on 01/10/2026');
+      expect(tx['sourceType'], 'REGEX_LOCAL');
+      // The dashboard is refreshed so the new transaction is visible.
+      expect(transactions.loadCalls, 1);
+      expect(budgetService.loadDashboardCalls, 1);
+    });
+
+    test('does not record a message the pattern parses incompletely', () async {
+      cache.debugSetPatterns([
+        SmsPattern(
+          id: 'p-amount-only',
+          sender: 'HDFCBK',
+          template: 'Spent Rs {amount}',
+          extractionMap: const ExtractionMap(amount: 'amount'),
+          sampleMessage: 'Spent Rs 500',
+          createdAt: DateTime.utc(2026, 1, 1),
+        ),
+      ]);
+      final budgetService = RecordingBudgetService();
+      final recordContainer = buildContainer(
+        reader: reader,
+        messageService: messageService,
+        transactions: transactions,
+        cache: cache,
+        user: kUser(),
+        family: kFamily(),
+        budgetService: budgetService,
+      );
+      addTearDown(recordContainer.dispose);
+      await settleInitFor(recordContainer);
+
+      final recorded = await recordContainer
+          .read(smsProvider.notifier)
+          .recordLocally(smsMsg(id: 41, body: 'Spent Rs 500', at: now));
+
+      expect(recorded, isFalse);
+      expect(transactions.addCalls, isEmpty);
+    });
+  });
+
   group('syncInboxMessages — regexLocal incomplete', () {
     test('bulk-queues incomplete regex messages for the server', () async {
       reader.canned = [
@@ -547,7 +601,7 @@ void main() {
       await sync();
 
       // No per-message LLM call anymore — goes through POST /messages/bulk.
-      expect(messageService.processCalls, isEmpty);
+      // Incomplete regex goes through POST /messages/bulk.
       expect(messageService.bulkCalls, hasLength(1));
       final call = messageService.bulkCalls.single;
       expect(call['familyGroupId'], 'fam-1');
@@ -579,7 +633,6 @@ void main() {
 
         await sync();
 
-        expect(messageService.processCalls, isEmpty);
         expect(messageService.bulkCalls, hasLength(1));
         final call = messageService.bulkCalls.single;
         expect(call['familyGroupId'], 'fam-1');
@@ -636,7 +689,6 @@ void main() {
       await unauthed.read(smsProvider.notifier).syncInboxMessages();
 
       expect(reader.readCalls, 0);
-      expect(messageService.processCalls, isEmpty);
       expect(messageService.bulkCalls, isEmpty);
       expect(transactions.addCalls, isEmpty);
       expect(unauthed.read(smsProvider).isSyncing, isFalse);
@@ -656,7 +708,6 @@ void main() {
       await noFamily.read(smsProvider.notifier).syncInboxMessages();
 
       expect(reader.readCalls, 0);
-      expect(messageService.processCalls, isEmpty);
       expect(messageService.bulkCalls, isEmpty);
       expect(transactions.addCalls, isEmpty);
       expect(noFamily.read(smsProvider).isSyncing, isFalse);
@@ -697,20 +748,14 @@ void main() {
       );
     });
 
-    test(
-      'isSyncing resets and messages reload even when the sync throws',
-      () async {
+    test('isSyncing resets when the inbox read throws', () async {
         reader.failRead = true;
 
         await sync();
 
         expect(reader.readCalls, 1);
-        final state = container.read(smsProvider);
-        expect(state.isSyncing, isFalse);
-        // The finally block still reloads the message list on the failure path.
-        final fakeMsg =
-            container.read(messageProvider.notifier) as FakeMessageNotifier;
-        expect(fakeMsg.loadCalls, 1);
+        expect(container.read(smsProvider).isSyncing, isFalse);
+        expect(transactions.addCalls, isEmpty);
       },
     );
   });

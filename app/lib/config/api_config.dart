@@ -35,4 +35,16 @@ class ApiConfig {
     'SMS_SYNC_MAX_MESSAGES',
     defaultValue: 10,
   );
+
+  /// Max number of device SMS the inbox screen displays (newest first).
+  ///
+  /// The inbox mirrors the phone's SMS app, so this is a display window over
+  /// the device inbox rather than a sync batch size.
+  ///
+  /// Override at build/run time with
+  ///   `--dart-define=SMS_INBOX_DISPLAY_LIMIT=<n>`
+  static const int smsInboxDisplayLimit = int.fromEnvironment(
+    'SMS_INBOX_DISPLAY_LIMIT',
+    defaultValue: 300,
+  );
 }

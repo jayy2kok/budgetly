@@ -21,6 +21,12 @@ class PatternCacheService {
   /// All cached patterns.
   List<SmsPattern> get patterns => List.unmodifiable(_patterns);
 
+  /// Patterns that may match messages for the caller's family: active and not
+  /// hidden. The full [patterns] list stays for the registry UI, which also
+  /// shows disabled and hidden-for-family entries.
+  List<SmsPattern> get matchablePatterns =>
+      _patterns.where((p) => p.isEnabledForFamily).toList();
+
   /// Loads patterns from the server.
   Future<void> loadPatterns() async {
     try {
@@ -110,13 +116,17 @@ class PatternCacheService {
       },
     );
     final created = SmsPattern.fromJson(response.data as Map<String, dynamic>);
-    _patterns = [created, ..._patterns];
+    await refreshPatterns();
     return created;
   }
 
-  /// Updates an authored family pattern (template / sample / extractionMap).
+  /// Updates a family pattern in place, or — for a GLOBAL pattern — creates
+  /// or updates this family's copy and hides the global for the family only.
+  /// The server returns the resulting FAMILY pattern; the cache is then
+  /// refreshed so the hide marker is reflected too.
   Future<SmsPattern> updatePattern(
     String patternId, {
+    String? sender,
     String? template,
     ExtractionMap? extractionMap,
     Map<String, String>? fixedValues,
@@ -126,6 +136,7 @@ class PatternCacheService {
     final response = await _dio.put(
       '/patterns/$patternId',
       data: {
+        'sender': ?sender,
         'template': ?template,
         'extractionMap': ?extractionMap?.toJson(),
         'fixedValues': ?fixedValues,
@@ -134,21 +145,32 @@ class PatternCacheService {
       },
     );
     final updated = SmsPattern.fromJson(response.data as Map<String, dynamic>);
-    _patterns = _patterns.map((p) => p.id == patternId ? updated : p).toList();
+    await refreshPatterns();
     return updated;
   }
 
-  /// Deletes an authored family pattern (author or family admin only).
-  Future<void> deletePattern(String patternId) async {
-    await _dio.delete('/patterns/$patternId');
-    _patterns = _patterns.where((p) => p.id != patternId).toList();
+  /// Hides a GLOBAL pattern for this family, or deactivates a FAMILY pattern.
+  Future<SmsPattern> disablePattern(String patternId) async {
+    final response = await _dio.post('/patterns/$patternId/disable');
+    final updated = SmsPattern.fromJson(response.data as Map<String, dynamic>);
+    await refreshPatterns();
+    return updated;
+  }
+
+  /// Un-hides a GLOBAL pattern for this family, or reactivates a FAMILY
+  /// pattern (409 when another active template would collide).
+  Future<SmsPattern> enablePattern(String patternId) async {
+    final response = await _dio.post('/patterns/$patternId/enable');
+    final updated = SmsPattern.fromJson(response.data as Map<String, dynamic>);
+    await refreshPatterns();
+    return updated;
   }
 
   /// Promotes a family pattern to the global registry (family admin only).
   Future<SmsPattern> promotePattern(String patternId) async {
     final response = await _dio.post('/patterns/$patternId/promote');
     final promoted = SmsPattern.fromJson(response.data as Map<String, dynamic>);
-    _patterns = _patterns.map((p) => p.id == patternId ? promoted : p).toList();
+    await refreshPatterns();
     return promoted;
   }
 }

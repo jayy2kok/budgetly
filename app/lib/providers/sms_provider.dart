@@ -5,9 +5,10 @@ import 'package:permission_handler/permission_handler.dart';
 import '../providers/auth_provider.dart';
 import '../providers/budget_provider.dart';
 import '../providers/category_provider.dart';
-import '../providers/message_provider.dart';
 import '../services/pattern_cache_service.dart';
 import '../services/sms_inbox_reader.dart';
+import '../services/sms_parser_service.dart';
+import '../services/transaction_date_resolver.dart';
 
 import '../providers/family_provider.dart';
 import '../providers/transaction_provider.dart';
@@ -211,23 +212,6 @@ class SmsNotifier extends Notifier<SmsState> {
     );
   }
 
-  /// Reads the on-device SMS inbox and merges results into the message pipeline.
-  ///
-  /// Only processes messages from senders in the pattern cache (known banks).
-  /// Matched messages are added as regex-parsed; unmatched go to the LLM queue.
-  Future<void> loadAndMergeInboxMessages() async {
-    if (!state.smsPermissionGranted) return;
-
-    final userId = ref.read(authProvider).user?.id;
-    if (userId == null) return; // Not authenticated yet
-
-    final messages = await _reader.readInbox(userId: userId);
-
-    if (messages.isNotEmpty) {
-      ref.read(messageProvider.notifier).mergeLocalMessages(messages);
-    }
-  }
-
   /// Sync new messages iteratively in the background.
   Future<void> syncInboxMessages() async {
     if (!state.smsPermissionGranted || state.isSyncing) return;
@@ -275,51 +259,7 @@ class SmsNotifier extends Notifier<SmsState> {
           debugPrint(
             '[SmsSync] Regex-parsed fully, creating transaction for msg id=${msg.id}',
           );
-
-          // Resolve the template's user-overridden category (if any) to this
-          // family's category id so future transactions inherit the override.
-          String? resolvedCategoryId;
-          final matchedPattern = _cache.patternById(msg.matchedPatternId);
-          final overrideName = matchedPattern?.categoryName?.trim();
-          if (overrideName != null && overrideName.isNotEmpty) {
-            // The override resolves against the family's categories, which may
-            // not have been loaded yet on a cold start.
-            if (ref.read(categoryProvider).categories.isEmpty) {
-              await ref
-                  .read(categoryProvider.notifier)
-                  .loadCategories(familyId);
-            }
-            final name = overrideName.toLowerCase();
-            final familyCategories = ref.read(categoryProvider).categories;
-            for (final c in familyCategories) {
-              if (c.name.trim().toLowerCase() == name) {
-                resolvedCategoryId = c.id;
-                break;
-              }
-            }
-          }
-
-          final txData = {
-            'amount': double.parse(
-              msg.extractedData!['amount']!.replaceAll(',', '').trim(),
-            ),
-            'merchant': msg.extractedData!['merchant'],
-            // Prefer the SMS's authoritative receivedAt (a correct absolute
-            // instant). The extracted timestamp is only a fallback: it carries
-            // no offset and would be misread, and the backend rejects its
-            // non-ISO date formats (e.g. "14-11-2026 19:32:24").
-            'transactionDate': msg.receivedAt.toUtc().toIso8601String(),
-            'type': msg.extractedData!['type']?.toUpperCase() ?? 'EXPENSE',
-            'accountLast4': ?msg.extractedData!['accountLast4'],
-            'bankName': ?msg.extractedData!['bankName'],
-            'notes': ?msg.extractedData!['notes'],
-            'description': 'Auto-parsed from SMS',
-            'sourceType': 'REGEX_LOCAL',
-            'sourceRawText': msg.rawText,
-            'matchedPatternId': msg.matchedPatternId,
-            'categoryId': ?resolvedCategoryId,
-          };
-          await ref.read(transactionProvider.notifier).addTransaction(txData);
+          await _postTransaction(msg, familyId);
 
           // Successfully processed this message. Save checkpoint.
           await _checkpoint(msg, prefs);
@@ -367,9 +307,96 @@ class SmsNotifier extends Notifier<SmsState> {
       debugPrint('[SmsSync] Error during sync: $e\n$stack');
     } finally {
       state = state.copyWith(isSyncing: false);
-      ref.read(messageProvider.notifier).loadMessages();
       await _refreshDashboard();
     }
+  }
+
+  /// Parses [message] against the current pattern cache and, when the result
+  /// is complete, records the transaction immediately.
+  ///
+  /// Used by the pattern builder after saving: the sync checkpoint means an
+  /// older SMS is never re-read, so the message that prompted the new pattern
+  /// must be recorded right away. Returns true when a transaction was created.
+  Future<bool> recordLocally(Message message) async {
+    final familyId = ref.read(familyProvider).currentFamily?.id;
+    if (familyId == null) return false;
+
+    await _cache.loadPatterns();
+    final parseResult = SmsParserService().parseMessage(
+      message.sender,
+      message.rawText,
+      _cache.matchablePatterns,
+    );
+    if (parseResult == null) return false;
+
+    final parsed = Message(
+      id: message.id,
+      userId: message.userId,
+      familyGroupId: familyId,
+      sender: message.sender,
+      rawText: message.rawText,
+      receivedAt: message.receivedAt,
+      status: MessageStatus.pending,
+      parseSource: ParseSource.regexLocal,
+      matchedPatternId: parseResult.matchedPatternId,
+      extractedData: parseResult.extractedFields,
+    );
+    if (parsed.isIncomplete) return false;
+
+    try {
+      await _postTransaction(parsed, familyId);
+      await _refreshDashboard();
+      return true;
+    } catch (e) {
+      debugPrint('[SmsSync] Failed to record message ${message.id}: $e');
+      return false;
+    }
+  }
+
+  /// Creates a transaction for a fully parsed message.
+  Future<void> _postTransaction(Message msg, String familyId) async {
+    // Resolve the template's user-overridden category (if any) to this
+    // family's category id so future transactions inherit the override.
+    String? resolvedCategoryId;
+    final matchedPattern = _cache.patternById(msg.matchedPatternId);
+    final overrideName = matchedPattern?.categoryName?.trim();
+    if (overrideName != null && overrideName.isNotEmpty) {
+      // The override resolves against the family's categories, which may not
+      // have been loaded yet on a cold start.
+      if (ref.read(categoryProvider).categories.isEmpty) {
+        await ref.read(categoryProvider.notifier).loadCategories(familyId);
+      }
+      final name = overrideName.toLowerCase();
+      for (final c in ref.read(categoryProvider).categories) {
+        if (c.name.trim().toLowerCase() == name) {
+          resolvedCategoryId = c.id;
+          break;
+        }
+      }
+    }
+
+    final txData = {
+      'amount': double.parse(
+        msg.extractedData!['amount']!.replaceAll(',', '').trim(),
+      ),
+      'merchant': msg.extractedData!['merchant'],
+      // The body's date is authoritative; a date-only body takes the SMS's
+      // received time-of-day (see TransactionDateResolver).
+      'transactionDate': const TransactionDateResolver()
+          .resolve(msg.receivedAt, msg.extractedData!['timestamp'])
+          .toUtc()
+          .toIso8601String(),
+      'type': msg.extractedData!['type']?.toUpperCase() ?? 'EXPENSE',
+      'accountLast4': ?msg.extractedData!['accountLast4'],
+      'bankName': ?msg.extractedData!['bankName'],
+      'notes': ?msg.extractedData!['notes'],
+      'description': 'Auto-parsed from SMS',
+      'sourceType': 'REGEX_LOCAL',
+      'sourceRawText': msg.rawText,
+      'matchedPatternId': msg.matchedPatternId,
+      'categoryId': ?resolvedCategoryId,
+    };
+    await ref.read(transactionProvider.notifier).addTransaction(txData);
   }
 
   /// Reload dashboard totals and the transaction list after a sync.

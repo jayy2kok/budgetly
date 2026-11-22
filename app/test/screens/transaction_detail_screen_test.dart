@@ -233,6 +233,7 @@ Future<ProviderContainer> pumpTransactionDetail(
   WidgetTester tester,
   RecordingTransactionService transactionServiceParam, {
   Transaction? transaction,
+  bool seedProvider = true,
 }) async {
   GoogleFonts.config.allowRuntimeFetching = false;
 
@@ -264,7 +265,10 @@ Future<ProviderContainer> pumpTransactionDetail(
       container: container,
       child: MaterialApp(
         theme: ThemeData(extensions: [BudgetlyColors.dark]),
-        home: const TransactionDetailScreen(transactionId: 'txn_1'),
+        home: TransactionDetailScreen(
+          transactionId: 'txn_1',
+          transaction: transaction,
+        ),
       ),
     ),
   );
@@ -272,9 +276,11 @@ Future<ProviderContainer> pumpTransactionDetail(
 
   // Seed the state both screens read: the transaction list and the category
   // list loaded from the (now-seeded) family.
-  container.read(transactionProvider.notifier).state = TransactionState(
-    transactions: transactions,
-  );
+  if (seedProvider) {
+    container.read(transactionProvider.notifier).state = TransactionState(
+      transactions: transactions,
+    );
+  }
   container.read(categoryProvider.notifier).state = CategoryState(
     categories: _seededCategories,
   );
@@ -304,6 +310,22 @@ void main() {
         reason: 'the picker must offer ${category.name}',
       );
     }
+  });
+
+  testWidgets('renders a transaction handed over by the inbox', (
+    tester,
+  ) async {
+    // The inbox can list a recorded message whose transaction is older than
+    // the feed's first page, so the provider list does not contain it.
+    await pumpTransactionDetail(
+      tester,
+      RecordingTransactionService(const []),
+      transaction: _uncategorizedTransaction(),
+      seedProvider: false,
+    );
+
+    expect(find.text('Transaction not found'), findsNothing);
+    expect(find.text('AMAZON PAY IN U'), findsOneWidget);
   });
 
   testWidgets('shows the masked account and bank when present', (

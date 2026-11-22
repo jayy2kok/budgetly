@@ -15,11 +15,21 @@ const kSmsQueryChannel = MethodChannel(
 );
 
 /// Creates an [SmsMessage] (the flutter_sms_inbox model).
-SmsMessage sms(int id, String sender, String body, DateTime sent) =>
+///
+/// [receivedAt] defaults to [sent] but can be given separately to model an SMS
+/// whose arrival (`date`) differs from its send time (`date_sent`).
+SmsMessage sms(
+  int id,
+  String sender,
+  String body,
+  DateTime sent, {
+  DateTime? receivedAt,
+}) =>
     SmsMessage.fromJson({
       '_id': id,
       'address': sender,
       'body': body,
+      'date': (receivedAt ?? sent).millisecondsSinceEpoch,
       'date_sent': sent.millisecondsSinceEpoch,
     });
 
@@ -31,14 +41,18 @@ void stubSmsInbox(List<SmsMessage> messages) {
     // Build the plugin's raw JSON map directly: SmsMessage.toMap writes a
     // 'dateSent' key that SmsMessage.fromJson does not read back, which would
     // drop the timestamp on round-trip.
-    return messages
-        .map((m) => {
-              '_id': m.id,
-              'address': m.address,
-              'body': m.body,
-              'date_sent': m.dateSent?.millisecondsSinceEpoch,
-            })
-        .toList();
+    return messages.map((m) {
+      final json = <String, dynamic>{
+        '_id': m.id,
+        'address': m.address,
+        'body': m.body,
+      };
+      if (m.date != null) json['date'] = m.date!.millisecondsSinceEpoch;
+      if (m.dateSent != null) {
+        json['date_sent'] = m.dateSent!.millisecondsSinceEpoch;
+      }
+      return json;
+    }).toList();
   });
 }
 

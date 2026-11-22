@@ -136,8 +136,40 @@ void main() {
         expect(message.status, MessageStatus.pending);
         expect(message.parseSource, isNull);
         expect(message.extractedData, isNull);
-        expect(message.isUnprocessed, isTrue);
+        expect(message.isIncomplete, isFalse);
       }
+    });
+
+    test('readAllInbox returns the whole device inbox, newest first',
+        () async {
+      stubSmsInbox(inbox.toSmsMessages());
+      addTearDown(resetSmsInbox);
+      final reader = TestSmsInboxReader(
+        granted: true,
+        cache: FakePatternCache(),
+      );
+
+      final messages = await reader.readAllInbox(
+        userId: 'sample-user',
+        limit: inbox.messages.length,
+      );
+
+      expect(messages, hasLength(inbox.messages.length));
+      expect(
+        messages.map((m) => m.id).toList(),
+        inbox.messages.map((m) => 'sms_${m.id}').toList(),
+        reason: 'every SMS on the device belongs to the inbox view',
+      );
+      expect(
+        messages.map((m) => m.rawText).toList(),
+        inbox.messages.map((m) => m.body).toList(),
+      );
+      // Non-financial messages (OTP, promo, personal) are included too.
+      expect(
+        messages.any((m) => !_looksFinancial(m.rawText)),
+        isTrue,
+        reason: 'fixture should contain non-financial SMS',
+      );
     });
   });
 }

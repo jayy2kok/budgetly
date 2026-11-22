@@ -238,11 +238,6 @@ class SettingsScreen extends ConsumerWidget {
                   ),
                 ),
               ),
-              _SettingsRow(
-                icon: Icons.mark_email_read_outlined,
-                label: 'Ignored Messages',
-                onTap: () => context.push(AppRoutes.ignoredMessages),
-              ),
             ],
           ),
 

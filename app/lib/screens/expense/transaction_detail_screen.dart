@@ -21,16 +21,25 @@ import '../../widgets/category_picker_sheet.dart';
 class TransactionDetailScreen extends ConsumerWidget {
   final String transactionId;
 
-  const TransactionDetailScreen({super.key, required this.transactionId});
+  /// The transaction when the caller already holds it (e.g. an inbox row that
+  /// is older than the feed's first page). Falls back to [transactionProvider].
+  final Transaction? transaction;
+
+  const TransactionDetailScreen({
+    super.key,
+    required this.transactionId,
+    this.transaction,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final txnState = ref.watch(transactionProvider);
     final categories = ref.watch(categoryProvider).categories;
-    final txn = txnState.transactions.cast<Transaction?>().firstWhere(
-      (t) => t?.id == transactionId,
-      orElse: () => null,
-    );
+    final txn = transaction ??
+        txnState.transactions.cast<Transaction?>().firstWhere(
+          (t) => t?.id == transactionId,
+          orElse: () => null,
+        );
 
     if (txn == null) {
       return Scaffold(
