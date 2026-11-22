@@ -37,6 +37,8 @@ class Transaction {
   final SourceType sourceType;
   final String? sourceRawText;
   final String? matchedPatternId;
+  final String? accountLast4;
+  final String? bankName;
   final String? notes;
   final DateTime transactionDate;
   final DateTime createdAt;
@@ -54,6 +56,8 @@ class Transaction {
     this.sourceType = SourceType.manual,
     this.sourceRawText,
     this.matchedPatternId,
+    this.accountLast4,
+    this.bankName,
     this.notes,
     required this.transactionDate,
     required this.createdAt,
@@ -72,8 +76,7 @@ class Transaction {
 
   /// Whether this was auto-parsed from an SMS.
   bool get isSmsParsed =>
-      sourceType == SourceType.regexLocal ||
-      sourceType == SourceType.llmServer;
+      sourceType == SourceType.regexLocal || sourceType == SourceType.llmServer;
 
   /// Display symbol for this transaction's [currency] (₹, $, €, £), falling
   /// back to the ISO code for anything else.

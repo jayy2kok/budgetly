@@ -4,6 +4,7 @@ import com.budgetly.api.generated.controller.PatternRegistryApi;
 import com.budgetly.api.generated.model.*;
 import com.budgetly.api.service.PatternRegistryService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -22,13 +23,15 @@ public class PatternRegistryController implements PatternRegistryApi {
 
     @Override
     public ResponseEntity<List<SmsPattern>> getPatterns(OffsetDateTime since) {
+        String userId = ControllerUtils.getCurrentUserId();
         Instant sinceInstant = since != null ? since.toInstant() : null;
-        return ResponseEntity.ok(patternRegistryService.getPatterns(sinceInstant));
+        return ResponseEntity.ok(patternRegistryService.getPatterns(sinceInstant, userId));
     }
 
     @Override
     public ResponseEntity<List<GetPatternSenders200ResponseInner>> getPatternSenders() {
-        List<Map<String, Object>> senders = patternRegistryService.getPatternSenders();
+        String userId = ControllerUtils.getCurrentUserId();
+        List<Map<String, Object>> senders = patternRegistryService.getPatternSenders(userId);
         List<GetPatternSenders200ResponseInner> result = senders.stream()
                 .map(m -> {
                     GetPatternSenders200ResponseInner item = new GetPatternSenders200ResponseInner();
@@ -53,16 +56,47 @@ public class PatternRegistryController implements PatternRegistryApi {
 
     @Override
     public ResponseEntity<PatternStatsResponse> getPatternStats() {
-        return ResponseEntity.ok(patternRegistryService.getStats());
+        String userId = ControllerUtils.getCurrentUserId();
+        return ResponseEntity.ok(patternRegistryService.getStats(userId));
     }
 
-    @PatchMapping("/patterns/{id}/category")
-    public ResponseEntity<SmsPattern> updatePatternCategory(
-            @PathVariable("id") String id,
-            @RequestBody(required = false) Map<String, Object> body) {
-        String categoryName = body != null && body.get("categoryName") != null
-                ? String.valueOf(body.get("categoryName"))
+    @Override
+    public ResponseEntity<SmsPattern> createPattern(CreatePatternRequest createPatternRequest) {
+        String userId = ControllerUtils.getCurrentUserId();
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(patternRegistryService.createPattern(userId, createPatternRequest));
+    }
+
+    @Override
+    public ResponseEntity<SmsPattern> updatePattern(String id, UpdatePatternRequest updatePatternRequest) {
+        String userId = ControllerUtils.getCurrentUserId();
+        return ResponseEntity.ok(patternRegistryService.updatePattern(id, userId, updatePatternRequest));
+    }
+
+    @Override
+    public ResponseEntity<SmsPattern> disablePattern(String id) {
+        String userId = ControllerUtils.getCurrentUserId();
+        return ResponseEntity.ok(patternRegistryService.disablePattern(id, userId));
+    }
+
+    @Override
+    public ResponseEntity<SmsPattern> enablePattern(String id) {
+        String userId = ControllerUtils.getCurrentUserId();
+        return ResponseEntity.ok(patternRegistryService.enablePattern(id, userId));
+    }
+
+    @Override
+    public ResponseEntity<SmsPattern> promotePattern(String id) {
+        String userId = ControllerUtils.getCurrentUserId();
+        return ResponseEntity.ok(patternRegistryService.promotePattern(id, userId));
+    }
+
+    @Override
+    public ResponseEntity<SmsPattern> updatePatternCategory(String id, UpdatePatternCategoryRequest updatePatternCategoryRequest) {
+        String userId = ControllerUtils.getCurrentUserId();
+        String categoryName = updatePatternCategoryRequest != null
+                ? updatePatternCategoryRequest.getCategoryName()
                 : null;
-        return ResponseEntity.ok(patternRegistryService.updatePatternCategory(id, categoryName));
+        return ResponseEntity.ok(patternRegistryService.updatePatternCategory(id, userId, categoryName));
     }
 }

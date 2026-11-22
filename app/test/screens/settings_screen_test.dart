@@ -216,7 +216,6 @@ void main() {
 
       for (final label in [
         'Appearance',
-        'Ignored Messages',
         'Message Inbox',
         'Family Members',
         'Join Family',

@@ -483,12 +483,7 @@ All APIs documented and testable via Swagger UI (`/swagger-ui.html`). Domain mod
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `POST` | `/api/v1/messages/process` | **Submit unprocessed SMS for LLM analysis.** Returns: `{isFinancial, parsedData, generatedPattern}`. If financial: validates & posts transaction first, then saves regex to `pattern_registry` only if transaction passes validation. |
-| `GET` | `/api/v1/messages/pending` | Get pending messages for triage |
-| `GET` | `/api/v1/messages/ignored` | Get non-financial / deleted messages |
-| `POST` | `/api/v1/messages/{id}/confirm` | Confirm parsed transaction |
-| `POST` | `/api/v1/messages/{id}/reject` | Reject / ignore message |
-| `POST` | `/api/v1/messages/{id}/restore` | Restore an ignored message |
+| `POST` | `/api/v1/messages/bulk` | **Ingest the device SMS batch.** The device inbox is the source of truth; the server stores messages for the caller's family and the change-stream listener parses them into transactions. The old triage endpoints (`process`, `pending`, `ignored`, `confirm`, `reject`, `restore`) were removed in the inbox redesign.
 
 ### 6.6 Budget / Dashboard API
 
@@ -850,7 +845,7 @@ These are the **release-blocking** tests. They validate the full stack end-to-en
 | E2 | **Family CRUD**: Create family → invite member → list members | Core family model works |
 | E3 | **Category + Transaction**: Create category → Add expense → Appears in feed | Transaction pipeline works |
 | E4 | **Dashboard**: After adding expenses → Dashboard shows correct totals/projections | Aggregation works |
-| E5 | **Message triage**: Submit SMS → Confirm → Transaction created | AI parsing pipeline works |
+| E5 | **Message ingestion**: Bulk insert SMS → Change-stream listener → Transaction recorded | Ingest pipeline works |
 | E6 | **Budget**: Set budget → Add over-budget expense → Budget summary flags it | Budget logic works |
 
 **How to run (manual or scripted):**

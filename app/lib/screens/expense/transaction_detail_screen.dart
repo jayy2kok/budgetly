@@ -15,22 +15,31 @@ import '../../providers/transaction_provider.dart';
 import '../../providers/service_providers.dart';
 import '../../utils/category_display.dart';
 import '../../utils/payer_resolver.dart';
-import '../../widgets/category_icon.dart';
+import '../../widgets/category_picker_sheet.dart';
 
 /// Transaction Detail — Full info, source SMS.
 class TransactionDetailScreen extends ConsumerWidget {
   final String transactionId;
 
-  const TransactionDetailScreen({super.key, required this.transactionId});
+  /// The transaction when the caller already holds it (e.g. an inbox row that
+  /// is older than the feed's first page). Falls back to [transactionProvider].
+  final Transaction? transaction;
+
+  const TransactionDetailScreen({
+    super.key,
+    required this.transactionId,
+    this.transaction,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final txnState = ref.watch(transactionProvider);
     final categories = ref.watch(categoryProvider).categories;
-    final txn = txnState.transactions.cast<Transaction?>().firstWhere(
-      (t) => t?.id == transactionId,
-      orElse: () => null,
-    );
+    final txn = transaction ??
+        txnState.transactions.cast<Transaction?>().firstWhere(
+          (t) => t?.id == transactionId,
+          orElse: () => null,
+        );
 
     if (txn == null) {
       return Scaffold(
@@ -159,6 +168,19 @@ class TransactionDetailScreen extends ConsumerWidget {
                         value: txn.merchant,
                         icon: Icons.storefront,
                       ),
+                      if (txn.accountLast4 != null &&
+                          txn.accountLast4!.isNotEmpty)
+                        _DetailRow(
+                          label: 'Account',
+                          value: 'A/C •••• ${txn.accountLast4}',
+                          icon: Icons.credit_card,
+                        ),
+                      if (txn.bankName != null && txn.bankName!.isNotEmpty)
+                        _DetailRow(
+                          label: 'Bank',
+                          value: txn.bankName!,
+                          icon: Icons.account_balance,
+                        ),
                       _DetailRow(
                         label: 'Category',
                         value: resolveCategoryName(txn.categoryId, categories),
@@ -268,7 +290,11 @@ class TransactionDetailScreen extends ConsumerWidget {
     );
   }
 
-  void _showCategoryPicker(BuildContext context, WidgetRef ref, Transaction txn) {
+  void _showCategoryPicker(
+    BuildContext context,
+    WidgetRef ref,
+    Transaction txn,
+  ) {
     final categories = ref.read(categoryProvider).categories;
     showModalBottomSheet(
       context: context,
@@ -276,68 +302,39 @@ class TransactionDetailScreen extends ConsumerWidget {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (sheetCtx) => SafeArea(
-        child: ListView(
-          shrinkWrap: true,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
-              child: Text(
-                'Category',
-                style: GoogleFonts.ibmPlexSans(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                  color: context.colors.textMain,
-                ),
-              ),
-            ),
-            ListTile(
-              leading: Icon(Icons.label_off_outlined, color: context.colors.textDim),
-              title: Text(
-                'Uncategorized',
-                style: GoogleFonts.inter(color: context.colors.textMain),
-              ),
-              trailing: (txn.categoryId == null || txn.categoryId!.isEmpty)
-                  ? Icon(Icons.check, color: context.colors.primary)
-                  : null,
-              onTap: () {
-                Navigator.pop(sheetCtx);
-                _applyCategory(ref, txn, null);
-              },
-            ),
-            for (final c in categories)
-              ListTile(
-                leading: CategoryIcon(
-                  icon: c.icon,
-                  size: 20,
-                  color: context.colors.textMain,
-                ),
-                title: Text(
-                  c.name,
-                  style: GoogleFonts.inter(color: context.colors.textMain),
-                ),
-                trailing: c.id == txn.categoryId
-                    ? Icon(Icons.check, color: context.colors.primary)
-                    : null,
-                onTap: () {
-                  Navigator.pop(sheetCtx);
-                  _applyCategory(ref, txn, c);
-                },
-              ),
-          ],
-        ),
+      builder: (_) => CategoryPickerSheet(
+        categories: categories,
+        selectedCategoryId: txn.categoryId,
+        onSelected: (category) => _applyCategory(context, ref, txn, category),
       ),
     );
   }
 
-  Future<void> _applyCategory(WidgetRef ref, Transaction txn, Category? category) async {
+  Future<void> _applyCategory(
+    BuildContext context,
+    WidgetRef ref,
+    Transaction txn,
+    Category? category,
+  ) async {
     await ref.read(transactionProvider.notifier).updateTransaction(txn.id, {
       'categoryId': category?.id ?? '',
     });
     if (txn.matchedPatternId != null) {
-      await ref
-          .read(patternCacheServiceProvider)
-          .updatePatternCategory(txn.matchedPatternId!, category?.name);
+      try {
+        await ref
+            .read(patternCacheServiceProvider)
+            .updatePatternCategory(txn.matchedPatternId!, category?.name);
+      } catch (e) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Transaction saved, but the pattern category was not updated: $e',
+              style: GoogleFonts.inter(),
+            ),
+          ),
+        );
+      }
     }
   }
 }
@@ -435,7 +432,11 @@ class _DetailRow extends StatelessWidget {
             ),
             if (onTap != null) ...[
               SizedBox(width: 8),
-              Icon(Icons.edit_outlined, size: 16, color: context.colors.primary),
+              Icon(
+                Icons.edit_outlined,
+                size: 16,
+                color: context.colors.primary,
+              ),
             ],
           ],
         ),

@@ -238,11 +238,6 @@ class SettingsScreen extends ConsumerWidget {
                   ),
                 ),
               ),
-              _SettingsRow(
-                icon: Icons.mark_email_read_outlined,
-                label: 'Ignored Messages',
-                onTap: () => context.push(AppRoutes.ignoredMessages),
-              ),
             ],
           ),
 
@@ -254,6 +249,11 @@ class SettingsScreen extends ConsumerWidget {
                 icon: Icons.inbox_outlined,
                 label: 'Message Inbox',
                 onTap: () => context.push(AppRoutes.messageInbox),
+              ),
+              _SettingsRow(
+                icon: Icons.dashboard_customize_outlined,
+                label: 'Pattern Registry',
+                onTap: () => context.push(AppRoutes.patternRegistry),
               ),
               _SettingsRow(
                 icon: Icons.sms_outlined,

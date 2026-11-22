@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../models/transaction.dart';
 import '../screens/shell/app_shell.dart';
 import '../screens/auth/login_screen.dart';
 import '../screens/dashboard/dashboard_screen.dart';
@@ -10,11 +11,12 @@ import '../screens/settings/settings_screen.dart';
 import '../screens/expense/add_expense_screen.dart';
 import '../screens/expense/transaction_detail_screen.dart';
 import '../screens/messages/message_inbox_screen.dart';
-import '../screens/messages/ignored_messages_screen.dart';
 import '../screens/settings/link_family_screen.dart';
 import '../screens/settings/family_group_settings_screen.dart';
 import '../screens/settings/profile_screen.dart';
 import '../screens/settings/join_family_screen.dart';
+import '../screens/settings/pattern_registry_screen.dart';
+import '../screens/settings/pattern_builder_screen.dart';
 
 /// Route path constants.
 class AppRoutes {
@@ -28,11 +30,12 @@ class AppRoutes {
   static const String addExpense = '/add-expense';
   static const String transactionDetail = '/transaction';
   static const String messageInbox = '/messages';
-  static const String ignoredMessages = '/messages/ignored';
   static const String linkFamily = '/settings/link-family';
   static const String familySettings = '/settings/family';
   static const String profile = '/settings/profile';
   static const String joinFamily = '/join';
+  static const String patternRegistry = '/settings/patterns';
+  static const String patternBuilder = '/settings/patterns/new';
 }
 
 /// All route definitions, reused by both the default and deep-link routers.
@@ -79,16 +82,18 @@ final List<RouteBase> appRouteList = [
     path: '${AppRoutes.transactionDetail}/:id',
     builder: (context, state) {
       final id = state.pathParameters['id']!;
-      return TransactionDetailScreen(transactionId: id);
+      // Callers that already hold the transaction (the inbox, which may show
+      // rows older than the feed's first page) pass it along so the detail
+      // screen does not have to re-resolve it from the paged provider list.
+      return TransactionDetailScreen(
+        transactionId: id,
+        transaction: state.extra as Transaction?,
+      );
     },
   ),
   GoRoute(
     path: AppRoutes.messageInbox,
     builder: (context, state) => const MessageInboxScreen(),
-  ),
-  GoRoute(
-    path: AppRoutes.ignoredMessages,
-    builder: (context, state) => const IgnoredMessagesScreen(),
   ),
   GoRoute(
     path: AppRoutes.linkFamily,
@@ -101,6 +106,17 @@ final List<RouteBase> appRouteList = [
   GoRoute(
     path: AppRoutes.profile,
     builder: (context, state) => const ProfileScreen(),
+  ),
+  GoRoute(
+    path: AppRoutes.patternRegistry,
+    builder: (context, state) => const PatternRegistryScreen(),
+  ),
+  GoRoute(
+    path: AppRoutes.patternBuilder,
+    builder: (context, state) => PatternBuilderScreen(
+      messageId: state.uri.queryParameters['messageId'],
+      patternId: state.uri.queryParameters['patternId'],
+    ),
   ),
 
   // ── Join Family — from deep link or manual entry ──

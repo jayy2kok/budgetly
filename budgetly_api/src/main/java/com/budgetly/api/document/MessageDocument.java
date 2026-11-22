@@ -36,10 +36,9 @@ public class MessageDocument {
 
     /**
      * Ingestion sources. The change-stream listener only claims PENDING docs
-     * created via {@code SOURCE_BULK}; docs from the legacy {@code /messages/process}
-     * endpoint ({@code SOURCE_DIRECT}) are processed synchronously by that
-     * endpoint itself so the listener must never touch them (duplicate LLM /
-     * transaction race, see WORK-001).
+     * created via {@code SOURCE_BULK}; legacy docs stamped {@code SOURCE_DIRECT}
+     * were processed synchronously when they were written and must never be
+     * touched by the listener (duplicate LLM / transaction race, see WORK-001).
      */
     public static final String SOURCE_BULK = "BULK";
     public static final String SOURCE_DIRECT = "DIRECT";

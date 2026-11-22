@@ -11,22 +11,28 @@ SmsPattern pattern(
   String template, {
   String id = 'p-1',
   ExtractionMap? map,
-}) =>
-    SmsPattern(
-      id: id,
-      sender: sender,
-      template: template,
-      extractionMap:
-          map ??
-          const ExtractionMap(
-            amount: 'amount',
-            merchant: 'merchant',
-            timestamp: 'timestamp',
-            accountLast4: 'accountLast4',
-          ),
-      sampleMessage: '',
-      createdAt: DateTime.utc(2026, 1, 1),
-    );
+  Map<String, String> fixedValues = const {},
+  PatternScope scope = PatternScope.global,
+  DateTime? updatedAt,
+}) => SmsPattern(
+  id: id,
+  sender: sender,
+  template: template,
+  extractionMap:
+      map ??
+      const ExtractionMap(
+        amount: 'amount',
+        merchant: 'merchant',
+        timestamp: 'timestamp',
+        accountLast4: 'accountLast4',
+        notes: 'notes',
+      ),
+  fixedValues: fixedValues,
+  sampleMessage: '',
+  scope: scope,
+  createdAt: DateTime.utc(2026, 1, 1),
+  updatedAt: updatedAt,
+);
 
 void main() {
   group('SmsParserService anchor-template corpus', () {
@@ -40,7 +46,11 @@ void main() {
       (
         'Spent Rs {amount} at {merchant} on {timestamp}',
         'Spent Rs 500.50 at Grocery Mart on 01/10/2026',
-        {'amount': '500.50', 'merchant': 'Grocery Mart', 'timestamp': '01/10/2026'},
+        {
+          'amount': '500.50',
+          'merchant': 'Grocery Mart',
+          'timestamp': '01/10/2026',
+        },
       ),
       // K2 — regex meta-chars in literals ('.' in "Rs.", '/' in "a/c")
       (
@@ -94,11 +104,9 @@ void main() {
 
     for (final (template, sms, expected) in corpus) {
       test('template "$template" -> ${expected ?? 'null'}', () {
-        final result = SmsParserService().parseMessage(
-          hdfc,
-          sms,
-          [pattern(hdfc, template)],
-        );
+        final result = SmsParserService().parseMessage(hdfc, sms, [
+          pattern(hdfc, template),
+        ]);
         if (expected == null) {
           expect(result, isNull);
         } else {
@@ -111,21 +119,18 @@ void main() {
 
   group('SmsParserService extractionMap mapping', () {
     test('maps non-identity token names to amount/merchant', () {
-      final result = SmsParserService().parseMessage(
-        'PAYTM',
-        'Paid 100 to Taxi',
-        [
-          pattern(
-            'PAYTM',
-            'Paid {x} to {y}',
-            map: const ExtractionMap(
-              amount: 'x',
-              merchant: 'y',
-              timestamp: 'ts',
+      final result = SmsParserService()
+          .parseMessage('PAYTM', 'Paid 100 to Taxi', [
+            pattern(
+              'PAYTM',
+              'Paid {x} to {y}',
+              map: const ExtractionMap(
+                amount: 'x',
+                merchant: 'y',
+                timestamp: 'ts',
+              ),
             ),
-          ),
-        ],
-      );
+          ]);
       expect(result, isNotNull);
       expect(result!.extractedFields, {'amount': '100', 'merchant': 'Taxi'});
     });
@@ -136,15 +141,48 @@ void main() {
       final result = SmsParserService().parseMessage(
         'HDFCBK',
         'Rs.400 debited from a/c 9999 at Big Store',
-        [
-          pattern('HDFCBK', 'Rs.{amount} debited from a/c {x} at {merchant}'),
-        ],
+        [pattern('HDFCBK', 'Rs.{amount} debited from a/c {x} at {merchant}')],
       );
       expect(result, isNotNull);
       final fields = result!.extractedFields;
       expect(fields, containsPair('amount', '400'));
       expect(fields, containsPair('merchant', 'Big Store'));
       expect(fields, isNot(contains('x')));
+    });
+
+    test('fixed values win over extracted values', () {
+      final result = SmsParserService().parseMessage(
+        'HDFCBK',
+        'Rs.400 debited at Razorpay',
+        [
+          pattern(
+            'HDFCBK',
+            'Rs.{amount} debited at {merchant}',
+            fixedValues: const {
+              'merchant': 'Pan Shop',
+              'bankName': 'HDFC Bank',
+              'notes': 'Monthly',
+            },
+          ),
+        ],
+      );
+
+      expect(result, isNotNull);
+      expect(result!.extractedFields, containsPair('merchant', 'Pan Shop'));
+      expect(result.extractedFields, containsPair('bankName', 'HDFC Bank'));
+      expect(result.extractedFields, containsPair('notes', 'Monthly'));
+      expect(result.extractedFields, containsPair('amount', '400'));
+    });
+
+    test('notes tagged in the template are exposed', () {
+      final result = SmsParserService().parseMessage(
+        'HDFCBK',
+        'Rs.400 debited at Big Store. Rent payment',
+        [pattern('HDFCBK', 'Rs.{amount} debited at {merchant}. {notes}')],
+      );
+
+      expect(result, isNotNull);
+      expect(result!.extractedFields, containsPair('notes', 'Rent payment'));
     });
   });
 
@@ -189,6 +227,82 @@ void main() {
       expect(result!.matchedPatternId, 'p-first');
     });
 
+    test('family-scoped pattern wins over a newer global one', () {
+      // Mirrors the backend precedence: family scoped patterns are tried
+      // before global ones, even when the global one is newer.
+      final global = pattern(
+        'HDFCBK',
+        'Rs.{amount} debited from A/C XX1234 at {merchant} on {timestamp}',
+        id: 'p-global',
+        updatedAt: DateTime.utc(2026, 3, 1),
+      );
+      final family = pattern(
+        'HDFCBK',
+        'Rs.{amount} debited from A/C XX1234 at {merchant} on {timestamp}',
+        id: 'p-family',
+        scope: PatternScope.family,
+        fixedValues: const {'merchant': 'Pan Shop'},
+        updatedAt: DateTime.utc(2026, 1, 1),
+      );
+
+      final result = SmsParserService().parseMessage(
+        'HDFCBK',
+        'Rs.350 debited from A/C XX1234 at Croma on 20-11-26',
+        [global, family],
+      );
+
+      expect(result, isNotNull);
+      expect(result!.matchedPatternId, 'p-family');
+      expect(result.extractedFields, containsPair('merchant', 'Pan Shop'));
+    });
+
+    test('within a scope, the most recently updated pattern wins', () {
+      final older = pattern(
+        'HDFCBK',
+        'Rs.{amount} debited at {merchant}',
+        id: 'p-older',
+        scope: PatternScope.family,
+        updatedAt: DateTime.utc(2026, 1, 1),
+      );
+      final newer = pattern(
+        'HDFCBK',
+        'Rs.{amount} debited at {merchant}',
+        id: 'p-newer',
+        scope: PatternScope.family,
+        updatedAt: DateTime.utc(2026, 2, 1),
+      );
+
+      final result = SmsParserService().parseMessage(
+        'HDFCBK',
+        'Rs.350 debited at Croma',
+        [older, newer],
+      );
+
+      expect(result!.matchedPatternId, 'p-newer');
+    });
+
+    test('legacy pattern without updatedAt sorts after timestamped ones', () {
+      final legacy = pattern(
+        'HDFCBK',
+        'Rs.{amount} debited at {merchant}',
+        id: 'p-legacy',
+      );
+      final timestamped = pattern(
+        'HDFCBK',
+        'Rs.{amount} debited at {merchant}',
+        id: 'p-timestamped',
+        updatedAt: DateTime.utc(2026, 1, 1),
+      );
+
+      final result = SmsParserService().parseMessage(
+        'HDFCBK',
+        'Rs.350 debited at Croma',
+        [legacy, timestamped],
+      );
+
+      expect(result!.matchedPatternId, 'p-timestamped');
+    });
+
     test('keeps trying when a pattern does not match', () {
       final first = pattern(
         'HDFCBK',
@@ -224,6 +338,51 @@ void main() {
 
     test('empty patterns list -> null', () {
       expect(SmsParserService().parseMessage('BANK', 'anything', []), isNull);
+    });
+  });
+
+  group('SmsParserService.dryRunTemplate (pattern builder preview)', () {
+    test('amount-only template extracts the amount', () {
+      expect(
+        SmsParserService().dryRunTemplate(
+          'Paid {amount} rupees',
+          'Paid 250 rupees',
+        ),
+        {'amount': '250'},
+      );
+    });
+
+    test('empty token set -> null (no anchors)', () {
+      expect(
+        SmsParserService().dryRunTemplate(
+          'This message has no tokens',
+          'This message has no tokens',
+        ),
+        isNull,
+      );
+    });
+
+    test('non-matching literal anchors -> null', () {
+      expect(
+        SmsParserService().dryRunTemplate(
+          'Spent Rs {amount} at {merchant}',
+          'Received Rs 500 from Rahul',
+        ),
+        isNull,
+      );
+    });
+
+    test('overlapping/adjacent tokens with no literal gap', () {
+      // The anchor parser allows consecutive tokens; each captures the run of
+      // text between anchors. With no right anchor the last token takes the
+      // remainder, so this must not throw.
+      final extracted = SmsParserService().dryRunTemplate(
+        '{amount} {merchant}',
+        '500 Swiggy',
+      );
+      expect(extracted, isNotNull);
+      expect(extracted!['amount'], isNotNull);
+      expect(extracted['merchant'], isNotNull);
     });
   });
 }

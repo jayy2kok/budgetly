@@ -75,6 +75,8 @@ public class TransactionService {
                 .sourceType(request.getSourceType() != null ? request.getSourceType().getValue() : "MANUAL")
                 .sourceRawText(request.getSourceRawText())
                 .matchedPatternId(request.getMatchedPatternId())
+                .accountLast4(request.getAccountLast4())
+                .bankName(request.getBankName())
                 .notes(request.getNotes())
                 .transactionDate(request.getTransactionDate() != null
                         ? request.getTransactionDate().toInstant() : Instant.now())
@@ -105,6 +107,8 @@ public class TransactionService {
         if (request.getSplitMethod() != null) doc.setSplitMethod(request.getSplitMethod().getValue());
         if (request.getSplitConfig() != null) doc.setSplitConfig(castSplitConfig(request.getSplitConfig()));
         if (request.getNotes() != null) doc.setNotes(request.getNotes());
+        if (request.getAccountLast4() != null) doc.setAccountLast4(request.getAccountLast4());
+        if (request.getBankName() != null) doc.setBankName(request.getBankName());
         if (request.getTransactionDate() != null) doc.setTransactionDate(request.getTransactionDate().toInstant());
 
         return toDto(transactionRepository.save(doc));
@@ -136,6 +140,8 @@ public class TransactionService {
                 .sourceType(sourceType)
                 .sourceRawText(rawText)
                 .matchedPatternId(patternId)
+                .accountLast4(request.getAccountLast4())
+                .bankName(request.getBankName())
                 .notes(request.getNotes())
                 .transactionDate(request.getTransactionDate() != null
                         ? request.getTransactionDate().toInstant() : Instant.now())
@@ -221,6 +227,8 @@ public class TransactionService {
         }
         dto.setSourceRawText(doc.getSourceRawText());
         dto.setMatchedPatternId(doc.getMatchedPatternId());
+        dto.setAccountLast4(doc.getAccountLast4());
+        dto.setBankName(doc.getBankName());
         dto.setNotes(doc.getNotes());
         if (doc.getTransactionDate() != null) dto.setTransactionDate(doc.getTransactionDate().atOffset(ZoneOffset.UTC));
         if (doc.getCreatedAt() != null) dto.setCreatedAt(doc.getCreatedAt().atOffset(ZoneOffset.UTC));

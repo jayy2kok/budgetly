@@ -9,6 +9,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.time.format.ResolverStyle;
 import java.util.List;
 
 /**
@@ -19,43 +20,99 @@ import java.util.List;
  * transaction-creation call site (WORK-003).
  *
  * <p>Supported: ISO instant / offset date-times, ISO date, {@code dd/MM/yyyy},
- * {@code dd-MM-yyyy} (each optionally with a {@code HH:mm[:ss]} time part).
- * Date-only values resolve to start-of-day UTC.
+ * {@code dd-MM-yyyy}, the two-digit-year bank form {@code dd/MM/yy} /
+ * {@code dd-MM-yy} ({@code 26} → 2026), each optionally with a
+ * {@code HH:mm[:ss]} time part. Date-only values resolve to the received
+ * time-of-day (see {@link #resolveTransactionDate}).
+ *
+ * <p>Strict resolution rejects impossible calendar dates ({@code 31/02/2026})
+ * instead of silently rolling them forward to a real date — a rolled date
+ * would land transactions in the wrong budget month.
  */
 @Component
 public class TransactionDateParser {
 
+    private static DateTimeFormatter strict(String pattern) {
+        return DateTimeFormatter.ofPattern(pattern).withResolverStyle(ResolverStyle.STRICT);
+    }
+
     private static final List<DateTimeFormatter> DATE_FORMATS = List.of(
-            DateTimeFormatter.ofPattern("dd/MM/yyyy"),
-            DateTimeFormatter.ofPattern("dd-MM-yyyy"),
+            strict("dd/MM/uuuu"),
+            strict("dd-MM-uuuu"),
+            strict("dd/MM/uu"),
+            strict("dd-MM-uu"),
             DateTimeFormatter.ISO_LOCAL_DATE
     );
 
     private static final List<DateTimeFormatter> DATE_TIME_FORMATS = List.of(
-            DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss"),
-            DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"),
-            DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss"),
-            DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm"),
+            strict("dd/MM/uuuu HH:mm:ss"),
+            strict("dd/MM/uuuu HH:mm"),
+            strict("dd-MM-uuuu HH:mm:ss"),
+            strict("dd-MM-uuuu HH:mm"),
+            strict("dd/MM/uu HH:mm:ss"),
+            strict("dd/MM/uu HH:mm"),
+            strict("dd-MM-uu HH:mm:ss"),
+            strict("dd-MM-uu HH:mm"),
             DateTimeFormatter.ISO_LOCAL_DATE_TIME
     );
 
     /**
-     * Parse a zoned message timestamp. Uses the authoritative {@code receivedAt}
-     * (always a UTC instant) when present; otherwise falls back to the SMS-body
-     * timestamp string, which is assumed to be in {@code defaultZone} because it
-     * carries no offset (Indian bank SMS report local wall-clock time). Either
-     * way the result is a correct absolute instant — never "now" unless nothing
-     * is available.
+     * Resolves a transaction instant from the SMS received time and the
+     * timestamp written in the body. The body date is authoritative: a body
+     * with a date and time wins outright; a date-only body keeps its date and
+     * takes the received time-of-day (or {@code 00:00:00} when unavailable).
+     * Without a body timestamp the received instant is used, and with neither
+     * the current time.
      */
-    public Instant parseOrDefault(Instant receivedAt, String rawTimestamp,
-                                  java.time.ZoneId defaultZone) {
-        if (receivedAt != null) {
-            return receivedAt;
+    public Instant resolveTransactionDate(Instant receivedAt, String rawTimestamp,
+                                          java.time.ZoneId defaultZone) {
+        if (rawTimestamp != null && !rawTimestamp.isBlank()) {
+            String t = rawTimestamp.trim();
+            Instant dateTime = parseDateTime(t, defaultZone);
+            if (dateTime != null) {
+                return dateTime;
+            }
+            LocalDate dateOnly = parseDateOnly(t);
+            if (dateOnly != null) {
+                java.time.LocalTime time = receivedAt != null
+                        ? LocalDateTime.ofInstant(receivedAt, defaultZone).toLocalTime()
+                        : java.time.LocalTime.MIDNIGHT;
+                // The body's date is authoritative; the received time-of-day
+                // completes it (midnight when no received time is available).
+                return dateOnly.atTime(time).atZone(defaultZone).toInstant();
+            }
         }
-        if (rawTimestamp == null || rawTimestamp.isBlank()) {
-            return Instant.now();
+        return receivedAt != null ? receivedAt : Instant.now();
+    }
+
+    /** @return the parsed date+time instant, or null when the value carries no time. */
+    private Instant parseDateTime(String value, java.time.ZoneId defaultZone) {
+        try {
+            return Instant.parse(value);
+        } catch (DateTimeParseException ignored) {
         }
-        return parse(rawTimestamp, defaultZone).orElse(Instant.now());
+        try {
+            return OffsetDateTime.parse(value).toInstant();
+        } catch (DateTimeParseException ignored) {
+        }
+        for (DateTimeFormatter f : DATE_TIME_FORMATS) {
+            try {
+                return LocalDateTime.parse(value, f).atZone(defaultZone).toInstant();
+            } catch (DateTimeParseException ignored) {
+            }
+        }
+        return null;
+    }
+
+    /** @return the parsed date, or null when the value is not a supported date-only format. */
+    private LocalDate parseDateOnly(String value) {
+        for (DateTimeFormatter f : DATE_FORMATS) {
+            try {
+                return LocalDate.parse(value, f);
+            } catch (DateTimeParseException ignored) {
+            }
+        }
+        return null;
     }
 
     /**
@@ -106,12 +163,5 @@ public class TransactionDateParser {
      */
     public java.util.Optional<Instant> parse(String rawTimestamp) {
         return parse(rawTimestamp, ZoneOffset.UTC);
-    }
-
-    /**
-     * Convenience: parse, else fall back to {@code fallback}.
-     */
-    public Instant parseOrDefault(String rawTimestamp, Instant fallback) {
-        return parse(rawTimestamp).orElse(fallback);
     }
 }

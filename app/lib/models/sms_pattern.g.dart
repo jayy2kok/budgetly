@@ -9,10 +9,11 @@ part of 'sms_pattern.dart';
 ExtractionMap _$ExtractionMapFromJson(Map<String, dynamic> json) =>
     ExtractionMap(
       amount: json['amount'] as String,
-      merchant: json['merchant'] as String,
-      timestamp: json['timestamp'] as String,
+      merchant: json['merchant'] as String?,
+      timestamp: json['timestamp'] as String?,
       accountLast4: json['accountLast4'] as String?,
       type: json['type'] as String?,
+      notes: json['notes'] as String?,
     );
 
 Map<String, dynamic> _$ExtractionMapToJson(ExtractionMap instance) =>
@@ -22,6 +23,7 @@ Map<String, dynamic> _$ExtractionMapToJson(ExtractionMap instance) =>
       'timestamp': instance.timestamp,
       'accountLast4': instance.accountLast4,
       'type': instance.type,
+      'notes': instance.notes,
     };
 
 SmsPattern _$SmsPatternFromJson(Map<String, dynamic> json) => SmsPattern(
@@ -31,10 +33,28 @@ SmsPattern _$SmsPatternFromJson(Map<String, dynamic> json) => SmsPattern(
   extractionMap: ExtractionMap.fromJson(
     json['extractionMap'] as Map<String, dynamic>,
   ),
+  fixedValues:
+      (json['fixedValues'] as Map<String, dynamic>?)?.map(
+        (k, e) => MapEntry(k, e as String),
+      ) ??
+      const {},
   sampleMessage: json['sampleMessage'] as String,
   categoryName: json['categoryName'] as String?,
   usageCount: (json['usageCount'] as num?)?.toInt() ?? 0,
+  scope:
+      $enumDecodeNullable(_$PatternScopeEnumMap, json['scope']) ??
+      PatternScope.global,
+  ownerFamilyGroupId: json['ownerFamilyGroupId'] as String?,
+  createdByUserId: json['createdByUserId'] as String?,
+  source:
+      $enumDecodeNullable(_$PatternSourceEnumMap, json['source']) ??
+      PatternSource.llm,
+  active: json['active'] as bool? ?? true,
+  hiddenForFamily: json['hiddenForFamily'] as bool? ?? false,
   createdAt: DateTime.parse(json['createdAt'] as String),
+  updatedAt: json['updatedAt'] == null
+      ? null
+      : DateTime.parse(json['updatedAt'] as String),
 );
 
 Map<String, dynamic> _$SmsPatternToJson(SmsPattern instance) =>
@@ -43,8 +63,26 @@ Map<String, dynamic> _$SmsPatternToJson(SmsPattern instance) =>
       'sender': instance.sender,
       'template': instance.template,
       'extractionMap': instance.extractionMap,
+      'fixedValues': instance.fixedValues,
       'sampleMessage': instance.sampleMessage,
       'categoryName': instance.categoryName,
       'usageCount': instance.usageCount,
+      'scope': _$PatternScopeEnumMap[instance.scope]!,
+      'ownerFamilyGroupId': instance.ownerFamilyGroupId,
+      'createdByUserId': instance.createdByUserId,
+      'source': _$PatternSourceEnumMap[instance.source]!,
+      'active': instance.active,
+      'hiddenForFamily': instance.hiddenForFamily,
       'createdAt': instance.createdAt.toIso8601String(),
+      'updatedAt': instance.updatedAt?.toIso8601String(),
     };
+
+const _$PatternScopeEnumMap = {
+  PatternScope.global: 'GLOBAL',
+  PatternScope.family: 'FAMILY',
+};
+
+const _$PatternSourceEnumMap = {
+  PatternSource.llm: 'LLM',
+  PatternSource.user: 'USER',
+};

@@ -2,13 +2,16 @@ package com.budgetly.api.service;
 
 import org.springframework.stereotype.Service;
 import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
+/**
+ * Splits a template into literal anchors and {@code {token}} placeholders with
+ * a single linear scan. A regex like {@code \{([^}]+)\}} would behave
+ * identically but is quadratic on crafted inputs (many {@code {{...}}), so it
+ * is deliberately avoided here: the template is user-controlled and arrives on
+ * the SMS parsing hot path (ReDoS — CodeQL {@code java/polynomial-redos}).
+ */
 @Service
 public class AnchorParserService {
-
-    private static final Pattern TOKEN_PATTERN = Pattern.compile("\\{([^}]+)\\}");
 
     /**
      * Parses an SMS text using literal anchor matching based on the template.
@@ -22,12 +25,29 @@ public class AnchorParserService {
         List<String> literals = new ArrayList<>();
         List<String> tokens = new ArrayList<>();
 
-        Matcher matcher = TOKEN_PATTERN.matcher(template);
+        // Equivalent of \{( [^}]+ )\}: the first '{' opens a token, which runs to
+        // the next '}' and must contain at least one character. Unmatched or
+        // empty braces stay literal, and '{' may appear inside a token — all
+        // matching the regex semantics the Dart parser mirrors.
         int lastEnd = 0;
-        while (matcher.find()) {
-            literals.add(template.substring(lastEnd, matcher.start()));
-            tokens.add(matcher.group(1));
-            lastEnd = matcher.end();
+        for (int i = 0; i < template.length();) {
+            char c = template.charAt(i);
+            if (c != '{') {
+                i++;
+                continue;
+            }
+            int close = template.indexOf('}', i + 1);
+            if (close == -1) {
+                break; // no closing brace — the rest of the template is literal
+            }
+            if (close == i + 1) {
+                i++; // empty '{}' is not a token (parity with [^}]+)
+                continue;
+            }
+            literals.add(template.substring(lastEnd, i));
+            tokens.add(template.substring(i + 1, close));
+            lastEnd = close + 1;
+            i = close + 1;
         }
         literals.add(template.substring(lastEnd));
 

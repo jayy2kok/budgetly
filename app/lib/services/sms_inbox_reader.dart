@@ -27,6 +27,56 @@ class SmsInboxReader {
     return (await Permission.sms.status).isGranted;
   }
 
+  /// Reads the device SMS inbox and returns one [Message] per SMS, newest
+  /// first, regardless of sender or content.
+  ///
+  /// This is the inbox screen's source of truth: it mirrors the phone's SMS
+  /// app, so OTPs, promos, delivery notices and personal texts are included.
+  /// [limit] caps the display window (defaults to
+  /// [ApiConfig.smsInboxDisplayLimit]).
+  Future<List<Message>> readAllInbox({
+    required String userId,
+    int limit = ApiConfig.smsInboxDisplayLimit,
+  }) async {
+    if (!await hasPermission()) {
+      debugPrint('[SmsInboxReader] No SMS permission — skipping inbox read.');
+      return [];
+    }
+
+    List<SmsMessage> smsList;
+    try {
+      smsList = await _query.querySms(
+        kinds: [SmsQueryKind.inbox],
+        count: limit,
+      );
+    } catch (e) {
+      debugPrint('[SmsInboxReader] Failed to query SMS inbox: $e');
+      return [];
+    }
+
+    final result = <Message>[];
+    for (final sms in smsList) {
+      final sender = (sms.sender ?? '').trim();
+      final body = sms.body ?? '';
+      if (sender.isEmpty || body.isEmpty) continue;
+
+      // The received date (not dateSent) is the message's arrival time; it
+      // completes date-only timestamps in the body.
+      final receivedAt = sms.date ?? sms.dateSent ?? DateTime.now();
+      result.add(Message(
+        id: _messageId(sms, sender, receivedAt),
+        userId: userId,
+        sender: sender,
+        rawText: body,
+        receivedAt: receivedAt,
+        status: MessageStatus.pending,
+      ));
+    }
+
+    debugPrint('[SmsInboxReader] Read ${result.length} messages from the inbox.');
+    return result;
+  }
+
   /// Reads the SMS inbox and returns [Message] objects for all financial-looking messages.
   ///
   /// Strategy (two-pass):
@@ -48,7 +98,7 @@ class SmsInboxReader {
     }
 
     await _cache.loadPatterns();
-    final patterns = _cache.patterns;
+    final patterns = _cache.matchablePatterns;
     final knownSenders = patterns.map((p) => p.sender.toUpperCase()).toSet();
 
     debugPrint(
@@ -71,7 +121,8 @@ class SmsInboxReader {
     final result = <Message>[];
 
     for (final sms in smsList) {
-      final receivedAt = sms.dateSent ?? DateTime.now();
+      // The received date is the SMS's arrival time; dateSent can predate it.
+      final receivedAt = sms.date ?? sms.dateSent ?? DateTime.now();
 
       // Since smsList is sorted descending, stop at the checkpoint message.
       // The cutoff is EXCLUSIVE: the checkpoint's own message (receivedAt ==
@@ -92,7 +143,7 @@ class SmsInboxReader {
 
       final sender = (sms.sender ?? '').toUpperCase().trim();
       final body = sms.body ?? '';
-      final id = 'sms_${sms.id ?? '${sender}_${receivedAt.millisecondsSinceEpoch}'}';
+      final id = _messageId(sms, sender, receivedAt);
 
       if (sender.isEmpty || body.isEmpty) continue;
 
@@ -154,6 +205,12 @@ class SmsInboxReader {
     debugPrint('[SmsInboxReader] Found ${result.length} financial messages to process.');
     return result;
   }
+
+  /// Stable id for an SMS: the device row id when available, otherwise a
+  /// sender+timestamp fallback. Shared by both readers so the same SMS has the
+  /// same id in the inbox and in the sync pipeline.
+  String _messageId(SmsMessage sms, String sender, DateTime receivedAt) =>
+      'sms_${sms.id ?? '${sender}_${receivedAt.millisecondsSinceEpoch}'}';
 
   /// Returns true if the SMS body contains keywords commonly found in bank transaction alerts.
   bool _looksFinancial(String body) {

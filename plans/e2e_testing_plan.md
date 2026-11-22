@@ -248,15 +248,10 @@ public abstract class BaseE2ETest {
 
 | # | Test Case | HTTP | Expected |
 |---|-----------|------|----------|
-| 1 | **Process Message** — financial SMS → transaction created | `POST /messages/process` | `200`, `isFinancial=true` |
-| 2 | **Process Message** — non-financial SMS | `POST /messages/process` | `200`, `isFinancial=false` |
-| 3 | **Get Pending Messages** | `GET /messages/pending` | `200`, list of PENDING messages |
-| 4 | **Get Ignored Messages** | `GET /messages/ignored` | `200`, list of IGNORED messages |
-| 5 | **Confirm Message** → transaction created | `POST /messages/{id}/confirm` | `200`, returns `Transaction` |
-| 6 | **Reject Message** | `POST /messages/{id}/reject` | `200`, status = REJECTED |
-| 7 | **Restore Message** | `POST /messages/{id}/restore` | `200`, status = PENDING |
+| 1 | **Bulk Insert Messages** — device SMS batch | `POST /messages/bulk` | `200`, accepted for the caller's family |
+| 2 | **Bulk Insert** — non-financial SMS retained | `POST /messages/bulk` | `200`, message stored with raw body |
 
-**Notes:** `LlmProvider` (Gemini) is mocked via `@MockBean` to return deterministic `LlmAnalysisResult`.
+**Notes:** The server message-triage flow (`POST /messages/process`, `GET /messages/pending|ignored|failed`, `POST /messages/{id}/confirm|reject|restore`) was removed in the inbox redesign — the device inbox is the source of truth. `LlmProvider` (Gemini) is mocked via `@MockBean` to return deterministic `LlmAnalysisResult`.
 
 ---
 

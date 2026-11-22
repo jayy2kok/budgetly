@@ -11,11 +11,10 @@ import java.util.stream.Collectors;
 /**
  * Bridges the LLM step and the persisted category model.
  *
- * <p>Both LLM consumers (the change-stream slow path and the {@code /messages/process}
- * endpoint) need two things: the category names to offer the LLM in the prompt, and a
- * way to translate the LLM's chosen category name back into a real {@code CategoryDocument}
- * id for the message's family. This component centralises the lookup so both share the same
- * rules:
+ * <p>The change-stream slow path is the sole LLM consumer. It needs two things: the
+ * category names to offer the LLM in the prompt, and a way to translate the LLM's chosen
+ * category name back into a real {@code CategoryDocument} id for the message's family.
+ * This component centralises that lookup:
  * <ul>
  *   <li>prefer the family-group's configured categories;</li>
  *   <li>fall back to a built-in default list when the family has none (or no family is set);</li>

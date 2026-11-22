@@ -112,8 +112,8 @@ public class MessageChangeStreamListener {
         }
 
         // Only insert events on PENDING documents that entered via the bulk API.
-        // Excluding SOURCE_DIRECT (legacy /messages/process) removes the duplicate-
-        // processing race: the process endpoint handles its own docs synchronously.
+        // Excluding SOURCE_DIRECT removes the duplicate-processing race: legacy
+        // DIRECT docs were completed when they were written and must stay untouched.
         builder.filter(
                 org.springframework.data.mongodb.core.aggregation.Aggregation.newAggregation(
                         org.springframework.data.mongodb.core.aggregation.Aggregation.match(
@@ -227,7 +227,7 @@ public class MessageChangeStreamListener {
     // ── FAST PATH: server-side anchor-template match ─────────────
 
     private boolean tryAnchorMatch(MessageDocument doc) {
-        List<SmsPatternDocument> patterns = patternRegistryService.findActiveBySender(doc.getSender());
+        List<SmsPatternDocument> patterns = patternRegistryService.findActiveBySender(doc.getSender(), doc.getFamilyGroupId());
         if (patterns.isEmpty()) {
             return false;
         }
@@ -252,9 +252,12 @@ public class MessageChangeStreamListener {
                 : Map.of("amount", "amount", "merchant", "merchant", "timestamp", "timestamp");
 
         final Double amount = amountOf(parsed, em);
-        final String merchant = fieldOf(parsed, em, "merchant");
+        final String merchant = resolveField(matched, parsed, em, "merchant");
         final String timestampRaw = fieldOf(parsed, em, "timestamp");
         final String typeRaw = fieldOf(parsed, em, "type");
+        final String accountLast4 = resolveField(matched, parsed, em, "accountLast4");
+        final String bankName = resolveField(matched, parsed, em, "bankName");
+        final String notes = resolveField(matched, parsed, em, "notes");
 
         if (amount == null || merchant == null) {
             // Anchors matched but the pattern cannot extract all mandatory
@@ -263,13 +266,10 @@ public class MessageChangeStreamListener {
             return false;
         }
 
-        // Use the SMS's authoritative receivedAt (correct UTC instant); fall back
-        // to the body timestamp only when it is absent.
-        Instant txDate = doc.getReceivedAt() != null
-                ? doc.getReceivedAt()
-                : transactionDateParser
-                        .parse(timestampRaw, java.time.ZoneId.of("Asia/Kolkata"))
-                        .orElse(Instant.now());
+        // The body's date is authoritative; a date-only body takes the SMS
+        // received time-of-day (see TransactionDateParser).
+        Instant txDate = transactionDateParser.resolveTransactionDate(
+                doc.getReceivedAt(), timestampRaw, java.time.ZoneId.of("Asia/Kolkata"));
         // Currency lives in the amount text (e.g. "Rs.", "USD"); the pattern
         // usually omits a dedicated {currency} token.
         String currency = TransactionService.currencyFromText(doc.getRawText());
@@ -277,6 +277,9 @@ public class MessageChangeStreamListener {
         CreateTransactionRequest txRequest = new CreateTransactionRequest();
         txRequest.setAmount(amount);
         txRequest.setMerchant(merchant);
+        txRequest.setAccountLast4(accountLast4);
+        txRequest.setBankName(bankName);
+        txRequest.setNotes(notes);
         txRequest.setType("INCOME".equalsIgnoreCase(typeRaw) ? TransactionType.INCOME : TransactionType.EXPENSE);
         txRequest.setTransactionDate(txDate.atOffset(ZoneOffset.UTC));
         txRequest.setCurrency(currency != null ? currency : "INR");
@@ -311,6 +314,9 @@ public class MessageChangeStreamListener {
         Map<String, Object> parsedData = new HashMap<>();
         parsedData.put("amount", amount);
         parsedData.put("merchant", merchant);
+        if (accountLast4 != null) parsedData.put("accountLast4", accountLast4);
+        if (bankName != null) parsedData.put("bankName", bankName);
+        if (notes != null) parsedData.put("notes", notes);
         if (timestampRaw != null) parsedData.put("timestamp", timestampRaw);
         doc.setParsedTransactionData(parsedData);
 
@@ -335,6 +341,23 @@ public class MessageChangeStreamListener {
         return (value == null || value.isBlank()) ? null : value.trim();
     }
 
+    /**
+     * Resolves a transaction field for a matched pattern. A user-pinned fixed
+     * value wins over whatever the template extracted; otherwise the extracted
+     * value is used.
+     */
+    private String resolveField(SmsPatternDocument pattern, Map<String, String> parsed,
+                                Map<String, String> em, String field) {
+        Map<String, String> fixed = pattern.getFixedValues();
+        if (fixed != null) {
+            String literal = fixed.get(field);
+            if (literal != null && !literal.isBlank()) {
+                return literal.trim();
+            }
+        }
+        return fieldOf(parsed, em, field);
+    }
+
     // ── SLOW PATH: LLM classification + pattern proposal ─────────
 
     private void analyzeWithLlm(MessageDocument doc) {
@@ -353,7 +376,8 @@ public class MessageChangeStreamListener {
         txRequest.setMerchant(llmResult.getMerchant() != null ? llmResult.getMerchant() : "Unknown");
         txRequest.setType("INCOME".equals(llmResult.getTransactionType()) ? TransactionType.INCOME : TransactionType.EXPENSE);
         txRequest.setTransactionDate(transactionDateParser
-                .parseOrDefault(doc.getReceivedAt(), llmResult.getRawTimestamp(), java.time.ZoneId.of("Asia/Kolkata"))
+                .resolveTransactionDate(doc.getReceivedAt(), llmResult.getRawTimestamp(),
+                        java.time.ZoneId.of("Asia/Kolkata"))
                 .atOffset(ZoneOffset.UTC));
         String llmCurrency = llmResult.getCurrency();
         txRequest.setCurrency(llmCurrency != null && !llmCurrency.isBlank() ? llmCurrency.toUpperCase(java.util.Locale.ROOT) : "INR");

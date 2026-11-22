@@ -15,14 +15,11 @@ Message _$MessageFromJson(Map<String, dynamic> json) => Message(
   status: $enumDecode(_$MessageStatusEnumMap, json['status']),
   parseSource: $enumDecodeNullable(_$ParseSourceEnumMap, json['parseSource']),
   matchedPatternId: json['matchedPatternId'] as String?,
-  nonFinancialCategory: $enumDecodeNullable(
-    _$NonFinancialCategoryEnumMap,
-    json['nonFinancialCategory'],
-  ),
   extractedData: (json['extractedData'] as Map<String, dynamic>?)?.map(
     (k, e) => MapEntry(k, e as String),
   ),
   linkedTransactionId: json['linkedTransactionId'] as String?,
+  errorMessage: json['errorMessage'] as String?,
   receivedAt: DateTime.parse(json['receivedAt'] as String),
 );
 
@@ -35,10 +32,9 @@ Map<String, dynamic> _$MessageToJson(Message instance) => <String, dynamic>{
   'status': _$MessageStatusEnumMap[instance.status]!,
   'parseSource': _$ParseSourceEnumMap[instance.parseSource],
   'matchedPatternId': instance.matchedPatternId,
-  'nonFinancialCategory':
-      _$NonFinancialCategoryEnumMap[instance.nonFinancialCategory],
   'extractedData': instance.extractedData,
   'linkedTransactionId': instance.linkedTransactionId,
+  'errorMessage': instance.errorMessage,
   'receivedAt': instance.receivedAt.toIso8601String(),
 };
 
@@ -56,12 +52,4 @@ const _$ParseSourceEnumMap = {
   ParseSource.regexLocal: 'REGEX_LOCAL',
   ParseSource.llmServer: 'LLM_SERVER',
   ParseSource.manual: 'MANUAL',
-};
-
-const _$NonFinancialCategoryEnumMap = {
-  NonFinancialCategory.otp: 'OTP',
-  NonFinancialCategory.promo: 'PROMO',
-  NonFinancialCategory.personal: 'PERSONAL',
-  NonFinancialCategory.delivery: 'DELIVERY',
-  NonFinancialCategory.unknown: 'UNKNOWN',
 };

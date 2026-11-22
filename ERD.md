@@ -15,6 +15,7 @@
 | `transactions` | `TransactionDocument` | Expense / income / subscription records |
 | `messages` | `MessageDocument` | Ingested SMS messages awaiting parsing/triage |
 | `pattern_registry` | `SmsPatternDocument` | Learned literal-anchor templates per sender |
+| `hidden_patterns` | `HiddenPatternDocument` | GLOBAL patterns a family has hidden from its own registry |
 | `rejected_patterns` | `RejectedPatternDocument` | Templates reported/auto-disabled |
 | `change_stream_tokens` | `ChangeStreamTokenDocument` | Change-stream resume token (idempotent restarts) |
 
@@ -36,6 +37,8 @@ erDiagram
     pattern_registry ||--o{ messages : "matchedPatternId"
     pattern_registry ||--o{ transactions : "matchedPatternId"
     pattern_registry |o--o| rejected_patterns : "patternId"
+    pattern_registry ||--o{ hidden_patterns : "patternId"
+    family_groups ||--o{ hidden_patterns : "familyGroupId"
 ```
 
 ## Collections
@@ -123,6 +126,8 @@ erDiagram
         string sourceType "MANUAL | REGEX_LOCAL | LLM_SERVER"
         string sourceRawText
         string matchedPatternId FK "→ pattern_registry"
+        string accountLast4 "last 4 digits of account/card"
+        string bankName "bank the account belongs to"
         string notes
         datetime transactionDate "indexed"
         datetime createdAt
@@ -158,7 +163,7 @@ erDiagram
 ```
 
 - Compound indexes: `(status, createdAt)`, `(userId, status)`, `(familyGroupId, status)`.
-- `source` discriminates the two ingestion routes (see ADR-0003): `BULK` docs are consumed by the change-stream listener; `DIRECT` docs are processed synchronously by `POST /messages/process`.
+- `source` discriminates the two ingestion routes (see ADR-0003): `BULK` docs are consumed by the change-stream listener; legacy `DIRECT` docs were completed synchronously when they were written and are never claimed by the listener. The Flutter inbox no longer reads this collection — it mirrors the device SMS store directly (see design.md).
 
 ### `pattern_registry`
 
@@ -169,15 +174,46 @@ erDiagram
         string sender "indexed, e.g. HDFCBK"
         string template "literal-anchor template with {tokens}"
         map extractionMap "token → transaction field (Map string string)"
+        map fixedValues "field → literal (merchant/accountLast4/bankName/notes)"
         string sampleMessage
         string categoryName "user-overridden category"
         long usageCount
+        string scope "GLOBAL | FAMILY (default GLOBAL)"
+        string ownerFamilyGroupId FK "→ family_groups; null when GLOBAL"
+        string createdByUserId FK "author; null for LLM-seeded globals"
+        string source "LLM | USER (default LLM)"
+        string derivedFromPatternId FK "→ pattern_registry; GLOBAL this family copy came from"
         boolean active
         int reportCount
         datetime createdAt
         datetime updatedAt
     }
 ```
+
+- Compound index `sender_scope_owner_active_idx` = `(sender, scope, ownerFamilyGroupId, active)`, used by the family-aware registry lookup.
+- `scope`/`ownerFamilyGroupId` partition the library: global patterns are readable by every family; `FAMILY` patterns are visible only to the owning family.
+- Precedence when matching an incoming SMS (`findActiveBySender(sender, familyGroupId)`): **family-scoped patterns first** (newest `updatedAt`), then globals (newest `updatedAt`).
+- Authored (`source = USER`) family patterns are validated against their `sampleMessage` before insert/update, may be promoted to `GLOBAL` by a family admin once `usageCount` reaches `pattern.promote-usage-threshold`, and stay read-only after promotion.
+- `fixedValues` pins a literal for `merchant`, `accountLast4`, `bankName`, or `notes`; a fixed value wins over the template-extracted value. `amount`, `timestamp`, and `type` cannot be fixed (they drive parsing), and promotion clears `fixedValues` so family literals do not leak into the global library.
+- Editing a GLOBAL from the app is copy-on-write: the server first creates/updates the caller family's `FAMILY` pattern (stamped `derivedFromPatternId` with the global's id, `source = USER`, `usageCount = 0`), then upserts a `hidden_patterns` row for the family. The global row itself never changes, so other families keep matching it.
+- Visibility for a family (`GET /patterns`, `findActiveBySender`) = active `GLOBAL` patterns **minus that family's `hidden_patterns` ids**, plus all of the family's own patterns (active and inactive). Family patterns win precedence over globals.
+
+### `hidden_patterns`
+
+```mermaid
+erDiagram
+    hidden_patterns {
+        string id PK "_id"
+        string familyGroupId FK "indexed → family_groups"
+        string patternId FK "→ pattern_registry (GLOBAL)"
+        string createdByUserId FK "→ users"
+        datetime createdAt
+    }
+```
+
+- Unique compound index `(familyGroupId, patternId)` — a family hides a given global at most once.
+- Only GLOBAL patterns are ever hidden: family patterns are instead flipped to `active = false`. Disabling a global upserts the marker; enabling it deletes the marker. If the family also has a derived copy, that copy still wins precedence after re-enabling the global.
+- Deleting a hidden marker is not delta-tracked by the `updatedAt` filter, so the app always refetches the full registry after a disable/enable.
 
 ### `rejected_patterns`
 
@@ -208,4 +244,4 @@ erDiagram
 ## Notes
 
 - **No separate JPA/SQL schema** — entities are MongoDB documents. There is no redundant mapping layer; controllers consume the generated OpenAPI models and map to/from documents in the service layer.
-- The OpenAPI domain models (`api/budgetly-openapi.yml` / `budgetly_api/src/main/resources/api/budgetly-openapi.yml`) mirror these documents; see [design.md](design.md) for the mapping flow.
+- The OpenAPI domain models (`budgetly_api/src/main/resources/api/budgetly-openapi.yml`) mirror these documents; see [design.md](design.md) for the mapping flow.
