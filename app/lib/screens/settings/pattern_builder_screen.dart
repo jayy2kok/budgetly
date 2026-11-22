@@ -4,24 +4,28 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../config/theme.dart';
-import '../../models/category.dart';
 import '../../models/message.dart';
+import '../../models/sms_pattern.dart';
 import '../../providers/category_provider.dart';
 import '../../providers/family_provider.dart';
-import '../../providers/message_provider.dart';
+import '../../providers/inbox_provider.dart';
 import '../../providers/pattern_registry_provider.dart';
+import '../../providers/sms_provider.dart';
 import '../../services/pattern_draft_builder.dart';
 import '../../services/sms_parser_service.dart';
 import '../../widgets/category_picker_sheet.dart';
 
-/// Pattern Builder — highlight spans in a failed/ignored SMS and tag them with
-/// standard fields to derive a template + extractionMap, with a live dry-run
-/// preview before saving.
+/// Pattern Builder — tag fields in an SMS to derive a template, or edit an
+/// existing pattern, with a live dry-run preview before saving.
 class PatternBuilderScreen extends ConsumerStatefulWidget {
-  const PatternBuilderScreen({super.key, this.messageId});
+  const PatternBuilderScreen({super.key, this.messageId, this.patternId});
 
-  /// Id of the FAILED/IGNORED message this pattern is authored from, if any.
+  /// Id of the non-transaction message to author a pattern from.
   final String? messageId;
+
+  /// Id of the existing pattern to edit. When set, the builder opens in edit
+  /// mode and ignores [messageId].
+  final String? patternId;
 
   @override
   ConsumerState<PatternBuilderScreen> createState() =>
@@ -38,19 +42,24 @@ class _DraftResult {
 
 class _PatternBuilderScreenState extends ConsumerState<PatternBuilderScreen> {
   Message? _message;
+  SmsPattern? _editingPattern;
+
+  /// Sender + source text of the pattern being authored/edited.
+  String _sender = '';
+  String _sourceText = '';
+
   final List<TaggedSpan> _spans = [];
   final TextEditingController _templateController = TextEditingController();
-
-  /// Editable text control for the source message so selections are
-  /// deterministically settable (also by widget tests).
   final TextEditingController _sourceController = TextEditingController();
   final FocusNode _sourceFocus = FocusNode();
 
   bool _templateEdited = false;
   bool _saving = false;
+  bool _loading = true;
+  bool _notFound = false;
 
   /// Category override applied to transactions this pattern parses.
-  Category? _category;
+  String? _categoryName;
 
   /// User-pinned literal values; empty means "use the tagged value".
   final TextEditingController _fixedMerchant = TextEditingController();
@@ -58,26 +67,76 @@ class _PatternBuilderScreenState extends ConsumerState<PatternBuilderScreen> {
   final TextEditingController _fixedBank = TextEditingController();
   final TextEditingController _fixedNotes = TextEditingController();
 
+  bool get _isEdit => _editingPattern != null;
+  bool get _isGlobalEdit =>
+      _editingPattern?.scope == PatternScope.global;
+
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final msgId = widget.messageId;
-      if (msgId == null) return;
-      final all = [
-        ...ref.read(messageProvider).failedMessages,
-        ...ref.read(messageProvider).unprocessedMessages,
-        ...ref.read(messageProvider).incompleteMessages,
-        ...ref.read(messageProvider).nonFinancialMessages,
-      ];
-      for (final m in all) {
-        if (m.id == msgId) {
-          _sourceController.text = m.rawText;
-          setState(() => _message = m);
-          _sourceFocus.requestFocus();
-          return;
-        }
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+  }
+
+  Future<void> _load() async {
+    if (widget.patternId != null) {
+      await _loadPattern(widget.patternId!);
+    } else if (widget.messageId != null) {
+      await _loadMessage(widget.messageId!);
+    }
+    if (mounted) setState(() => _loading = false);
+  }
+
+  Future<void> _loadMessage(String messageId) async {
+    var message = ref.read(inboxProvider).messageById(messageId);
+    if (message == null) {
+      // Deep links / cold starts may open the builder before the inbox was
+      // read; refresh once and retry.
+      await ref.read(inboxProvider.notifier).refresh();
+      message = ref.read(inboxProvider).messageById(messageId);
+    }
+    if (message == null) {
+      setState(() => _notFound = true);
+      return;
+    }
+    final loaded = message;
+    _sourceController.text = loaded.rawText;
+    setState(() {
+      _message = loaded;
+      _sender = loaded.sender;
+      _sourceText = loaded.rawText;
+    });
+    _sourceFocus.requestFocus();
+  }
+
+  Future<void> _loadPattern(String patternId) async {
+    await ref.read(patternRegistryProvider.notifier).load();
+    final patterns = ref.read(patternRegistryProvider).patterns;
+    SmsPattern? pattern;
+    for (final candidate in patterns) {
+      if (candidate.id == patternId) {
+        pattern = candidate;
+        break;
       }
+    }
+    if (pattern == null) {
+      setState(() => _notFound = true);
+      return;
+    }
+    final loaded = pattern;
+    // Spans cannot be reconstructed from a stored template, so the template
+    // opens as a manual edit.
+    _templateController.text = loaded.template;
+    _sourceController.text = loaded.sampleMessage;
+    _fixedMerchant.text = loaded.fixedValues['merchant'] ?? '';
+    _fixedAccount.text = loaded.fixedValues['accountLast4'] ?? '';
+    _fixedBank.text = loaded.fixedValues['bankName'] ?? '';
+    _fixedNotes.text = loaded.fixedValues['notes'] ?? '';
+    setState(() {
+      _editingPattern = loaded;
+      _sender = loaded.sender;
+      _sourceText = loaded.sampleMessage;
+      _categoryName = loaded.categoryName;
+      _templateEdited = true;
     });
   }
 
@@ -159,34 +218,39 @@ class _PatternBuilderScreenState extends ConsumerState<PatternBuilderScreen> {
   /// user edits it by hand (then their text wins).
   void _syncTemplateController() {
     if (_templateEdited) return;
-    final msg = _message;
-    if (msg == null || _spans.isEmpty) {
+    if (_sourceText.isEmpty || _spans.isEmpty) {
       _templateController.text = '';
       return;
     }
     _templateController.text = PatternDraftBuilder.fromSpans(
-      msg.rawText,
+      _sourceText,
       _spans,
     ).template;
   }
 
   /// Derives the draft (tagged spans or manual template) + dry-run verdict.
   _DraftResult? _deriveDraft() {
-    final msg = _message;
-    if (msg == null) return null;
+    if (_sourceText.isEmpty) return null;
 
     if (_templateEdited) {
       final draft = PatternDraftBuilder.fromManualTemplate(
         _templateController.text,
       );
-      return _DraftResult(draft: draft, templateMatches: false);
+      final extracted = SmsParserService().dryRunTemplate(
+        draft.template,
+        _sourceText,
+      );
+      return _DraftResult(
+        draft: draft,
+        templateMatches: extracted != null && extracted.isNotEmpty,
+      );
     }
 
     if (_spans.isEmpty) return null;
-    final draft = PatternDraftBuilder.fromSpans(msg.rawText, _spans);
+    final draft = PatternDraftBuilder.fromSpans(_sourceText, _spans);
     final extracted = SmsParserService().dryRunTemplate(
       draft.template,
-      msg.rawText,
+      _sourceText,
     );
     return _DraftResult(
       draft: draft,
@@ -195,9 +259,6 @@ class _PatternBuilderScreenState extends ConsumerState<PatternBuilderScreen> {
   }
 
   /// Opens the family's category list and records the chosen override.
-  ///
-  /// Categories are loaded lazily on first open so the builder does not touch
-  /// the family/category services unless the user actually picks a category.
   Future<void> _pickCategory() async {
     final familyGroupId = ref.read(familyProvider).currentFamily?.id;
     if (familyGroupId == null) {
@@ -210,6 +271,10 @@ class _PatternBuilderScreenState extends ConsumerState<PatternBuilderScreen> {
     if (!mounted) return;
 
     final categories = ref.read(categoryProvider).categories;
+    final selected = categories
+        .where((c) => c.name == _categoryName)
+        .map((c) => c.id)
+        .firstOrNull;
     showModalBottomSheet(
       context: context,
       backgroundColor: context.colors.cardSurface,
@@ -218,8 +283,10 @@ class _PatternBuilderScreenState extends ConsumerState<PatternBuilderScreen> {
       ),
       builder: (_) => CategoryPickerSheet(
         categories: categories,
-        selectedCategoryId: _category?.id,
-        onSelected: (category) => setState(() => _category = category),
+        selectedCategoryId: selected,
+        onSelected: (category) => setState(
+          () => _categoryName = category?.name,
+        ),
       ),
     );
   }
@@ -241,11 +308,13 @@ class _PatternBuilderScreenState extends ConsumerState<PatternBuilderScreen> {
   }
 
   Future<void> _save() async {
-    final msg = _message;
-    if (msg == null) return;
     final result = _deriveDraft();
     if (result == null) {
-      _snack('Highlight and tag at least one field');
+      _snack(
+        _isEdit
+            ? 'Enter a template'
+            : 'Highlight and tag at least one field',
+      );
       return;
     }
     final draft = result.draft;
@@ -260,25 +329,42 @@ class _PatternBuilderScreenState extends ConsumerState<PatternBuilderScreen> {
 
     setState(() => _saving = true);
     try {
-      await ref
-          .read(patternRegistryProvider.notifier)
-          .createPattern(
-            sender: msg.sender,
-            template: draft.template,
-            extractionMap: draft.extractionMap,
-            fixedValues: _fixedValues(),
-            sampleMessage: msg.rawText,
-            categoryName: _category?.name,
-          );
+      if (_isEdit) {
+        await ref.read(patternRegistryProvider.notifier).updatePattern(
+              _editingPattern!.id,
+              sender: _sender,
+              template: draft.template,
+              extractionMap: draft.extractionMap,
+              fixedValues: _fixedValues(),
+              sampleMessage: _sourceText,
+              categoryName: _categoryName,
+            );
+        await ref.read(inboxProvider.notifier).refresh();
+        if (!mounted) return;
+        _snack('Pattern updated');
+      } else {
+        final message = _message!;
+        await ref.read(patternRegistryProvider.notifier).createPattern(
+              sender: _sender,
+              template: draft.template,
+              extractionMap: draft.extractionMap,
+              fixedValues: _fixedValues(),
+              sampleMessage: _sourceText,
+              categoryName: _categoryName,
+            );
+        // The sync checkpoint means this message is never re-read, so record it
+        // now if the new pattern parses it completely.
+        final recorded =
+            await ref.read(smsProvider.notifier).recordLocally(message);
+        await ref.read(inboxProvider.notifier).refresh();
+        if (!mounted) return;
+        _snack(
+          recorded
+              ? 'Pattern saved — message recorded as a transaction'
+              : 'Pattern saved for $_sender',
+        );
+      }
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Pattern saved for ${msg.sender}',
-            style: GoogleFonts.inter(),
-          ),
-        ),
-      );
       context.pop();
     } catch (e) {
       if (!mounted) return;
@@ -296,7 +382,6 @@ class _PatternBuilderScreenState extends ConsumerState<PatternBuilderScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final msg = _message;
     final result = _deriveDraft();
 
     return Scaffold(
@@ -305,7 +390,7 @@ class _PatternBuilderScreenState extends ConsumerState<PatternBuilderScreen> {
           children: [
             // ── Header ──
             Padding(
-              padding: EdgeInsets.fromLTRB(8, 12, 8, 0),
+              padding: const EdgeInsets.fromLTRB(8, 12, 8, 0),
               child: Row(
                 children: [
                   IconButton(
@@ -317,7 +402,11 @@ class _PatternBuilderScreenState extends ConsumerState<PatternBuilderScreen> {
                   ),
                   Expanded(
                     child: Text(
-                      'New Pattern',
+                      _isGlobalEdit
+                          ? 'Customize for family'
+                          : _isEdit
+                              ? 'Edit Pattern'
+                              : 'New Pattern',
                       textAlign: TextAlign.center,
                       style: GoogleFonts.ibmPlexSans(
                         fontSize: 18,
@@ -326,357 +415,371 @@ class _PatternBuilderScreenState extends ConsumerState<PatternBuilderScreen> {
                       ),
                     ),
                   ),
-                  SizedBox(width: 48),
+                  const SizedBox(width: 48),
                 ],
               ),
             ),
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
             Expanded(
-              child: msg == null
-                  ? Center(
-                      child: Text(
-                        'Message not found',
-                        style: GoogleFonts.inter(color: context.colors.textDim),
-                      ),
+              child: _loading
+                  ? const Center(
+                      child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : ListView(
-                      padding: EdgeInsets.all(20),
-                      children: [
-                        // ── Sender + source ──
-                        Row(
-                          children: [
-                            Text(
-                              msg.sender,
-                              style: GoogleFonts.jetBrainsMono(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                color: context.colors.primaryLight,
-                              ),
-                            ),
-                            SizedBox(width: 8),
-                            _Tag(
-                              label: msg.status == MessageStatus.failed
-                                  ? 'Failed'
-                                  : 'Ignored',
-                              color: context.colors.accentCoral,
-                            ),
-                          ],
-                        ),
-                        SizedBox(height: 12),
-
-                        // ── Selectable source text ──
-                        Text(
-                          'Select text to tag:',
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: context.colors.textMuted,
-                          ),
-                        ),
-                        SizedBox(height: 8),
-                        Container(
-                          width: double.infinity,
-                          padding: EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: context.colors.background,
-                            borderRadius: BorderRadius.circular(
-                              BudgetlyTheme.radiusSmall,
-                            ),
-                            border: Border.all(
-                              color: context.colors.surfaceHighlight.withValues(
-                                alpha: 0.3,
-                              ),
-                            ),
-                          ),
-                          // Read-only field (rather than SelectableText) so the
-                          // selection lives in a controller we can inspect when
-                          // the user tags a span.
-                          child: TextField(
-                            key: const Key('pattern-source-text'),
-                            controller: _sourceController,
-                            focusNode: _sourceFocus,
-                            readOnly: true,
-                            showCursor: false,
-                            maxLines: null,
-                            style: GoogleFonts.jetBrainsMono(
-                              fontSize: 13,
-                              color: context.colors.textMain,
-                              height: 1.6,
-                            ),
-                            decoration: const InputDecoration.collapsed(
-                              hintText: '',
-                            ),
-                          ),
-                        ),
-
-                        // ── Tag buttons ──
-                        SizedBox(height: 12),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            for (final field in PatternField.values)
-                              ActionChip(
-                                avatar: Icon(
-                                  Icons.label_outline,
-                                  size: 16,
-                                  color: _fieldColor(field),
-                                ),
-                                label: Text(
-                                  _labelFor(field),
-                                  style: GoogleFonts.inter(fontSize: 12),
-                                ),
-                                onPressed: () => _tagSelection(field),
-                              ),
-                          ],
-                        ),
-
-                        // ── Tagged spans ──
-                        if (_spans.isNotEmpty) ...[
-                          SizedBox(height: 16),
-                          Text(
-                            'Tagged',
+                  : _notFound
+                      ? Center(
+                          child: Text(
+                            widget.patternId != null
+                                ? 'Pattern not found'
+                                : 'Message not found',
                             style: GoogleFonts.inter(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: context.colors.textMuted,
-                            ),
-                          ),
-                          SizedBox(height: 6),
-                          for (final span in _spans)
-                            Padding(
-                              padding: EdgeInsets.only(bottom: 4),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: 8,
-                                    height: 8,
-                                    decoration: BoxDecoration(
-                                      color: _fieldColor(span.field),
-                                      shape: BoxShape.circle,
-                                    ),
-                                  ),
-                                  SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      '"${msg.rawText.substring(span.start, span.end)}" → ${_labelFor(span.field)}',
-                                      style: GoogleFonts.inter(fontSize: 12),
-                                    ),
-                                  ),
-                                  IconButton(
-                                    onPressed: () => _removeSpan(span),
-                                    icon: Icon(
-                                      Icons.close,
-                                      size: 16,
-                                      color: context.colors.textDim,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                        ],
-
-                        // ── Template preview / manual edit ──
-                        SizedBox(height: 16),
-                        Text(
-                          'Template',
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: context.colors.textMuted,
-                          ),
-                        ),
-                        SizedBox(height: 6),
-                        TextField(
-                          key: const Key('pattern-template-field'),
-                          controller: _templateController,
-                          onChanged: (_) =>
-                              setState(() => _templateEdited = true),
-                          style: GoogleFonts.jetBrainsMono(
-                            fontSize: 12,
-                            color: context.colors.textMain,
-                          ),
-                          decoration: InputDecoration(
-                            hintText:
-                                'Tag fields or type a template with {amount}',
-                            hintStyle: GoogleFonts.jetBrainsMono(
-                              fontSize: 12,
                               color: context.colors.textDim,
                             ),
-                            filled: true,
-                            fillColor: context.colors.background,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(
-                                BudgetlyTheme.radiusSmall,
-                              ),
-                              borderSide: BorderSide(
-                                color: context.colors.borderSubtle,
-                              ),
-                            ),
                           ),
-                          maxLines: 2,
-                        ),
-
-                        // ── Dry-run feedback ──
-                        if (result != null) ...[
-                          SizedBox(height: 10),
-                          _DryRunBanner(
-                            hasAmount: result.draft.hasAmountToken,
-                            templateMatches: result.templateMatches,
-                            templateEdited: _templateEdited,
-                          ),
-                        ],
-
-                        // ── Category override ──
-                        SizedBox(height: 20),
-                        Text(
-                          'Category (optional)',
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: context.colors.textMuted,
-                          ),
-                        ),
-                        SizedBox(height: 6),
-                        InkWell(
-                          key: const Key('pattern-category-row'),
-                          onTap: _pickCategory,
-                          borderRadius: BorderRadius.circular(
-                            BudgetlyTheme.radiusSmall,
-                          ),
-                          child: Container(
-                            width: double.infinity,
-                            padding: EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 12,
-                            ),
-                            decoration: BoxDecoration(
-                              color: context.colors.background,
-                              borderRadius: BorderRadius.circular(
-                                BudgetlyTheme.radiusSmall,
-                              ),
-                              border: Border.all(
-                                color: context.colors.borderSubtle,
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  Icons.label_outline,
-                                  size: 18,
-                                  color: context.colors.textDim,
-                                ),
-                                SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    _category?.name ?? 'Uncategorized',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 13,
-                                      color: _category == null
-                                          ? context.colors.textDim
-                                          : context.colors.textMain,
-                                    ),
-                                  ),
-                                ),
-                                Icon(
-                                  Icons.chevron_right,
-                                  size: 18,
-                                  color: context.colors.textDim,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-
-                        // ── Fixed values ──
-                        SizedBox(height: 20),
-                        Text(
-                          'Fixed values (optional)',
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: context.colors.textMuted,
-                          ),
-                        ),
-                        SizedBox(height: 4),
-                        Text(
-                          'Leave a field empty to use the tagged value, or type '
-                          'a literal to always use it for this template.',
-                          style: GoogleFonts.inter(
-                            fontSize: 11,
-                            color: context.colors.textDim,
-                            height: 1.4,
-                          ),
-                        ),
-                        SizedBox(height: 8),
-                        _FixedValueField(
-                          fieldKey: const Key('pattern-fixed-merchant'),
-                          controller: _fixedMerchant,
-                          label: 'Merchant',
-                          hint: 'e.g. Pan Shop',
-                        ),
-                        SizedBox(height: 8),
-                        _FixedValueField(
-                          fieldKey: const Key('pattern-fixed-account'),
-                          controller: _fixedAccount,
-                          label: 'Account',
-                          hint: 'e.g. 1234',
-                        ),
-                        SizedBox(height: 8),
-                        _FixedValueField(
-                          fieldKey: const Key('pattern-fixed-bank'),
-                          controller: _fixedBank,
-                          label: 'Bank name',
-                          hint: 'e.g. HDFC Bank',
-                        ),
-                        SizedBox(height: 8),
-                        _FixedValueField(
-                          fieldKey: const Key('pattern-fixed-notes'),
-                          controller: _fixedNotes,
-                          label: 'Notes',
-                          hint: 'e.g. Monthly groceries',
-                        ),
-
-                        SizedBox(height: 24),
-                        SizedBox(
-                          height: 48,
-                          child: ElevatedButton(
-                            key: const Key('pattern-save-button'),
-                            onPressed: _saving ? null : _save,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: context.colors.primary,
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(
-                                  BudgetlyTheme.radiusMedium,
-                                ),
-                              ),
-                            ),
-                            child: _saving
-                                ? SizedBox(
-                                    width: 18,
-                                    height: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: Colors.white,
-                                    ),
-                                  )
-                                : Text(
-                                    'Save pattern',
-                                    style: GoogleFonts.inter(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                          ),
-                        ),
-                        SizedBox(height: 100),
-                      ],
-                    ),
+                        )
+                      : _buildForm(context, result),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildForm(BuildContext context, _DraftResult? result) {
+    return ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        // ── Sender + scope ──
+        Row(
+          children: [
+            Text(
+              _sender,
+              style: GoogleFonts.jetBrainsMono(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: context.colors.primaryLight,
+              ),
+            ),
+            if (_isEdit) ...[
+              const SizedBox(width: 8),
+              _Tag(
+                label: _isGlobalEdit ? 'Global → Family' : 'Family',
+                color: context.colors.primaryLight,
+              ),
+            ],
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        if (_isGlobalEdit) ...[
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: context.colors.primary.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(BudgetlyTheme.radiusMedium),
+              border: Border.all(
+                color: context.colors.primary.withValues(alpha: 0.2),
+              ),
+            ),
+            child: Text(
+              'Saving hides this global pattern for your family and creates a '
+              'family copy with your changes. Other families are unaffected.',
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                color: context.colors.textMuted,
+                height: 1.45,
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+
+        // ── Source text ──
+        Text(
+          _isEdit ? 'Sample message:' : 'Select text to tag:',
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: context.colors.textMuted,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: context.colors.background,
+            borderRadius: BorderRadius.circular(BudgetlyTheme.radiusSmall),
+            border: Border.all(
+              color: context.colors.surfaceHighlight.withValues(alpha: 0.3),
+            ),
+          ),
+          child: TextField(
+            key: const Key('pattern-source-text'),
+            controller: _sourceController,
+            focusNode: _sourceFocus,
+            readOnly: true,
+            showCursor: false,
+            maxLines: null,
+            style: GoogleFonts.jetBrainsMono(
+              fontSize: 13,
+              color: context.colors.textMain,
+              height: 1.6,
+            ),
+            decoration: const InputDecoration.collapsed(hintText: ''),
+          ),
+        ),
+
+        // ── Tag buttons (create only; spans cannot be reconstructed) ──
+        if (!_isEdit) ...[
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final field in PatternField.values)
+                ActionChip(
+                  avatar: Icon(
+                    Icons.label_outline,
+                    size: 16,
+                    color: _fieldColor(field),
+                  ),
+                  label: Text(
+                    _labelFor(field),
+                    style: GoogleFonts.inter(fontSize: 12),
+                  ),
+                  onPressed: () => _tagSelection(field),
+                ),
+            ],
+          ),
+          if (_spans.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Text(
+              'Tagged',
+              style: GoogleFonts.inter(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: context.colors.textMuted,
+              ),
+            ),
+            const SizedBox(height: 6),
+            for (final span in _spans)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: _fieldColor(span.field),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '"${_sourceText.substring(span.start, span.end)}" → '
+                        '${_labelFor(span.field)}',
+                        style: GoogleFonts.inter(fontSize: 12),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => _removeSpan(span),
+                      icon: Icon(
+                        Icons.close,
+                        size: 16,
+                        color: context.colors.textDim,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ],
+
+        // ── Template preview / manual edit ──
+        const SizedBox(height: 16),
+        Text(
+          'Template',
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: context.colors.textMuted,
+          ),
+        ),
+        const SizedBox(height: 6),
+        TextField(
+          key: const Key('pattern-template-field'),
+          controller: _templateController,
+          onChanged: (_) => setState(() => _templateEdited = true),
+          style: GoogleFonts.jetBrainsMono(
+            fontSize: 12,
+            color: context.colors.textMain,
+          ),
+          decoration: InputDecoration(
+            hintText: 'Tag fields or type a template with {amount}',
+            hintStyle: GoogleFonts.jetBrainsMono(
+              fontSize: 12,
+              color: context.colors.textDim,
+            ),
+            filled: true,
+            fillColor: context.colors.background,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(BudgetlyTheme.radiusSmall),
+              borderSide: BorderSide(color: context.colors.borderSubtle),
+            ),
+          ),
+          maxLines: 2,
+        ),
+
+        // ── Dry-run feedback ──
+        if (result != null) ...[
+          const SizedBox(height: 10),
+          _DryRunBanner(
+            hasAmount: result.draft.hasAmountToken,
+            templateMatches: result.templateMatches,
+            templateEdited: _templateEdited,
+          ),
+        ],
+
+        // ── Category override ──
+        const SizedBox(height: 20),
+        Text(
+          'Category (optional)',
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: context.colors.textMuted,
+          ),
+        ),
+        const SizedBox(height: 6),
+        InkWell(
+          key: const Key('pattern-category-row'),
+          onTap: _pickCategory,
+          borderRadius: BorderRadius.circular(BudgetlyTheme.radiusSmall),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            decoration: BoxDecoration(
+              color: context.colors.background,
+              borderRadius: BorderRadius.circular(BudgetlyTheme.radiusSmall),
+              border: Border.all(color: context.colors.borderSubtle),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.label_outline,
+                  size: 18,
+                  color: context.colors.textDim,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _categoryName ?? 'Uncategorized',
+                    style: GoogleFonts.inter(
+                      fontSize: 13,
+                      color: _categoryName == null
+                          ? context.colors.textDim
+                          : context.colors.textMain,
+                    ),
+                  ),
+                ),
+                Icon(
+                  Icons.chevron_right,
+                  size: 18,
+                  color: context.colors.textDim,
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        // ── Fixed values ──
+        const SizedBox(height: 20),
+        Text(
+          'Fixed values (optional)',
+          style: GoogleFonts.inter(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: context.colors.textMuted,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Leave a field empty to use the tagged value, or type a literal to '
+          'always use it for this template.',
+          style: GoogleFonts.inter(
+            fontSize: 11,
+            color: context.colors.textDim,
+            height: 1.4,
+          ),
+        ),
+        const SizedBox(height: 8),
+        _FixedValueField(
+          fieldKey: const Key('pattern-fixed-merchant'),
+          controller: _fixedMerchant,
+          label: 'Merchant',
+          hint: 'e.g. Pan Shop',
+        ),
+        const SizedBox(height: 8),
+        _FixedValueField(
+          fieldKey: const Key('pattern-fixed-account'),
+          controller: _fixedAccount,
+          label: 'Account',
+          hint: 'e.g. 1234',
+        ),
+        const SizedBox(height: 8),
+        _FixedValueField(
+          fieldKey: const Key('pattern-fixed-bank'),
+          controller: _fixedBank,
+          label: 'Bank name',
+          hint: 'e.g. HDFC Bank',
+        ),
+        const SizedBox(height: 8),
+        _FixedValueField(
+          fieldKey: const Key('pattern-fixed-notes'),
+          controller: _fixedNotes,
+          label: 'Notes',
+          hint: 'e.g. Monthly groceries',
+        ),
+
+        const SizedBox(height: 24),
+        SizedBox(
+          height: 48,
+          child: ElevatedButton(
+            key: const Key('pattern-save-button'),
+            onPressed: _saving ? null : _save,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: context.colors.primary,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(BudgetlyTheme.radiusMedium),
+              ),
+            ),
+            child: _saving
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : Text(
+                    _isGlobalEdit
+                        ? 'Save for my family'
+                        : _isEdit
+                            ? 'Save changes'
+                            : 'Save pattern',
+                    style: GoogleFonts.inter(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+          ),
+        ),
+        const SizedBox(height: 100),
+      ],
     );
   }
 }
@@ -741,12 +844,12 @@ class _DryRunBanner extends StatelessWidget {
     if (!hasAmount) {
       color = context.colors.accentCoral;
       label = 'Missing required {amount} tag';
-    } else if (templateMatches) {
-      color = context.colors.accentMint;
-      label = 'Preview OK — pattern will parse this message';
     } else if (templateEdited) {
       color = const Color(0xFFFBBF24);
       label = 'Manual template — server will validate on save';
+    } else if (templateMatches) {
+      color = context.colors.accentMint;
+      label = 'Preview OK — pattern will parse this message';
     } else {
       color = context.colors.accentCoral;
       label = 'Template does not match the message';
@@ -754,7 +857,7 @@ class _DryRunBanner extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(BudgetlyTheme.radiusMedium),
@@ -769,7 +872,7 @@ class _DryRunBanner extends StatelessWidget {
             size: 16,
             color: color,
           ),
-          SizedBox(width: 8),
+          const SizedBox(width: 8),
           Expanded(
             child: Text(
               label,
@@ -795,7 +898,7 @@ class _Tag extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(4),

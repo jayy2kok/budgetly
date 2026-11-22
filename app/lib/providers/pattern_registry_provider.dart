@@ -9,7 +9,7 @@ class PatternRegistryState {
   /// All patterns visible to the caller's family: global + family-authored.
   final List<SmsPattern> patterns;
 
-  /// Patterns currently being mutated (create / update / delete / promote).
+  /// Patterns currently being mutated (create / update / disable / promote).
   final Set<String> busyPatternIds;
 
   final bool isLoading;
@@ -78,13 +78,53 @@ class PatternRegistryNotifier extends Notifier<PatternRegistryState> {
     return created;
   }
 
-  /// Deletes an authored family pattern (author or family admin only).
-  Future<void> deletePattern(String patternId) async {
+  /// Updates a family pattern in place. Updating a GLOBAL pattern creates (or
+  /// updates) this family's copy and hides the global for the family, so the
+  /// server returns the family copy.
+  Future<SmsPattern> updatePattern(
+    String patternId, {
+    String? sender,
+    String? template,
+    ExtractionMap? extractionMap,
+    Map<String, String>? fixedValues,
+    String? sampleMessage,
+    String? categoryName,
+  }) async {
+    final updated = await _cache.updatePattern(
+      patternId,
+      sender: sender,
+      template: template,
+      extractionMap: extractionMap,
+      fixedValues: fixedValues,
+      sampleMessage: sampleMessage,
+      categoryName: categoryName,
+    );
+    state = state.copyWith(patterns: _cache.patterns);
+    return updated;
+  }
+
+  /// Hides a GLOBAL pattern for this family, or deactivates a FAMILY pattern.
+  Future<void> disablePattern(String patternId) => _toggle(
+        patternId,
+        () => _cache.disablePattern(patternId),
+      );
+
+  /// Restores a pattern: un-hides a GLOBAL for this family, or reactivates a
+  /// FAMILY pattern.
+  Future<void> enablePattern(String patternId) => _toggle(
+        patternId,
+        () => _cache.enablePattern(patternId),
+      );
+
+  Future<void> _toggle(
+    String patternId,
+    Future<SmsPattern> Function() action,
+  ) async {
     state = state.copyWith(
       busyPatternIds: {...state.busyPatternIds, patternId},
     );
     try {
-      await _cache.deletePattern(patternId);
+      await action();
       state = state.copyWith(patterns: _cache.patterns);
     } finally {
       final ids = {...state.busyPatternIds}..remove(patternId);

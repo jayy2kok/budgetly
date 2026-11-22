@@ -6,24 +6,34 @@ import 'package:google_fonts/google_fonts.dart';
 
 import 'package:budgetly/config/budgetly_colors.dart';
 import 'package:budgetly/data/category_service.dart';
-import 'package:budgetly/data/message_service.dart';
 import 'package:budgetly/models/category.dart';
 import 'package:budgetly/models/family_group.dart';
 import 'package:budgetly/models/message.dart';
 import 'package:budgetly/models/sms_pattern.dart';
 import 'package:budgetly/providers/family_provider.dart';
-import 'package:budgetly/providers/message_provider.dart';
+import 'package:budgetly/providers/inbox_provider.dart';
 import 'package:budgetly/providers/service_providers.dart';
+import 'package:budgetly/providers/sms_provider.dart';
 import 'package:budgetly/screens/settings/pattern_builder_screen.dart';
 import 'package:budgetly/services/pattern_cache_service.dart';
 
-/// A [PatternCacheService] that records createPattern calls instead of hitting
-/// Dio. It must pass an explicit Dio because [ApiClient.instance] is not
-/// initialized in widget tests.
+/// A [PatternCacheService] that records create/update calls instead of hitting
+/// Dio and keeps its in-memory list in sync the way the real service's
+/// refresh-after-mutation does.
 class _FakePatternCacheService extends PatternCacheService {
-  _FakePatternCacheService() : super(dio: Dio());
+  _FakePatternCacheService([List<SmsPattern> seeded = const []])
+      : super(dio: Dio()) {
+    debugSetPatterns(seeded);
+  }
 
   final List<Map<String, dynamic>> created = [];
+  final List<Map<String, dynamic>> updated = [];
+
+  @override
+  Future<void> loadPatterns() async {}
+
+  @override
+  Future<void> refreshPatterns() async {}
 
   @override
   Future<SmsPattern> createPattern({
@@ -42,12 +52,49 @@ class _FakePatternCacheService extends PatternCacheService {
       'sampleMessage': sampleMessage,
       'categoryName': categoryName,
     });
-    return SmsPattern(
+    final pattern = SmsPattern(
       id: 'created-1',
       sender: sender,
       template: template,
       extractionMap: extractionMap,
+      fixedValues: fixedValues,
       sampleMessage: sampleMessage,
+      categoryName: categoryName,
+      scope: PatternScope.family,
+      source: PatternSource.user,
+      createdAt: DateTime.utc(2026, 11, 20),
+    );
+    debugSetPatterns([...patterns, pattern]);
+    return pattern;
+  }
+
+  @override
+  Future<SmsPattern> updatePattern(
+    String patternId, {
+    String? sender,
+    String? template,
+    ExtractionMap? extractionMap,
+    Map<String, String>? fixedValues,
+    String? sampleMessage,
+    String? categoryName,
+  }) async {
+    updated.add({
+      'patternId': patternId,
+      'sender': sender,
+      'template': template,
+      'extractionMap': extractionMap,
+      'fixedValues': fixedValues,
+      'sampleMessage': sampleMessage,
+      'categoryName': categoryName,
+    });
+    return SmsPattern(
+      id: 'copy-for-family',
+      sender: sender ?? 'HDFCBK',
+      template: template ?? 'Spent Rs {amount}',
+      extractionMap: extractionMap ?? const ExtractionMap(amount: 'amount'),
+      fixedValues: fixedValues ?? const {},
+      sampleMessage: sampleMessage ?? '',
+      categoryName: categoryName,
       scope: PatternScope.family,
       source: PatternSource.user,
       createdAt: DateTime.utc(2026, 11, 20),
@@ -55,66 +102,36 @@ class _FakePatternCacheService extends PatternCacheService {
   }
 }
 
-/// A [MessageService] whose failed list is fixed so the message under test is
-/// resolvable by the builder screen.
-class _FakeMessageService implements MessageService {
-  _FakeMessageService(this._failed);
+/// An [InboxNotifier] seeded with a fixed state; [refresh] is a no-op so the
+/// builder resolves the message on the first frame.
+class _FakeInboxNotifier extends InboxNotifier {
+  _FakeInboxNotifier(this._state);
 
-  final List<Message> _failed;
-
-  @override
-  Future<List<Message>> getPendingMessages() async => const [];
+  final InboxState _state;
 
   @override
-  Future<List<Message>> getIgnoredMessages() async => const [];
+  InboxState build() => _state;
 
   @override
-  Future<List<Message>> getFailedMessages({
-    int page = 0,
-    int size = 20,
-  }) async => _failed;
-
-  @override
-  Future<Map<String, dynamic>> processMessage(
-    Map<String, dynamic> data,
-  ) async => const {};
-
-  @override
-  Future<int> bulkInsertMessages({
-    required String familyGroupId,
-    required List<Map<String, String>> messages,
-  }) async => messages.length;
-
-  @override
-  Future<Message> confirmMessage(String messageId) async =>
-      throw UnimplementedError();
-
-  @override
-  Future<Message> rejectMessage(String messageId) async =>
-      throw UnimplementedError();
-
-  @override
-  Future<Message> restoreMessage(String messageId) async =>
-      throw UnimplementedError();
+  Future<void> refresh() async {}
 }
 
-const _rawText = 'Spent Rs 500.50 at Grocery Mart on 01/10/2026';
+/// An [SmsNotifier] that records [recordLocally] calls instead of parsing and
+/// posting a transaction.
+class _FakeSmsNotifier extends SmsNotifier {
+  _FakeSmsNotifier({this.recorded = true});
 
-final _family = FamilyGroup(
-  id: 'family-1',
-  name: 'Test Family',
-  monthlyBudgetLimit: 50000,
-  createdByUserId: 'user-1',
-  createdAt: DateTime.utc(2026, 1, 1),
-);
-
-class _FakeFamilyNotifier extends FamilyNotifier {
-  _FakeFamilyNotifier(this._state);
-
-  final FamilyState _state;
+  final bool recorded;
+  final List<Message> recordedMessages = [];
 
   @override
-  FamilyState build() => _state;
+  SmsState build() => const SmsState();
+
+  @override
+  Future<bool> recordLocally(Message message) async {
+    recordedMessages.add(message);
+    return recorded;
+  }
 }
 
 class _FakeCategoryService implements CategoryService {
@@ -143,6 +160,23 @@ class _FakeCategoryService implements CategoryService {
   Future<void> deleteCategory(String familyGroupId, String id) async {}
 }
 
+final _family = FamilyGroup(
+  id: 'family-1',
+  name: 'Test Family',
+  monthlyBudgetLimit: 50000,
+  createdByUserId: 'user-1',
+  createdAt: DateTime.utc(2026, 1, 1),
+);
+
+class _FakeFamilyNotifier extends FamilyNotifier {
+  _FakeFamilyNotifier(this._state);
+
+  final FamilyState _state;
+
+  @override
+  FamilyState build() => _state;
+}
+
 final _categories = <Category>[
   const Category(
     id: 'cat_groceries',
@@ -154,22 +188,42 @@ final _categories = <Category>[
   ),
 ];
 
-Message _failedMessage({String id = 'msg-1'}) => Message(
+const _rawText = 'Spent Rs 500.50 at Grocery Mart on 01/10/2026';
+
+Message _nonTransaction({String id = 'msg-1'}) => Message(
   id: id,
   userId: 'user-1',
   sender: 'HDFCBK',
   rawText: _rawText,
-  status: MessageStatus.failed,
-  errorMessage: 'LLM analysis failed: upstream provider timeout',
+  status: MessageStatus.pending,
   receivedAt: DateTime.utc(2026, 11, 20, 9),
 );
 
-/// Pumps the builder screen, optionally with the failed message loaded so the
-/// post-frame lookup resolves it. Returns the recording cache service.
-Future<_FakePatternCacheService> _pumpBuilderScreen(
+SmsPattern _globalPattern() => SmsPattern(
+  id: 'p-global',
+  sender: 'HDFCBK',
+  template: 'Spent Rs {amount} at {merchant} on 01/10/2026',
+  extractionMap: const ExtractionMap(amount: 'amount', merchant: 'merchant'),
+  sampleMessage: _rawText,
+  source: PatternSource.llm,
+  createdAt: DateTime.utc(2026, 1, 1),
+);
+
+class _BuilderHarness {
+  final _FakePatternCacheService cache;
+  final _FakeSmsNotifier sms;
+
+  const _BuilderHarness(this.cache, this.sms);
+}
+
+/// Pumps the builder screen with the inbox, SMS and pattern services faked.
+Future<_BuilderHarness> _pumpBuilderScreen(
   WidgetTester tester, {
-  List<Message> failed = const [],
-  String messageId = 'msg-1',
+  List<Message> nonTransactions = const [],
+  List<SmsPattern> patterns = const [],
+  String? messageId = 'msg-1',
+  String? patternId,
+  bool recorded = true,
 }) async {
   GoogleFonts.config.allowRuntimeFetching = false;
 
@@ -177,11 +231,17 @@ Future<_FakePatternCacheService> _pumpBuilderScreen(
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
 
-  final cache = _FakePatternCacheService();
+  final cache = _FakePatternCacheService(patterns);
+  final sms = _FakeSmsNotifier(recorded: recorded);
   final container = ProviderContainer(
     overrides: [
-      messageServiceProvider.overrideWithValue(_FakeMessageService(failed)),
       patternCacheServiceProvider.overrideWithValue(cache),
+      inboxProvider.overrideWith(
+        () => _FakeInboxNotifier(
+          InboxState(nonTransactions: nonTransactions),
+        ),
+      ),
+      smsProvider.overrideWith(() => sms),
       familyProvider.overrideWith(
         () => _FakeFamilyNotifier(
           FamilyState(currentFamily: _family, members: const []),
@@ -194,28 +254,21 @@ Future<_FakePatternCacheService> _pumpBuilderScreen(
   );
   addTearDown(container.dispose);
 
-  // Seed the message state the builder reads on first frame.
-  final notifier = container.read(messageProvider.notifier);
-  notifier.state = MessageState(
-    failedMessages: failed,
-    totalFailed: failed.length,
-  );
-
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
       child: MaterialApp(
         theme: ThemeData(extensions: [BudgetlyColors.dark]),
-        home: PatternBuilderScreen(messageId: messageId),
+        home: PatternBuilderScreen(messageId: messageId, patternId: patternId),
       ),
     ),
   );
   await tester.pumpAndSettle();
 
-  return cache;
+  return _BuilderHarness(cache, sms);
 }
 
-/// Selects the text range [start, end) inside the builder's SelectableText and
+/// Selects the text range [start, end) inside the builder's source field and
 /// taps the tag chip for [field].
 Future<void> _tagSpan(
   WidgetTester tester, {
@@ -223,9 +276,9 @@ Future<void> _tagSpan(
   required int end,
   required String chipLabel,
 }) async {
-  final selectable = find.byKey(const Key('pattern-source-text'));
+  final source = find.byKey(const Key('pattern-source-text'));
   final editable = tester.widget<EditableText>(
-    find.descendant(of: selectable, matching: find.byType(EditableText)),
+    find.descendant(of: source, matching: find.byType(EditableText)),
   );
   editable.controller.selection = TextSelection(
     baseOffset: start,
@@ -238,35 +291,37 @@ Future<void> _tagSpan(
 }
 
 void main() {
-  group('PatternBuilderScreen', () {
-    testWidgets('shows the source message and its failure reason', (
+  group('PatternBuilderScreen — create from a message', () {
+    testWidgets('prefills the sender and source, and offers no status tag', (
       tester,
     ) async {
-      await _pumpBuilderScreen(tester, failed: [_failedMessage()]);
+      await _pumpBuilderScreen(tester, nonTransactions: [_nonTransaction()]);
 
+      expect(find.text('New Pattern'), findsOneWidget);
       expect(find.text('HDFCBK'), findsOneWidget);
-      expect(find.text('Failed'), findsOneWidget);
-      expect(find.textContaining('Amount'), findsWidgets);
+      expect(find.text(_rawText), findsOneWidget);
+      expect(find.text('Failed'), findsNothing);
+      expect(find.byKey(const Key('pattern-template-field')), findsOneWidget);
       expect(find.byKey(const Key('pattern-save-button')), findsOneWidget);
     });
 
     testWidgets('save with no tags is blocked with a snackbar', (tester) async {
-      final cache = await _pumpBuilderScreen(
+      final harness = await _pumpBuilderScreen(
         tester,
-        failed: [_failedMessage()],
+        nonTransactions: [_nonTransaction()],
       );
 
       await tester.tap(find.byKey(const Key('pattern-save-button')));
       await tester.pumpAndSettle();
 
-      expect(cache.created, isEmpty);
+      expect(harness.cache.created, isEmpty);
       expect(find.text('Highlight and tag at least one field'), findsOneWidget);
     });
 
     testWidgets('save is blocked when {amount} is not tagged', (tester) async {
-      final cache = await _pumpBuilderScreen(
+      final harness = await _pumpBuilderScreen(
         tester,
-        failed: [_failedMessage()],
+        nonTransactions: [_nonTransaction()],
       );
 
       // Tag only the merchant (no amount).
@@ -275,7 +330,7 @@ void main() {
       await tester.tap(find.byKey(const Key('pattern-save-button')));
       await tester.pumpAndSettle();
 
-      expect(cache.created, isEmpty);
+      expect(harness.cache.created, isEmpty);
       expect(find.text('Missing required {amount} tag'), findsOneWidget);
       expect(find.text('Tag the amount — it is required'), findsOneWidget);
     });
@@ -283,15 +338,14 @@ void main() {
     testWidgets('tagging amount + merchant derives the template and saves', (
       tester,
     ) async {
-      final cache = await _pumpBuilderScreen(
+      final harness = await _pumpBuilderScreen(
         tester,
-        failed: [_failedMessage()],
+        nonTransactions: [_nonTransaction()],
       );
 
       await _tagSpan(tester, start: 9, end: 15, chipLabel: 'Amount');
       await _tagSpan(tester, start: 19, end: 31, chipLabel: 'Merchant');
 
-      // The derived template is shown in the preview banner as OK.
       expect(
         find.text('Preview OK — pattern will parse this message'),
         findsOneWidget,
@@ -300,8 +354,8 @@ void main() {
       await tester.tap(find.byKey(const Key('pattern-save-button')));
       await tester.pumpAndSettle();
 
-      expect(cache.created, hasLength(1));
-      final created = cache.created.single;
+      expect(harness.cache.created, hasLength(1));
+      final created = harness.cache.created.single;
       expect(created['sender'], 'HDFCBK');
       expect(
         created['template'],
@@ -312,17 +366,19 @@ void main() {
       expect(map.merchant, 'merchant');
       expect(map.timestamp, isNull);
       expect(created['sampleMessage'], _rawText);
+
+      // The source message is recorded immediately from the fresh cache.
+      expect(harness.sms.recordedMessages.single.id, 'msg-1');
     });
 
     testWidgets('manually typed template falls back to server validation', (
       tester,
     ) async {
-      final cache = await _pumpBuilderScreen(
+      final harness = await _pumpBuilderScreen(
         tester,
-        failed: [_failedMessage()],
+        nonTransactions: [_nonTransaction()],
       );
 
-      // Type a hand-authored template (amount-only) directly.
       await tester.enterText(
         find.byKey(const Key('pattern-template-field')),
         'Spent Rs {amount} at Grocery Mart on 01/10/2026',
@@ -337,8 +393,8 @@ void main() {
       await tester.tap(find.byKey(const Key('pattern-save-button')));
       await tester.pumpAndSettle();
 
-      expect(cache.created, hasLength(1));
-      final created = cache.created.single;
+      expect(harness.cache.created, hasLength(1));
+      final created = harness.cache.created.single;
       expect(
         created['template'],
         'Spent Rs {amount} at Grocery Mart on 01/10/2026',
@@ -349,9 +405,9 @@ void main() {
     });
 
     testWidgets('manual template without {amount} is blocked', (tester) async {
-      final cache = await _pumpBuilderScreen(
+      final harness = await _pumpBuilderScreen(
         tester,
-        failed: [_failedMessage()],
+        nonTransactions: [_nonTransaction()],
       );
 
       await tester.enterText(
@@ -363,16 +419,16 @@ void main() {
       await tester.tap(find.byKey(const Key('pattern-save-button')));
       await tester.pumpAndSettle();
 
-      expect(cache.created, isEmpty);
+      expect(harness.cache.created, isEmpty);
       expect(find.text('Missing required {amount} tag'), findsOneWidget);
     });
 
     testWidgets('fixed values are sent and override extracted fields', (
       tester,
     ) async {
-      final cache = await _pumpBuilderScreen(
+      final harness = await _pumpBuilderScreen(
         tester,
-        failed: [_failedMessage()],
+        nonTransactions: [_nonTransaction()],
       );
 
       await _tagSpan(tester, start: 9, end: 15, chipLabel: 'Amount');
@@ -395,8 +451,8 @@ void main() {
       await tester.tap(find.byKey(const Key('pattern-save-button')));
       await tester.pumpAndSettle();
 
-      expect(cache.created, hasLength(1));
-      expect(cache.created.single['fixedValues'], {
+      expect(harness.cache.created, hasLength(1));
+      expect(harness.cache.created.single['fixedValues'], {
         'merchant': 'Pan Shop',
         'accountLast4': '1234',
         'bankName': 'HDFC Bank',
@@ -407,9 +463,9 @@ void main() {
     testWidgets('a category picked from the sheet is saved with the pattern', (
       tester,
     ) async {
-      final cache = await _pumpBuilderScreen(
+      final harness = await _pumpBuilderScreen(
         tester,
-        failed: [_failedMessage()],
+        nonTransactions: [_nonTransaction()],
       );
 
       // Open the category sheet; categories load lazily from the family.
@@ -425,9 +481,25 @@ void main() {
       await tester.tap(find.byKey(const Key('pattern-save-button')));
       await tester.pumpAndSettle();
 
-      expect(cache.created, hasLength(1));
-      expect(cache.created.single['categoryName'], 'Groceries');
-      expect(cache.created.single['fixedValues'], isEmpty);
+      expect(harness.cache.created, hasLength(1));
+      expect(harness.cache.created.single['categoryName'], 'Groceries');
+      expect(harness.cache.created.single['fixedValues'], isEmpty);
+    });
+
+    testWidgets('an unparsed message keeps the saved-pattern snackbar', (
+      tester,
+    ) async {
+      await _pumpBuilderScreen(
+        tester,
+        nonTransactions: [_nonTransaction()],
+        recorded: false,
+      );
+
+      await _tagSpan(tester, start: 9, end: 15, chipLabel: 'Amount');
+      await tester.tap(find.byKey(const Key('pattern-save-button')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Pattern saved for HDFCBK'), findsOneWidget);
     });
 
     testWidgets('a missing message shows an empty state, not a crash', (
@@ -435,11 +507,122 @@ void main() {
     ) async {
       await _pumpBuilderScreen(
         tester,
-        failed: [_failedMessage()],
+        nonTransactions: [_nonTransaction()],
         messageId: 'does-not-exist',
       );
 
       expect(find.text('Message not found'), findsOneWidget);
+    });
+  });
+
+  group('PatternBuilderScreen — edit an existing pattern', () {
+    testWidgets('prefills the pattern and hides span tagging', (tester) async {
+      await _pumpBuilderScreen(
+        tester,
+        patterns: [_globalPattern()],
+        messageId: null,
+        patternId: 'p-global',
+      );
+
+      expect(find.text('Customize for family'), findsOneWidget);
+      expect(
+        find.textContaining('hides this global pattern for your family'),
+        findsOneWidget,
+      );
+      final template = tester.widget<TextField>(
+        find.byKey(const Key('pattern-template-field')),
+      );
+      expect(
+        template.controller!.text,
+        'Spent Rs {amount} at {merchant} on 01/10/2026',
+      );
+      final source = tester.widget<TextField>(
+        find.byKey(const Key('pattern-source-text')),
+      );
+      expect(
+        source.controller!.text,
+        _rawText,
+        reason: 'the saved sample message is shown in edit mode',
+      );
+      expect(find.byType(ActionChip), findsNothing);
+      expect(find.text('Save for my family'), findsOneWidget);
+    });
+
+    testWidgets('saving a global pattern updates it into a family copy', (
+      tester,
+    ) async {
+      final harness = await _pumpBuilderScreen(
+        tester,
+        patterns: [_globalPattern()],
+        messageId: null,
+        patternId: 'p-global',
+      );
+
+      await tester.tap(find.byKey(const Key('pattern-save-button')));
+      await tester.pumpAndSettle();
+
+      expect(harness.cache.created, isEmpty);
+      expect(harness.cache.updated, hasLength(1));
+      final updated = harness.cache.updated.single;
+      expect(updated['patternId'], 'p-global');
+      expect(
+        updated['template'],
+        'Spent Rs {amount} at {merchant} on 01/10/2026',
+      );
+      expect(updated['sampleMessage'], _rawText);
+      // Editing does not re-record the source message.
+      expect(harness.sms.recordedMessages, isEmpty);
+    });
+
+    testWidgets('a family pattern saves in place without the copy banner', (
+      tester,
+    ) async {
+      final familyPattern = SmsPattern(
+        id: 'p-family',
+        sender: 'HDFCBK',
+        template: 'Spent Rs {amount} at {merchant} on 01/10/2026',
+        extractionMap: const ExtractionMap(
+          amount: 'amount',
+          merchant: 'merchant',
+        ),
+        sampleMessage: _rawText,
+        scope: PatternScope.family,
+        ownerFamilyGroupId: 'family-1',
+        source: PatternSource.user,
+        createdAt: DateTime.utc(2026, 1, 1),
+      );
+
+      final harness = await _pumpBuilderScreen(
+        tester,
+        patterns: [familyPattern],
+        messageId: null,
+        patternId: 'p-family',
+      );
+
+      expect(find.text('Edit Pattern'), findsOneWidget);
+      expect(find.text('Save changes'), findsOneWidget);
+      expect(
+        find.textContaining('hides this global pattern'),
+        findsNothing,
+      );
+
+      await tester.tap(find.byKey(const Key('pattern-save-button')));
+      await tester.pumpAndSettle();
+
+      expect(harness.cache.updated.single['patternId'], 'p-family');
+    });
+
+    testWidgets('a missing pattern shows an empty state, not a crash', (
+      tester,
+    ) async {
+      await _pumpBuilderScreen(
+        tester,
+        patterns: const [],
+        messageId: null,
+        patternId: 'does-not-exist',
+      );
+
+      expect(find.text('Pattern not found'), findsOneWidget);
     });
   });
 }

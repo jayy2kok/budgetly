@@ -3,16 +3,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-import '../../config/theme.dart';
 import '../../config/routes.dart';
+import '../../config/theme.dart';
 import '../../models/sms_pattern.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/family_provider.dart';
 import '../../providers/pattern_registry_provider.dart';
 
-/// Pattern Registry — browse cached patterns (global + family), author new
-/// patterns from failed/ignored messages, and promote authored patterns to the
-/// global registry (family admin).
+/// Pattern Registry — every pattern visible to the caller's family (globals and
+/// family-authored), with Edit and Disable/Enable. Patterns are authored from a
+/// non-transaction message, not from here.
 class PatternRegistryScreen extends ConsumerStatefulWidget {
   const PatternRegistryScreen({super.key});
 
@@ -30,65 +30,54 @@ class _PatternRegistryScreenState extends ConsumerState<PatternRegistryScreen> {
     });
   }
 
-  Future<void> _confirmDelete(String patternId) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: context.colors.cardSurface,
-        title: Text(
-          'Delete pattern?',
-          style: GoogleFonts.ibmPlexSans(
-            color: context.colors.textMain,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        content: Text(
-          'This pattern will stop matching incoming messages for your family.',
-          style: GoogleFonts.inter(color: context.colors.textMuted),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(
-              'Cancel',
-              style: GoogleFonts.inter(color: context.colors.textMuted),
-            ),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(
-              'Delete',
-              style: GoogleFonts.inter(color: context.colors.accentCoral),
-            ),
-          ),
-        ],
-      ),
-    );
-    if (ok == true) {
-      await ref.read(patternRegistryProvider.notifier).deletePattern(patternId);
+  /// Disables a pattern. A GLOBAL becomes hidden for this family only; a FAMILY
+  /// pattern becomes inactive.
+  Future<void> _disable(SmsPattern pattern) async {
+    try {
+      await ref.read(patternRegistryProvider.notifier).disablePattern(pattern.id);
+      if (!mounted) return;
+      _snack(_disableMessage(pattern));
+    } catch (e) {
+      if (!mounted) return;
+      _snack(e.toString());
     }
   }
 
-  Future<void> _promote(SmsPattern pattern) async {
+  Future<void> _enable(SmsPattern pattern) async {
     try {
-      await ref.read(patternRegistryProvider.notifier).promotePattern(pattern.id);
+      await ref
+          .read(patternRegistryProvider.notifier)
+          .enablePattern(pattern.id);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            '"${pattern.sender}" pattern is now global',
-            style: GoogleFonts.inter(),
-          ),
-        ),
-      );
+      _snack('Pattern enabled');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(e.toString(), style: GoogleFonts.inter()),
-        ),
-      );
+      _snack(e.toString());
     }
+  }
+
+  String _disableMessage(SmsPattern pattern) =>
+      pattern.scope == PatternScope.global
+          ? 'Pattern hidden for your family'
+          : 'Pattern disabled';
+
+  Future<void> _promote(SmsPattern pattern) async {
+    try {
+      await ref
+          .read(patternRegistryProvider.notifier)
+          .promotePattern(pattern.id);
+      if (!mounted) return;
+      _snack('"${pattern.sender}" pattern is now global');
+    } catch (e) {
+      if (!mounted) return;
+      _snack(e.toString());
+    }
+  }
+
+  void _snack(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message, style: GoogleFonts.inter())),
+    );
   }
 
   @override
@@ -96,9 +85,7 @@ class _PatternRegistryScreenState extends ConsumerState<PatternRegistryScreen> {
     final state = ref.watch(patternRegistryProvider);
     final userId = ref.watch(authProvider).user?.id ?? '';
     final members = ref.watch(familyProvider).members;
-    final isAdmin = members.any(
-      (m) => m.userId == userId && m.isAdmin,
-    );
+    final isAdmin = members.any((m) => m.userId == userId && m.isAdmin);
 
     // Group patterns by sender for a compact, scannable list.
     final bySender = <String, List<SmsPattern>>{};
@@ -108,20 +95,12 @@ class _PatternRegistryScreenState extends ConsumerState<PatternRegistryScreen> {
     final senders = bySender.keys.toList()..sort();
 
     return Scaffold(
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push(AppRoutes.patternBuilder),
-        icon: const Icon(Icons.add),
-        label: Text(
-          'New pattern',
-          style: GoogleFonts.inter(fontWeight: FontWeight.w600),
-        ),
-      ),
       body: SafeArea(
         child: Column(
           children: [
             // ── Header ──
             Padding(
-              padding: EdgeInsets.fromLTRB(8, 12, 8, 0),
+              padding: const EdgeInsets.fromLTRB(8, 12, 8, 0),
               child: Row(
                 children: [
                   IconButton(
@@ -145,7 +124,7 @@ class _PatternRegistryScreenState extends ConsumerState<PatternRegistryScreen> {
                           ),
                         ),
                         Text(
-                          '${state.patterns.length} active patterns',
+                          '${state.patterns.length} patterns',
                           style: GoogleFonts.inter(
                             fontSize: 12,
                             color: context.colors.textDim,
@@ -154,12 +133,12 @@ class _PatternRegistryScreenState extends ConsumerState<PatternRegistryScreen> {
                       ],
                     ),
                   ),
-                  SizedBox(width: 48),
+                  const SizedBox(width: 48),
                 ],
               ),
             ),
 
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
 
             Expanded(
               child: state.isLoading && state.patterns.isEmpty
@@ -171,14 +150,17 @@ class _PatternRegistryScreenState extends ConsumerState<PatternRegistryScreen> {
                           ref.read(patternRegistryProvider.notifier).load(),
                       child: state.patterns.isEmpty
                           ? ListView(
-                              physics: const AlwaysScrollableScrollPhysics(),
+                              physics:
+                                  const AlwaysScrollableScrollPhysics(),
                               children: [
                                 SizedBox(
                                   height:
                                       MediaQuery.sizeOf(context).height * 0.4,
                                   child: Center(
                                     child: Text(
-                                      'No patterns yet — author one from a failed message',
+                                      'No patterns yet — define one from a '
+                                      'non-transaction message',
+                                      textAlign: TextAlign.center,
                                       style: GoogleFonts.inter(
                                         fontSize: 14,
                                         color: context.colors.textDim,
@@ -189,8 +171,8 @@ class _PatternRegistryScreenState extends ConsumerState<PatternRegistryScreen> {
                               ],
                             )
                           : ListView(
-                              padding: EdgeInsets.only(
-                                bottom: 96,
+                              padding: const EdgeInsets.only(
+                                bottom: 24,
                                 left: 20,
                                 right: 20,
                               ),
@@ -203,13 +185,19 @@ class _PatternRegistryScreenState extends ConsumerState<PatternRegistryScreen> {
                                   for (final p in bySender[sender]!)
                                     _PatternTile(
                                       pattern: p,
-                                      canEdit: p.canEdit(userId),
                                       isAdmin: isAdmin,
                                       busy: state.busyPatternIds.contains(p.id),
-                                      onDelete: () => _confirmDelete(p.id),
+                                      onEdit: () => context.push(
+                                        '${AppRoutes.patternBuilder}'
+                                        '?patternId=${Uri.encodeComponent(p.id)}',
+                                      ),
+                                      onToggle: () =>
+                                          p.isEnabledForFamily
+                                              ? _disable(p)
+                                              : _enable(p),
                                       onPromote: () => _promote(p),
                                     ),
-                                  SizedBox(height: 12),
+                                  const SizedBox(height: 12),
                                 ],
                               ],
                             ),
@@ -231,7 +219,7 @@ class _SenderHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(top: 12, bottom: 6),
+      padding: const EdgeInsets.only(top: 12, bottom: 6),
       child: Row(
         children: [
           Text(
@@ -242,9 +230,9 @@ class _SenderHeader extends StatelessWidget {
               color: context.colors.primaryLight,
             ),
           ),
-          SizedBox(width: 8),
+          const SizedBox(width: 8),
           Container(
-            padding: EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
             decoration: BoxDecoration(
               color: context.colors.surfaceHighlight,
               borderRadius: BorderRadius.circular(4),
@@ -266,31 +254,32 @@ class _SenderHeader extends StatelessWidget {
 
 class _PatternTile extends StatelessWidget {
   final SmsPattern pattern;
-  final bool canEdit;
   final bool isAdmin;
   final bool busy;
-  final VoidCallback onDelete;
+  final VoidCallback onEdit;
+  final VoidCallback onToggle;
   final VoidCallback onPromote;
 
   const _PatternTile({
     required this.pattern,
-    required this.canEdit,
     required this.isAdmin,
     required this.busy,
-    required this.onDelete,
+    required this.onEdit,
+    required this.onToggle,
     required this.onPromote,
   });
 
   @override
   Widget build(BuildContext context) {
+    final enabled = pattern.isEnabledForFamily;
     final scopeLabel =
         pattern.scope == PatternScope.family ? 'Family' : 'Global';
     final sourceLabel =
         pattern.source == PatternSource.user ? 'by you' : 'by LLM';
 
     return Container(
-      margin: EdgeInsets.only(bottom: 8),
-      padding: EdgeInsets.all(12),
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: context.colors.cardSurface,
         borderRadius: BorderRadius.circular(BudgetlyTheme.radiusCard),
@@ -307,12 +296,14 @@ class _PatternTile extends StatelessWidget {
                   style: GoogleFonts.jetBrainsMono(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: context.colors.textMain,
+                    color: enabled
+                        ? context.colors.textMain
+                        : context.colors.textDim,
                   ),
                 ),
               ),
               _Tag(label: scopeLabel),
-              SizedBox(width: 6),
+              const SizedBox(width: 6),
               _Tag(
                 label: sourceLabel,
                 color: pattern.source == PatternSource.user
@@ -321,7 +312,7 @@ class _PatternTile extends StatelessWidget {
               ),
             ],
           ),
-          SizedBox(height: 6),
+          const SizedBox(height: 6),
           Text(
             pattern.sampleMessage,
             style: GoogleFonts.inter(
@@ -332,17 +323,18 @@ class _PatternTile extends StatelessWidget {
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           Row(
             children: [
-              Icon(
-                pattern.active ? Icons.check_circle : Icons.pause_circle,
-                size: 14,
-                color: pattern.active
-                    ? context.colors.accentMint
-                    : context.colors.textDim,
+              _StatusTag(
+                label: !pattern.active
+                    ? 'Disabled'
+                    : pattern.hiddenForFamily
+                        ? 'Hidden for family'
+                        : 'Active',
+                enabled: enabled,
               ),
-              SizedBox(width: 4),
+              const SizedBox(width: 8),
               Text(
                 '${pattern.usageCount} uses',
                 style: GoogleFonts.inter(
@@ -350,16 +342,51 @@ class _PatternTile extends StatelessWidget {
                   color: context.colors.textDim,
                 ),
               ),
-              Spacer(),
+              const Spacer(),
               if (busy)
-                SizedBox(
+                const SizedBox(
                   width: 16,
                   height: 16,
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
               else ...[
+                TextButton(
+                  key: Key('pattern-edit-${pattern.id}'),
+                  onPressed: onEdit,
+                  style: TextButton.styleFrom(
+                    foregroundColor: context.colors.primaryLight,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: Text(
+                    'Edit',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                TextButton(
+                  key: Key('pattern-toggle-${pattern.id}'),
+                  onPressed: onToggle,
+                  style: TextButton.styleFrom(
+                    foregroundColor: context.colors.textMuted,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: Text(
+                    enabled ? 'Disable' : 'Enable',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
                 if (isAdmin && pattern.scope == PatternScope.family)
                   IconButton(
+                    key: Key('pattern-promote-${pattern.id}'),
                     onPressed: onPromote,
                     icon: Icon(
                       Icons.public,
@@ -367,16 +394,6 @@ class _PatternTile extends StatelessWidget {
                       color: context.colors.primaryLight,
                     ),
                     tooltip: 'Promote to global',
-                  ),
-                if (canEdit)
-                  IconButton(
-                    onPressed: onDelete,
-                    icon: Icon(
-                      Icons.delete_outline,
-                      size: 18,
-                      color: context.colors.accentCoral,
-                    ),
-                    tooltip: 'Delete pattern',
                   ),
               ],
             ],
@@ -397,7 +414,7 @@ class _Tag extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = color ?? context.colors.textMuted;
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
       decoration: BoxDecoration(
         color: c.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(4),
@@ -410,6 +427,33 @@ class _Tag extends StatelessWidget {
           color: c,
         ),
       ),
+    );
+  }
+}
+
+/// Active / Disabled / Hidden for family indicator.
+class _StatusTag extends StatelessWidget {
+  final String label;
+  final bool enabled;
+
+  const _StatusTag({required this.label, required this.enabled});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = enabled ? context.colors.accentMint : context.colors.textDim;
+    return Row(
+      children: [
+        Icon(
+          enabled ? Icons.check_circle : Icons.pause_circle,
+          size: 14,
+          color: color,
+        ),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: GoogleFonts.inter(fontSize: 11, color: color),
+        ),
+      ],
     );
   }
 }
