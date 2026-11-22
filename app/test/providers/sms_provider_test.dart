@@ -74,16 +74,17 @@ class RecordingMessageService implements MessageService {
   Future<List<Message>> getIgnoredMessages() async => [];
 
   @override
-  Future<List<Message>> getFailedMessages({int page = 0, int size = 20}) async =>
-      [];
+  Future<List<Message>> getFailedMessages({
+    int page = 0,
+    int size = 20,
+  }) async => [];
 
   @override
   Future<Message> confirmMessage(String messageId) =>
       throw UnimplementedError();
 
   @override
-  Future<Message> rejectMessage(String messageId) =>
-      throw UnimplementedError();
+  Future<Message> rejectMessage(String messageId) => throw UnimplementedError();
 
   @override
   Future<Message> restoreMessage(String messageId) =>
@@ -139,11 +140,11 @@ class FakeAuthNotifier extends AuthNotifier {
 
   @override
   AuthState build() => AuthState(
-        status: user == null
-            ? AuthStatus.unauthenticated
-            : AuthStatus.authenticated,
-        user: user,
-      );
+    status: user == null
+        ? AuthStatus.unauthenticated
+        : AuthStatus.authenticated,
+    user: user,
+  );
 }
 
 class FakeFamilyNotifier extends FamilyNotifier {
@@ -160,6 +161,24 @@ class FakeCategoryNotifier extends CategoryNotifier {
 
   @override
   CategoryState build() => CategoryState(categories: categories);
+}
+
+/// Starts with no categories in state and populates them on demand, mirroring
+/// the real notifier's lazy [loadCategories] on a cold start.
+class LazyCategoryNotifier extends CategoryNotifier {
+  final List<Category> loaded;
+  int loadCalls = 0;
+
+  LazyCategoryNotifier(this.loaded);
+
+  @override
+  CategoryState build() => const CategoryState();
+
+  @override
+  Future<void> loadCategories(String familyGroupId) async {
+    loadCalls++;
+    state = state.copyWith(categories: loaded);
+  }
 }
 
 /// RecordingTransactionNotifier; counts addTransaction calls and
@@ -220,8 +239,9 @@ class RecordingBudgetService implements BudgetService {
 
   @override
   Future<Map<String, dynamic>> getBudgetSummary(
-          String familyGroupId, String? month) async =>
-      {};
+    String familyGroupId,
+    String? month,
+  ) async => {};
 
   @override
   Future<void> updateBudgetLimit(String familyGroupId, double limit) async {}
@@ -230,20 +250,20 @@ class RecordingBudgetService implements BudgetService {
 // ── Fixtures ──────────────────────────────────────────────────────
 
 User kUser() => User(
-      id: 'u1',
-      googleId: 'google-u1',
-      displayName: 'Jay',
-      email: 'jay@budgetly.app',
-      createdAt: DateTime.utc(2026, 1, 1),
-    );
+  id: 'u1',
+  googleId: 'google-u1',
+  displayName: 'Jay',
+  email: 'jay@budgetly.app',
+  createdAt: DateTime.utc(2026, 1, 1),
+);
 
 FamilyGroup kFamily() => FamilyGroup(
-      id: 'fam-1',
-      name: 'Home',
-      monthlyBudgetLimit: 50000,
-      createdByUserId: 'u1',
-      createdAt: DateTime.utc(2026, 1, 1),
-    );
+  id: 'fam-1',
+  name: 'Home',
+  monthlyBudgetLimit: 50000,
+  createdByUserId: 'u1',
+  createdAt: DateTime.utc(2026, 1, 1),
+);
 
 Message smsMsg({
   required int id,
@@ -253,47 +273,46 @@ Message smsMsg({
   ParseSource? parseSource,
   Map<String, String>? extractedData,
   String? matchedPatternId,
-}) =>
-    Message(
-      id: 'sms_$id',
-      userId: 'u1',
-      sender: sender,
-      rawText: body,
-      status: MessageStatus.pending,
-      parseSource: parseSource,
-      extractedData: extractedData,
-      matchedPatternId: matchedPatternId,
-      receivedAt: at,
-    );
+}) => Message(
+  id: 'sms_$id',
+  userId: 'u1',
+  sender: sender,
+  rawText: body,
+  status: MessageStatus.pending,
+  parseSource: parseSource,
+  extractedData: extractedData,
+  matchedPatternId: matchedPatternId,
+  receivedAt: at,
+);
 
 Map<String, String> fullExtraction() => {
-      'amount': '500',
-      'merchant': 'Grocery Mart',
-      'timestamp': '01/10/2026',
-    };
+  'amount': '500',
+  'merchant': 'Grocery Mart',
+  'timestamp': '01/10/2026',
+};
 
 SmsPattern kPattern({String? categoryName}) => SmsPattern(
-      id: 'p-hdfc',
-      sender: 'HDFCBK',
-      template: 'Spent Rs {amount} at {merchant} on {timestamp}',
-      extractionMap: const ExtractionMap(
-        amount: 'amount',
-        merchant: 'merchant',
-        timestamp: 'timestamp',
-      ),
-      sampleMessage: 'Spent Rs 500 at Grocery Mart on 01/10/2026',
-      categoryName: categoryName,
-      createdAt: DateTime.utc(2026, 1, 1),
-    );
+  id: 'p-hdfc',
+  sender: 'HDFCBK',
+  template: 'Spent Rs {amount} at {merchant} on {timestamp}',
+  extractionMap: const ExtractionMap(
+    amount: 'amount',
+    merchant: 'merchant',
+    timestamp: 'timestamp',
+  ),
+  sampleMessage: 'Spent Rs 500 at Grocery Mart on 01/10/2026',
+  categoryName: categoryName,
+  createdAt: DateTime.utc(2026, 1, 1),
+);
 
 Category kCategory({required String id, required String name}) => Category(
-      id: id,
-      familyGroupId: 'fam-1',
-      name: name,
-      icon: '🛒',
-      budgetLimit: 0,
-      color: '#5B5EF4',
-    );
+  id: id,
+  familyGroupId: 'fam-1',
+  name: name,
+  icon: '🛒',
+  budgetLimit: 0,
+  color: '#5B5EF4',
+);
 
 // ── Test rig ──────────────────────────────────────────────────────
 
@@ -305,6 +324,7 @@ ProviderContainer buildContainer({
   User? user,
   FamilyGroup? family,
   List<Category>? categories,
+  CategoryNotifier Function()? categoryNotifier,
   BudgetService? budgetService,
 }) {
   return ProviderContainer(
@@ -313,7 +333,9 @@ ProviderContainer buildContainer({
       smsInboxReaderProvider.overrideWithValue(reader),
       authProvider.overrideWith(() => FakeAuthNotifier(user)),
       familyProvider.overrideWith(() => FakeFamilyNotifier(family)),
-      categoryProvider.overrideWith(() => FakeCategoryNotifier(categories ?? [])),
+      categoryProvider.overrideWith(
+        categoryNotifier ?? () => FakeCategoryNotifier(categories ?? []),
+      ),
       messageServiceProvider.overrideWithValue(messageService),
       if (budgetService != null)
         budgetServiceProvider.overrideWithValue(budgetService),
@@ -335,8 +357,9 @@ void main() {
 
   setUp(() {
     SharedPreferences.setMockInitialValues({});
-    PermissionHandlerPlatform.instance =
-        FakePermissionHandler(status: PermissionStatus.granted);
+    PermissionHandlerPlatform.instance = FakePermissionHandler(
+      status: PermissionStatus.granted,
+    );
 
     reader = CannedInboxReader(const []);
     messageService = RecordingMessageService();
@@ -369,7 +392,45 @@ void main() {
   }
 
   group('syncInboxMessages — regexLocal fully parsed', () {
-    test('turns the message into a transaction directly, no server call',
+    test(
+      'turns the message into a transaction directly, no server call',
+      () async {
+        reader.canned = [
+          smsMsg(
+            id: 1,
+            body: 'Spent Rs 500 at Grocery Mart on 01/10/2026',
+            at: now,
+            parseSource: ParseSource.regexLocal,
+            extractedData: fullExtraction(),
+            matchedPatternId: 'p-hdfc',
+          ),
+        ];
+
+        await sync();
+
+        expect(transactions.addCalls, hasLength(1));
+        final tx = transactions.addCalls.single;
+        expect(tx['amount'], 500.0);
+        expect(tx['merchant'], 'Grocery Mart');
+        expect(tx['type'], 'EXPENSE');
+        expect(tx['sourceType'], 'REGEX_LOCAL');
+        expect(
+          tx['sourceRawText'],
+          'Spent Rs 500 at Grocery Mart on 01/10/2026',
+        );
+        expect(tx['matchedPatternId'], 'p-hdfc');
+        // No category override on the pattern → no categoryId key.
+        expect(tx.containsKey('categoryId'), isFalse);
+
+        expect(messageService.processCalls, isEmpty);
+        expect(messageService.bulkCalls, isEmpty);
+        // No server-bound messages → no pattern refresh (avoids a wasted round-trip).
+        expect(cache.refreshCalls, 0);
+        expect(reader.readCalls, 1);
+      },
+    );
+
+    test('forwards accountLast4, bankName and notes to the transaction',
         () async {
       reader.canned = [
         smsMsg(
@@ -377,63 +438,97 @@ void main() {
           body: 'Spent Rs 500 at Grocery Mart on 01/10/2026',
           at: now,
           parseSource: ParseSource.regexLocal,
-          extractedData: fullExtraction(),
+          extractedData: {
+            ...fullExtraction(),
+            'accountLast4': '1234',
+            'bankName': 'HDFC Bank',
+            'notes': 'Monthly groceries',
+          },
           matchedPatternId: 'p-hdfc',
         ),
       ];
 
       await sync();
 
-      expect(transactions.addCalls, hasLength(1));
       final tx = transactions.addCalls.single;
-      expect(tx['amount'], 500.0);
-      expect(tx['merchant'], 'Grocery Mart');
-      expect(tx['type'], 'EXPENSE');
-      expect(tx['sourceType'], 'REGEX_LOCAL');
-      expect(tx['sourceRawText'], 'Spent Rs 500 at Grocery Mart on 01/10/2026');
-      expect(tx['matchedPatternId'], 'p-hdfc');
-      // No category override on the pattern → no categoryId key.
-      expect(tx.containsKey('categoryId'), isFalse);
-
-      expect(messageService.processCalls, isEmpty);
-      expect(messageService.bulkCalls, isEmpty);
-      // No server-bound messages → no pattern refresh (avoids a wasted round-trip).
-      expect(cache.refreshCalls, 0);
-      expect(reader.readCalls, 1);
+      expect(tx['accountLast4'], '1234');
+      expect(tx['bankName'], 'HDFC Bank');
+      expect(tx['notes'], 'Monthly groceries');
     });
 
-    test('resolves the template categoryName override to a family category id',
-        () async {
-      cache.matchedPattern = kPattern(categoryName: 'Groceries');
+    test(
+      'resolves the template categoryName override to a family category id',
+      () async {
+        cache.matchedPattern = kPattern(categoryName: 'Groceries');
 
-      final overrideContainer = buildContainer(
-        reader: reader,
-        messageService: messageService,
-        transactions: transactions,
-        cache: cache,
-        user: kUser(),
-        family: kFamily(),
-        categories: [kCategory(id: 'cat-1', name: 'Groceries')],
-      );
-      addTearDown(overrideContainer.dispose);
+        final overrideContainer = buildContainer(
+          reader: reader,
+          messageService: messageService,
+          transactions: transactions,
+          cache: cache,
+          user: kUser(),
+          family: kFamily(),
+          categories: [kCategory(id: 'cat-1', name: 'Groceries')],
+        );
+        addTearDown(overrideContainer.dispose);
 
-      reader.canned = [
-        smsMsg(
-          id: 1,
-          body: 'Spent Rs 500 at Grocery Mart on 01/10/2026',
-          at: now,
-          parseSource: ParseSource.regexLocal,
-          extractedData: fullExtraction(),
-          matchedPatternId: 'p-hdfc',
-        ),
-      ];
+        reader.canned = [
+          smsMsg(
+            id: 1,
+            body: 'Spent Rs 500 at Grocery Mart on 01/10/2026',
+            at: now,
+            parseSource: ParseSource.regexLocal,
+            extractedData: fullExtraction(),
+            matchedPatternId: 'p-hdfc',
+          ),
+        ];
 
-      await settleInitFor(overrideContainer);
-      await overrideContainer.read(smsProvider.notifier).syncInboxMessages();
+        await settleInitFor(overrideContainer);
+        await overrideContainer.read(smsProvider.notifier).syncInboxMessages();
 
-      expect(transactions.addCalls, hasLength(1));
-      expect(transactions.addCalls.single['categoryId'], 'cat-1');
-    });
+        expect(transactions.addCalls, hasLength(1));
+        expect(transactions.addCalls.single['categoryId'], 'cat-1');
+      },
+    );
+
+    test(
+      'loads family categories on demand before resolving an override',
+      () async {
+        cache.matchedPattern = kPattern(categoryName: 'Dining');
+        final lazyCategories = LazyCategoryNotifier([
+          kCategory(id: 'cat-dining', name: 'Dining'),
+        ]);
+
+        // Cold start: categoryProvider has loaded nothing yet.
+        final coldStartContainer = buildContainer(
+          reader: reader,
+          messageService: messageService,
+          transactions: transactions,
+          cache: cache,
+          user: kUser(),
+          family: kFamily(),
+          categoryNotifier: () => lazyCategories,
+        );
+        addTearDown(coldStartContainer.dispose);
+
+        reader.canned = [
+          smsMsg(
+            id: 1,
+            body: 'Spent Rs 500 at Grocery Mart on 01/10/2026',
+            at: now,
+            parseSource: ParseSource.regexLocal,
+            extractedData: fullExtraction(),
+            matchedPatternId: 'p-hdfc',
+          ),
+        ];
+
+        await settleInitFor(coldStartContainer);
+        await coldStartContainer.read(smsProvider.notifier).syncInboxMessages();
+
+        expect(lazyCategories.loadCalls, 1);
+        expect(transactions.addCalls.single['categoryId'], 'cat-dining');
+      },
+    );
   });
 
   group('syncInboxMessages — regexLocal incomplete', () {
@@ -470,35 +565,37 @@ void main() {
   });
 
   group('syncInboxMessages — unprocessed (queued for server)', () {
-    test('bulk-submits unmatched messages and refreshes patterns once',
-        () async {
-      reader.canned = [
-        smsMsg(
-          id: 3,
-          sender: 'SBIUPI',
-          body: 'Rs.750 debited from a/c 4321 for Swiggy.',
-          at: now,
-        ),
-      ];
+    test(
+      'bulk-submits unmatched messages and refreshes patterns once',
+      () async {
+        reader.canned = [
+          smsMsg(
+            id: 3,
+            sender: 'SBIUPI',
+            body: 'Rs.750 debited from a/c 4321 for Swiggy.',
+            at: now,
+          ),
+        ];
 
-      await sync();
+        await sync();
 
-      expect(messageService.processCalls, isEmpty);
-      expect(messageService.bulkCalls, hasLength(1));
-      final call = messageService.bulkCalls.single;
-      expect(call['familyGroupId'], 'fam-1');
-      expect(call['messages'], [
-        {
-          'sender': 'SBIUPI',
-          'rawText': 'Rs.750 debited from a/c 4321 for Swiggy.',
-          'receivedAt': now.toIso8601String(),
-        },
-      ]);
-      expect(transactions.addCalls, isEmpty);
-      // The server pipeline may have registered new patterns while processing
-      // the batch — the client refreshes its local cache once afterwards.
-      expect(cache.refreshCalls, 1);
-    });
+        expect(messageService.processCalls, isEmpty);
+        expect(messageService.bulkCalls, hasLength(1));
+        final call = messageService.bulkCalls.single;
+        expect(call['familyGroupId'], 'fam-1');
+        expect(call['messages'], [
+          {
+            'sender': 'SBIUPI',
+            'rawText': 'Rs.750 debited from a/c 4321 for Swiggy.',
+            'receivedAt': now.toIso8601String(),
+          },
+        ]);
+        expect(transactions.addCalls, isEmpty);
+        // The server pipeline may have registered new patterns while processing
+        // the batch — the client refreshes its local cache once afterwards.
+        expect(cache.refreshCalls, 1);
+      },
+    );
 
     test('chunks large inboxes into bulk batches of at most 500', () async {
       reader.canned = [
@@ -594,24 +691,28 @@ void main() {
       expect(transactions.addCalls, hasLength(2));
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.getInt(kCheckpointKey), now.millisecondsSinceEpoch);
-      expect(container.read(smsProvider).lastProcessedSmsTimestamp,
-          now.millisecondsSinceEpoch);
+      expect(
+        container.read(smsProvider).lastProcessedSmsTimestamp,
+        now.millisecondsSinceEpoch,
+      );
     });
 
-    test('isSyncing resets and messages reload even when the sync throws',
-        () async {
-      reader.failRead = true;
+    test(
+      'isSyncing resets and messages reload even when the sync throws',
+      () async {
+        reader.failRead = true;
 
-      await sync();
+        await sync();
 
-      expect(reader.readCalls, 1);
-      final state = container.read(smsProvider);
-      expect(state.isSyncing, isFalse);
-      // The finally block still reloads the message list on the failure path.
-      final fakeMsg =
-          container.read(messageProvider.notifier) as FakeMessageNotifier;
-      expect(fakeMsg.loadCalls, 1);
-    });
+        expect(reader.readCalls, 1);
+        final state = container.read(smsProvider);
+        expect(state.isSyncing, isFalse);
+        // The finally block still reloads the message list on the failure path.
+        final fakeMsg =
+            container.read(messageProvider.notifier) as FakeMessageNotifier;
+        expect(fakeMsg.loadCalls, 1);
+      },
+    );
   });
 
   group('syncInboxMessages — dashboard refresh', () {
@@ -659,37 +760,41 @@ void main() {
       expect(messageService.bulkCalls, hasLength(1));
       expect(transactions.loadCalls, 1);
       expect(budgetService.loadDashboardCalls, 1);
-      expect(refreshContainer.read(transactionProvider).transactions,
-          hasLength(1));
+      expect(
+        refreshContainer.read(transactionProvider).transactions,
+        hasLength(1),
+      );
     });
   });
 
   group('syncInboxMessages — background sync toggle (WORK-203)', () {
-    test('toggle persists the preference and is restored on next launch',
-        () async {
-      // Default is enabled.
-      await settleInit();
-      expect(container.read(smsProvider).backgroundServiceEnabled, isTrue);
+    test(
+      'toggle persists the preference and is restored on next launch',
+      () async {
+        // Default is enabled.
+        await settleInit();
+        expect(container.read(smsProvider).backgroundServiceEnabled, isTrue);
 
-      await container.read(smsProvider.notifier).toggleBackgroundService();
-      expect(container.read(smsProvider).backgroundServiceEnabled, isFalse);
+        await container.read(smsProvider.notifier).toggleBackgroundService();
+        expect(container.read(smsProvider).backgroundServiceEnabled, isFalse);
 
-      final prefs = await SharedPreferences.getInstance();
-      expect(prefs.getBool('background_sms_service_enabled'), isFalse);
+        final prefs = await SharedPreferences.getInstance();
+        expect(prefs.getBool('background_sms_service_enabled'), isFalse);
 
-      // A fresh container (same persisted prefs) restores the off state.
-      final restarted = buildContainer(
-        reader: reader,
-        messageService: messageService,
-        transactions: transactions,
-        cache: cache,
-        user: kUser(),
-        family: kFamily(),
-      );
-      addTearDown(restarted.dispose);
-      await settleInitFor(restarted);
-      expect(restarted.read(smsProvider).backgroundServiceEnabled, isFalse);
-    });
+        // A fresh container (same persisted prefs) restores the off state.
+        final restarted = buildContainer(
+          reader: reader,
+          messageService: messageService,
+          transactions: transactions,
+          cache: cache,
+          user: kUser(),
+          family: kFamily(),
+        );
+        addTearDown(restarted.dispose);
+        await settleInitFor(restarted);
+        expect(restarted.read(smsProvider).backgroundServiceEnabled, isFalse);
+      },
+    );
 
     test('background sync is skipped while the toggle is off', () async {
       await settleInit();

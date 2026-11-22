@@ -58,13 +58,18 @@ class FakeCategoryService implements CategoryService {
 
   @override
   Future<Category> createCategory(
-      String familyGroupId, Map<String, dynamic> data) async {
+    String familyGroupId,
+    Map<String, dynamic> data,
+  ) async {
     throw UnimplementedError();
   }
 
   @override
   Future<Category> updateCategory(
-      String familyGroupId, String id, Map<String, dynamic> data) async {
+    String familyGroupId,
+    String id,
+    Map<String, dynamic> data,
+  ) async {
     throw UnimplementedError();
   }
 
@@ -92,13 +97,18 @@ class RecordingTransactionService implements TransactionService {
 
   @override
   Future<Transaction> createTransaction(
-      String familyGroupId, Map<String, dynamic> data) async {
+    String familyGroupId,
+    Map<String, dynamic> data,
+  ) async {
     throw UnimplementedError();
   }
 
   @override
   Future<Transaction> updateTransaction(
-      String familyGroupId, String id, Map<String, dynamic> data) async {
+    String familyGroupId,
+    String id,
+    Map<String, dynamic> data,
+  ) async {
     debugPrint('MOCK SERVICE: updateTransaction called with data=$data');
     updates.add(data);
     final index = _initial.indexWhere((t) => t.id == id);
@@ -201,7 +211,10 @@ final _family = FamilyGroup(
   createdAt: DateTime.utc(2026, 1, 1),
 );
 
-Transaction _uncategorizedTransaction() => Transaction(
+Transaction _uncategorizedTransaction({
+  String? accountLast4,
+  String? bankName,
+}) => Transaction(
   id: 'txn_1',
   familyGroupId: 'family_1',
   createdByUserId: 'user_001',
@@ -210,21 +223,24 @@ Transaction _uncategorizedTransaction() => Transaction(
   merchant: 'AMAZON PAY IN U',
   type: TransactionType.expense,
   sourceType: SourceType.llmServer,
+  accountLast4: accountLast4,
+  bankName: bankName,
   transactionDate: DateTime.utc(2026, 11, 18),
   createdAt: DateTime.utc(2026, 11, 18),
 );
 
 Future<ProviderContainer> pumpTransactionDetail(
   WidgetTester tester,
-  RecordingTransactionService transactionServiceParam,
-) async {
+  RecordingTransactionService transactionServiceParam, {
+  Transaction? transaction,
+}) async {
   GoogleFonts.config.allowRuntimeFetching = false;
 
   tester.view.physicalSize = const Size(800, 2400);
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
 
-  final transactions = [_uncategorizedTransaction()];
+  final transactions = [transaction ?? _uncategorizedTransaction()];
   final transactionService = RecordingTransactionService(transactions);
 
   final container = ProviderContainer(
@@ -256,10 +272,12 @@ Future<ProviderContainer> pumpTransactionDetail(
 
   // Seed the state both screens read: the transaction list and the category
   // list loaded from the (now-seeded) family.
-  container.read(transactionProvider.notifier).state =
-      TransactionState(transactions: transactions);
-  container.read(categoryProvider.notifier).state =
-      CategoryState(categories: _seededCategories);
+  container.read(transactionProvider.notifier).state = TransactionState(
+    transactions: transactions,
+  );
+  container.read(categoryProvider.notifier).state = CategoryState(
+    categories: _seededCategories,
+  );
   await tester.pumpAndSettle();
   return container;
 }
@@ -268,7 +286,9 @@ void main() {
   testWidgets('category sheet lists the seeded default categories', (
     tester,
   ) async {
-    final transactionService = RecordingTransactionService([_uncategorizedTransaction()]);
+    final transactionService = RecordingTransactionService([
+      _uncategorizedTransaction(),
+    ]);
     await pumpTransactionDetail(tester, transactionService);
 
     expect(find.text('Uncategorized'), findsOneWidget);
@@ -286,10 +306,31 @@ void main() {
     }
   });
 
-  testWidgets('picking a category from the sheet persists it', (
+  testWidgets('shows the masked account and bank when present', (
     tester,
   ) async {
-    final transactionService = RecordingTransactionService([_uncategorizedTransaction()]);
+    final transactionService = RecordingTransactionService([
+      _uncategorizedTransaction(accountLast4: '1234', bankName: 'HDFC Bank'),
+    ]);
+    await pumpTransactionDetail(
+      tester,
+      transactionService,
+      transaction: _uncategorizedTransaction(
+        accountLast4: '1234',
+        bankName: 'HDFC Bank',
+      ),
+    );
+
+    expect(find.text('Account'), findsOneWidget);
+    expect(find.text('A/C •••• 1234'), findsOneWidget);
+    expect(find.text('Bank'), findsOneWidget);
+    expect(find.text('HDFC Bank'), findsOneWidget);
+  });
+
+  testWidgets('picking a category from the sheet persists it', (tester) async {
+    final transactionService = RecordingTransactionService([
+      _uncategorizedTransaction(),
+    ]);
     final container = await pumpTransactionDetail(tester, transactionService);
 
     await tester.tap(find.text('Uncategorized'));
@@ -299,15 +340,23 @@ void main() {
     debugPrint('Sheet open, looking for Groceries');
 
     // Watch for any state changes
-    debugPrint('Before tap, transaction state: ${container.read(transactionProvider).transactions.map((t) => t.categoryId).toList()}');
+    debugPrint(
+      'Before tap, transaction state: ${container.read(transactionProvider).transactions.map((t) => t.categoryId).toList()}',
+    );
 
     await tester.tap(
-      find.ancestor(of: find.text('Groceries'), matching: find.byType(ListTile)),
+      find.ancestor(
+        of: find.text('Groceries'),
+        matching: find.byType(ListTile),
+      ),
     );
     await tester.pumpAndSettle();
 
     // Check provider state directly - that's the real test
-    final updatedTxn = container.read(transactionProvider).transactions.firstWhere((t) => t.id == 'txn_1');
+    final updatedTxn = container
+        .read(transactionProvider)
+        .transactions
+        .firstWhere((t) => t.id == 'txn_1');
     expect(updatedTxn.categoryId, 'cat_groceries');
     expect(
       find.text('Groceries'),

@@ -32,6 +32,22 @@ void main() {
       expect(draft.extractionMap.type, isNull);
     });
 
+    test('account and notes spans are carried into the extraction map', () {
+      const raw = 'Rs.500 debited from a/c 1234. Rent payment';
+      final draft = PatternDraftBuilder.fromSpans(raw, const [
+        TaggedSpan(field: PatternField.amount, start: 3, end: 6),
+        TaggedSpan(field: PatternField.accountLast4, start: 24, end: 28),
+        TaggedSpan(field: PatternField.notes, start: 30, end: 42),
+      ]);
+
+      expect(
+        draft.template,
+        'Rs.{amount} debited from a/c {accountLast4}. {notes}',
+      );
+      expect(draft.extractionMap.accountLast4, 'accountLast4');
+      expect(draft.extractionMap.notes, 'notes');
+    });
+
     test('sorts spans by position regardless of tag order', () {
       const raw = 'Rs.1200 debited at Swiggy';
       final draft = PatternDraftBuilder.fromSpans(raw, const [
@@ -63,9 +79,7 @@ void main() {
   });
 
   group('PatternDraftBuilder.hasOverlap', () {
-    const spans = [
-      TaggedSpan(field: PatternField.amount, start: 5, end: 10),
-    ];
+    const spans = [TaggedSpan(field: PatternField.amount, start: 5, end: 10)];
 
     test('detects partial overlap', () {
       expect(PatternDraftBuilder.hasOverlap(spans, 8, 12), isTrue);
@@ -95,8 +109,9 @@ void main() {
     });
 
     test('template without {amount} is flagged', () {
-      final draft =
-          PatternDraftBuilder.fromManualTemplate('Paid {merchant} today');
+      final draft = PatternDraftBuilder.fromManualTemplate(
+        'Paid {merchant} today',
+      );
 
       expect(draft.hasAmountToken, isFalse);
       expect(draft.extractionMap.amount, 'amount');
@@ -117,10 +132,7 @@ void main() {
         TaggedSpan(field: PatternField.amount, start: 5, end: 8),
       ]);
 
-      final extracted = SmsParserService().dryRunTemplate(
-        draft.template,
-        raw,
-      );
+      final extracted = SmsParserService().dryRunTemplate(draft.template, raw);
 
       expect(extracted, isNotNull);
       expect(extracted!['amount'], '250');
@@ -134,10 +146,7 @@ void main() {
         TaggedSpan(field: PatternField.timestamp, start: 35, end: 45),
       ]);
 
-      final extracted = SmsParserService().dryRunTemplate(
-        draft.template,
-        raw,
-      );
+      final extracted = SmsParserService().dryRunTemplate(draft.template, raw);
 
       expect(extracted, {
         'amount': '500.50',
