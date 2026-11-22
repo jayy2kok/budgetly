@@ -108,4 +108,43 @@ class AnchorParserTest {
         assertThat(service.parse("{merchant} used for {merchant}", "ABC used for DEF"))
                 .isEqualTo(Map.of("merchant", "DEF"));
     }
+
+    @Test
+    void emptyBracesStayLiteralAndDoNotFormTokens() {
+        // Regex \{([^}]+)\} needs >=1 char, so '{}' is not a token.
+        assertThat(service.parse("a{}b{amount}", "a{}b42"))
+                .isEqualTo(Map.of("amount", "42"));
+        // Leading and trailing empty braces keep the surrounding literals intact.
+        assertThat(service.parse("{}x{}", "{}x{}"))
+                .isNull();
+    }
+
+    @Test
+    void unmatchedBraceStaysLiteral() {
+        // A '{' with no closing '}' is not a token (regex finds nothing).
+        assertThat(service.parse("a{x", "anything")).isNull();
+    }
+
+    @Test
+    void braceInsideTokenMatchesRegexSemantics() {
+        // [^}]+ admits '{', so "{a{b}" captures "a{b" up to the first '}'.
+        assertThat(service.parse("{a{b}", "zzz"))
+                .isEqualTo(Map.of("a{b", "zzz"));
+    }
+
+    @Test
+    void adjacentTokensWithLiteralGap() {
+        // Mirrors the Dart corpus case '{amount} {merchant}' / '500 Swiggy'.
+        assertThat(service.parse("{a} {b}", "500 Swiggy"))
+                .isEqualTo(Map.of("a", "500", "b", "Swiggy"));
+    }
+
+    @Test
+    void doubleOpenBraceProducesSingleNestedToken() {
+        // Regex: \{ at index 1 opens the token, [^}]+ captures "{a", closes at
+        // the first '}'. The leading '{' is inside the token and the trailing
+        // '}' is the right anchor, so the SMS must end with '}'.
+        assertThat(service.parse("{{a}}", "abc}"))
+                .isEqualTo(Map.of("{a", "abc"));
+    }
 }
