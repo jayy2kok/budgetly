@@ -19,9 +19,10 @@ import java.util.List;
  * transaction-creation call site (WORK-003).
  *
  * <p>Supported: ISO instant / offset date-times, ISO date, {@code dd/MM/yyyy},
- * {@code dd-MM-yyyy} (each optionally with a {@code HH:mm[:ss]} time part).
- * Date-only values resolve to the received time-of-day (see
- * {@link #resolveTransactionDate}).
+ * {@code dd-MM-yyyy}, the two-digit-year bank form {@code dd/MM/yy} /
+ * {@code dd-MM-yy} ({@code 26} → 2026), each optionally with a
+ * {@code HH:mm[:ss]} time part. Date-only values resolve to the received
+ * time-of-day (see {@link #resolveTransactionDate}).
  */
 @Component
 public class TransactionDateParser {
@@ -29,6 +30,8 @@ public class TransactionDateParser {
     private static final List<DateTimeFormatter> DATE_FORMATS = List.of(
             DateTimeFormatter.ofPattern("dd/MM/yyyy"),
             DateTimeFormatter.ofPattern("dd-MM-yyyy"),
+            DateTimeFormatter.ofPattern("dd/MM/yy"),
+            DateTimeFormatter.ofPattern("dd-MM-yy"),
             DateTimeFormatter.ISO_LOCAL_DATE
     );
 
@@ -37,6 +40,10 @@ public class TransactionDateParser {
             DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm"),
             DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss"),
             DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm"),
+            DateTimeFormatter.ofPattern("dd/MM/yy HH:mm:ss"),
+            DateTimeFormatter.ofPattern("dd/MM/yy HH:mm"),
+            DateTimeFormatter.ofPattern("dd-MM-yy HH:mm:ss"),
+            DateTimeFormatter.ofPattern("dd-MM-yy HH:mm"),
             DateTimeFormatter.ISO_LOCAL_DATE_TIME
     );
 

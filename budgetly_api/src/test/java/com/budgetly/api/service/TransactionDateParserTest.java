@@ -35,6 +35,20 @@ class TransactionDateParserTest {
     }
 
     @Test
+    void parsesTwoDigitYearBankDates() {
+        Instant nov20 = java.time.LocalDate.of(2026, 11, 20)
+                .atStartOfDay().toInstant(java.time.ZoneOffset.UTC);
+        assertThat(parser.parse("20-11-26")).contains(nov20);
+        assertThat(parser.parse("20/11/26")).contains(nov20);
+    }
+
+    @Test
+    void parsesTwoDigitYearBankDateWithTime() {
+        assertThat(parser.parse("20-11-26 13:45"))
+                .contains(Instant.parse("2026-11-20T13:45:00Z"));
+    }
+
+    @Test
     void parsesIsoDate() {
         assertThat(parser.parse("2026-10-01")).contains(D20261001);
     }
@@ -76,6 +90,9 @@ class TransactionDateParserTest {
         Instant received = Instant.parse("2026-11-14T13:00:00Z");
         assertThat(parser.resolveTransactionDate(received, "01/10/2026", ZONE))
                 .isEqualTo(java.time.LocalDateTime.of(2026, 10, 1, 18, 30)
+                        .atZone(ZONE).toInstant());
+        assertThat(parser.resolveTransactionDate(received, "20-11-26", ZONE))
+                .isEqualTo(java.time.LocalDateTime.of(2026, 11, 20, 18, 30)
                         .atZone(ZONE).toInstant());
     }
 

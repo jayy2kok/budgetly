@@ -379,7 +379,7 @@ class MessageChangeStreamListenerTest {
 
     @Test
     void skipsDirectSourceDocumentsBeforeClaiming() {
-        // Legacy /messages/process docs are DIRECT — the listener must never
+        // Legacy DIRECT docs are never claimed — the listener must never
         // claim them (WORK-001 duplicate-processing race).
         MessageDocument direct = MessageDocument.builder()
                 .id("msg9").userId("u1").sender("HDFCBK")

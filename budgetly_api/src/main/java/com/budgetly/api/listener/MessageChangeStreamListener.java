@@ -112,8 +112,8 @@ public class MessageChangeStreamListener {
         }
 
         // Only insert events on PENDING documents that entered via the bulk API.
-        // Excluding SOURCE_DIRECT (legacy /messages/process) removes the duplicate-
-        // processing race: the process endpoint handles its own docs synchronously.
+        // Excluding SOURCE_DIRECT removes the duplicate-processing race: legacy
+        // DIRECT docs were completed when they were written and must stay untouched.
         builder.filter(
                 org.springframework.data.mongodb.core.aggregation.Aggregation.newAggregation(
                         org.springframework.data.mongodb.core.aggregation.Aggregation.match(
