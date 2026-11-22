@@ -4,11 +4,15 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../../config/theme.dart';
+import '../../models/category.dart';
 import '../../models/message.dart';
+import '../../providers/category_provider.dart';
+import '../../providers/family_provider.dart';
 import '../../providers/message_provider.dart';
 import '../../providers/pattern_registry_provider.dart';
 import '../../services/pattern_draft_builder.dart';
 import '../../services/sms_parser_service.dart';
+import '../../widgets/category_picker_sheet.dart';
 
 /// Pattern Builder — highlight spans in a failed/ignored SMS and tag them with
 /// standard fields to derive a template + extractionMap, with a live dry-run
@@ -45,6 +49,15 @@ class _PatternBuilderScreenState extends ConsumerState<PatternBuilderScreen> {
   bool _templateEdited = false;
   bool _saving = false;
 
+  /// Category override applied to transactions this pattern parses.
+  Category? _category;
+
+  /// User-pinned literal values; empty means "use the tagged value".
+  final TextEditingController _fixedMerchant = TextEditingController();
+  final TextEditingController _fixedAccount = TextEditingController();
+  final TextEditingController _fixedBank = TextEditingController();
+  final TextEditingController _fixedNotes = TextEditingController();
+
   @override
   void initState() {
     super.initState();
@@ -73,6 +86,10 @@ class _PatternBuilderScreenState extends ConsumerState<PatternBuilderScreen> {
     _templateController.dispose();
     _sourceController.dispose();
     _sourceFocus.dispose();
+    _fixedMerchant.dispose();
+    _fixedAccount.dispose();
+    _fixedBank.dispose();
+    _fixedNotes.dispose();
     super.dispose();
   }
 
@@ -147,8 +164,10 @@ class _PatternBuilderScreenState extends ConsumerState<PatternBuilderScreen> {
       _templateController.text = '';
       return;
     }
-    _templateController.text =
-        PatternDraftBuilder.fromSpans(msg.rawText, _spans).template;
+    _templateController.text = PatternDraftBuilder.fromSpans(
+      msg.rawText,
+      _spans,
+    ).template;
   }
 
   /// Derives the draft (tagged spans or manual template) + dry-run verdict.
@@ -157,18 +176,68 @@ class _PatternBuilderScreenState extends ConsumerState<PatternBuilderScreen> {
     if (msg == null) return null;
 
     if (_templateEdited) {
-      final draft =
-          PatternDraftBuilder.fromManualTemplate(_templateController.text);
+      final draft = PatternDraftBuilder.fromManualTemplate(
+        _templateController.text,
+      );
       return _DraftResult(draft: draft, templateMatches: false);
     }
 
     if (_spans.isEmpty) return null;
     final draft = PatternDraftBuilder.fromSpans(msg.rawText, _spans);
-    final extracted = SmsParserService().dryRunTemplate(draft.template, msg.rawText);
+    final extracted = SmsParserService().dryRunTemplate(
+      draft.template,
+      msg.rawText,
+    );
     return _DraftResult(
       draft: draft,
       templateMatches: extracted != null && extracted.isNotEmpty,
     );
+  }
+
+  /// Opens the family's category list and records the chosen override.
+  ///
+  /// Categories are loaded lazily on first open so the builder does not touch
+  /// the family/category services unless the user actually picks a category.
+  Future<void> _pickCategory() async {
+    final familyGroupId = ref.read(familyProvider).currentFamily?.id;
+    if (familyGroupId == null) {
+      _snack('Join a family before choosing a category');
+      return;
+    }
+    if (ref.read(categoryProvider).categories.isEmpty) {
+      await ref.read(categoryProvider.notifier).loadCategories(familyGroupId);
+    }
+    if (!mounted) return;
+
+    final categories = ref.read(categoryProvider).categories;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: context.colors.cardSurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => CategoryPickerSheet(
+        categories: categories,
+        selectedCategoryId: _category?.id,
+        onSelected: (category) => setState(() => _category = category),
+      ),
+    );
+  }
+
+  /// Non-blank fixed values, keyed by transaction field. Fixed wins over the
+  /// value extracted by the template.
+  Map<String, String> _fixedValues() {
+    final values = <String, String>{};
+    void add(String field, TextEditingController controller) {
+      final value = controller.text.trim();
+      if (value.isNotEmpty) values[field] = value;
+    }
+
+    add('merchant', _fixedMerchant);
+    add('accountLast4', _fixedAccount);
+    add('bankName', _fixedBank);
+    add('notes', _fixedNotes);
+    return values;
   }
 
   Future<void> _save() async {
@@ -191,11 +260,15 @@ class _PatternBuilderScreenState extends ConsumerState<PatternBuilderScreen> {
 
     setState(() => _saving = true);
     try {
-      await ref.read(patternRegistryProvider.notifier).createPattern(
+      await ref
+          .read(patternRegistryProvider.notifier)
+          .createPattern(
             sender: msg.sender,
             template: draft.template,
             extractionMap: draft.extractionMap,
+            fixedValues: _fixedValues(),
             sampleMessage: msg.rawText,
+            categoryName: _category?.name,
           );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -263,9 +336,7 @@ class _PatternBuilderScreenState extends ConsumerState<PatternBuilderScreen> {
                   ? Center(
                       child: Text(
                         'Message not found',
-                        style: GoogleFonts.inter(
-                          color: context.colors.textDim,
-                        ),
+                        style: GoogleFonts.inter(color: context.colors.textDim),
                       ),
                     )
                   : ListView(
@@ -312,8 +383,9 @@ class _PatternBuilderScreenState extends ConsumerState<PatternBuilderScreen> {
                               BudgetlyTheme.radiusSmall,
                             ),
                             border: Border.all(
-                              color: context.colors.surfaceHighlight
-                                  .withValues(alpha: 0.3),
+                              color: context.colors.surfaceHighlight.withValues(
+                                alpha: 0.3,
+                              ),
                             ),
                           ),
                           // Read-only field (rather than SelectableText) so the
@@ -425,7 +497,8 @@ class _PatternBuilderScreenState extends ConsumerState<PatternBuilderScreen> {
                             color: context.colors.textMain,
                           ),
                           decoration: InputDecoration(
-                            hintText: 'Tag fields or type a template with {amount}',
+                            hintText:
+                                'Tag fields or type a template with {amount}',
                             hintStyle: GoogleFonts.jetBrainsMono(
                               fontSize: 12,
                               color: context.colors.textDim,
@@ -453,6 +526,116 @@ class _PatternBuilderScreenState extends ConsumerState<PatternBuilderScreen> {
                             templateEdited: _templateEdited,
                           ),
                         ],
+
+                        // ── Category override ──
+                        SizedBox(height: 20),
+                        Text(
+                          'Category (optional)',
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: context.colors.textMuted,
+                          ),
+                        ),
+                        SizedBox(height: 6),
+                        InkWell(
+                          key: const Key('pattern-category-row'),
+                          onTap: _pickCategory,
+                          borderRadius: BorderRadius.circular(
+                            BudgetlyTheme.radiusSmall,
+                          ),
+                          child: Container(
+                            width: double.infinity,
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 12,
+                            ),
+                            decoration: BoxDecoration(
+                              color: context.colors.background,
+                              borderRadius: BorderRadius.circular(
+                                BudgetlyTheme.radiusSmall,
+                              ),
+                              border: Border.all(
+                                color: context.colors.borderSubtle,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.label_outline,
+                                  size: 18,
+                                  color: context.colors.textDim,
+                                ),
+                                SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    _category?.name ?? 'Uncategorized',
+                                    style: GoogleFonts.inter(
+                                      fontSize: 13,
+                                      color: _category == null
+                                          ? context.colors.textDim
+                                          : context.colors.textMain,
+                                    ),
+                                  ),
+                                ),
+                                Icon(
+                                  Icons.chevron_right,
+                                  size: 18,
+                                  color: context.colors.textDim,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        // ── Fixed values ──
+                        SizedBox(height: 20),
+                        Text(
+                          'Fixed values (optional)',
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: context.colors.textMuted,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'Leave a field empty to use the tagged value, or type '
+                          'a literal to always use it for this template.',
+                          style: GoogleFonts.inter(
+                            fontSize: 11,
+                            color: context.colors.textDim,
+                            height: 1.4,
+                          ),
+                        ),
+                        SizedBox(height: 8),
+                        _FixedValueField(
+                          fieldKey: const Key('pattern-fixed-merchant'),
+                          controller: _fixedMerchant,
+                          label: 'Merchant',
+                          hint: 'e.g. Pan Shop',
+                        ),
+                        SizedBox(height: 8),
+                        _FixedValueField(
+                          fieldKey: const Key('pattern-fixed-account'),
+                          controller: _fixedAccount,
+                          label: 'Account',
+                          hint: 'e.g. 1234',
+                        ),
+                        SizedBox(height: 8),
+                        _FixedValueField(
+                          fieldKey: const Key('pattern-fixed-bank'),
+                          controller: _fixedBank,
+                          label: 'Bank name',
+                          hint: 'e.g. HDFC Bank',
+                        ),
+                        SizedBox(height: 8),
+                        _FixedValueField(
+                          fieldKey: const Key('pattern-fixed-notes'),
+                          controller: _fixedNotes,
+                          label: 'Notes',
+                          hint: 'e.g. Monthly groceries',
+                        ),
 
                         SizedBox(height: 24),
                         SizedBox(
@@ -496,8 +679,49 @@ class _PatternBuilderScreenState extends ConsumerState<PatternBuilderScreen> {
       ),
     );
   }
+}
 
+/// Labelled literal-value input for one transaction field.
+class _FixedValueField extends StatelessWidget {
+  final Key fieldKey;
+  final TextEditingController controller;
+  final String label;
+  final String hint;
+
+  const _FixedValueField({
+    required this.fieldKey,
+    required this.controller,
+    required this.label,
+    required this.hint,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      key: fieldKey,
+      controller: controller,
+      style: GoogleFonts.inter(fontSize: 13, color: context.colors.textMain),
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hint,
+        labelStyle: GoogleFonts.inter(
+          fontSize: 12,
+          color: context.colors.textMuted,
+        ),
+        hintStyle: GoogleFonts.inter(
+          fontSize: 12,
+          color: context.colors.textDim,
+        ),
+        filled: true,
+        fillColor: context.colors.background,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(BudgetlyTheme.radiusSmall),
+          borderSide: BorderSide(color: context.colors.borderSubtle),
+        ),
+      ),
+    );
   }
+}
 
 class _DryRunBanner extends StatelessWidget {
   final bool hasAmount;
