@@ -62,6 +62,7 @@ class PatternRegistryNotifier extends Notifier<PatternRegistryState> {
     required String sender,
     required String template,
     required ExtractionMap extractionMap,
+    Map<String, String> fixedValues = const {},
     required String sampleMessage,
     String? categoryName,
   }) async {
@@ -69,6 +70,7 @@ class PatternRegistryNotifier extends Notifier<PatternRegistryState> {
       sender: sender,
       template: template,
       extractionMap: extractionMap,
+      fixedValues: fixedValues,
       sampleMessage: sampleMessage,
       categoryName: categoryName,
     );
@@ -100,5 +102,5 @@ class PatternRegistryNotifier extends Notifier<PatternRegistryState> {
 
 final patternRegistryProvider =
     NotifierProvider<PatternRegistryNotifier, PatternRegistryState>(
-  PatternRegistryNotifier.new,
-);
+      PatternRegistryNotifier.new,
+    );

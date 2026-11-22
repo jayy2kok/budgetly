@@ -15,8 +15,6 @@ import '../providers/service_providers.dart';
 import '../models/message.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-
-
 /// State for SMS parsing settings and pattern cache.
 class SmsState {
   final bool smsPermissionGranted;
@@ -89,7 +87,8 @@ class SmsNotifier extends Notifier<SmsState> {
   static const Duration backgroundSyncMinInterval = Duration(seconds: 30);
 
   /// Key under which the background-service toggle is persisted.
-  static const String backgroundServicePrefsKey = 'background_sms_service_enabled';
+  static const String backgroundServicePrefsKey =
+      'background_sms_service_enabled';
 
   DateTime? _lastBackgroundSyncAt;
 
@@ -110,8 +109,7 @@ class SmsNotifier extends Notifier<SmsState> {
     final prefs = await SharedPreferences.getInstance();
     final prompted = prefs.getBool('sms_consent_prompted') ?? false;
     final lastTimestamp = prefs.getInt('last_processed_sms_timestamp');
-    final backgroundEnabled =
-        prefs.getBool(backgroundServicePrefsKey) ?? true;
+    final backgroundEnabled = prefs.getBool(backgroundServicePrefsKey) ?? true;
 
     state = state.copyWith(
       smsPermissionGranted: status.isGranted,
@@ -130,12 +128,13 @@ class SmsNotifier extends Notifier<SmsState> {
     state = state.copyWith(hasPromptedForConsent: true);
   }
 
-
   /// Toggle background SMS service (persisted across launches).
   Future<void> toggleBackgroundService() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(
-        backgroundServicePrefsKey, !state.backgroundServiceEnabled);
+      backgroundServicePrefsKey,
+      !state.backgroundServiceEnabled,
+    );
     state = state.copyWith(
       backgroundServiceEnabled: !state.backgroundServiceEnabled,
     );
@@ -245,7 +244,9 @@ class SmsNotifier extends Notifier<SmsState> {
       state = state.copyWith(isSyncing: false);
       return;
     }
-    debugPrint('[SmsSync] Starting inbox sync for user=$userId, family=$familyId');
+    debugPrint(
+      '[SmsSync] Starting inbox sync for user=$userId, family=$familyId',
+    );
 
     state = state.copyWith(isSyncing: true);
 
@@ -271,7 +272,9 @@ class SmsNotifier extends Notifier<SmsState> {
       for (final msg in messages.reversed) {
         if (msg.parseSource == ParseSource.regexLocal && !msg.isIncomplete) {
           // Fully parsed locally! Convert to transaction immediately.
-          debugPrint('[SmsSync] Regex-parsed fully, creating transaction for msg id=${msg.id}');
+          debugPrint(
+            '[SmsSync] Regex-parsed fully, creating transaction for msg id=${msg.id}',
+          );
 
           // Resolve the template's user-overridden category (if any) to this
           // family's category id so future transactions inherit the override.
@@ -279,6 +282,13 @@ class SmsNotifier extends Notifier<SmsState> {
           final matchedPattern = _cache.patternById(msg.matchedPatternId);
           final overrideName = matchedPattern?.categoryName?.trim();
           if (overrideName != null && overrideName.isNotEmpty) {
+            // The override resolves against the family's categories, which may
+            // not have been loaded yet on a cold start.
+            if (ref.read(categoryProvider).categories.isEmpty) {
+              await ref
+                  .read(categoryProvider.notifier)
+                  .loadCategories(familyId);
+            }
             final name = overrideName.toLowerCase();
             final familyCategories = ref.read(categoryProvider).categories;
             for (final c in familyCategories) {
@@ -300,6 +310,9 @@ class SmsNotifier extends Notifier<SmsState> {
             // non-ISO date formats (e.g. "14-11-2026 19:32:24").
             'transactionDate': msg.receivedAt.toUtc().toIso8601String(),
             'type': msg.extractedData!['type']?.toUpperCase() ?? 'EXPENSE',
+            'accountLast4': ?msg.extractedData!['accountLast4'],
+            'bankName': ?msg.extractedData!['bankName'],
+            'notes': ?msg.extractedData!['notes'],
             'description': 'Auto-parsed from SMS',
             'sourceType': 'REGEX_LOCAL',
             'sourceRawText': msg.rawText,
@@ -323,8 +336,12 @@ class SmsNotifier extends Notifier<SmsState> {
             ? i + maxBatchSize
             : serverQueue.length;
         final batch = serverQueue.sublist(i, end);
-        debugPrint('[SmsSync] Bulk-submitting ${batch.length} msgs to server (batch $i..$end).');
-        await ref.read(messageServiceProvider).bulkInsertMessages(
+        debugPrint(
+          '[SmsSync] Bulk-submitting ${batch.length} msgs to server (batch $i..$end).',
+        );
+        await ref
+            .read(messageServiceProvider)
+            .bulkInsertMessages(
               familyGroupId: familyId,
               messages: [
                 for (final m in batch)
@@ -373,9 +390,6 @@ class SmsNotifier extends Notifier<SmsState> {
       debugPrint('[SmsSync] Dashboard refresh failed: $e');
     }
   }
-
 }
 
-final smsProvider = NotifierProvider<SmsNotifier, SmsState>(
-  SmsNotifier.new,
-);
+final smsProvider = NotifierProvider<SmsNotifier, SmsState>(SmsNotifier.new);

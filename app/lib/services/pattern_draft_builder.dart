@@ -25,7 +25,11 @@ class TaggedSpan {
   final int start;
   final int end;
 
-  const TaggedSpan({required this.field, required this.start, required this.end});
+  const TaggedSpan({
+    required this.field,
+    required this.start,
+    required this.end,
+  });
 
   /// Whether this span overlaps the range [start, end).
   bool overlaps(int start, int end) => this.start < end && start < this.end;
@@ -94,10 +98,9 @@ class PatternDraftBuilder {
 
   /// Builds a draft from a hand-edited [template].
   static PatternDraft fromManualTemplate(String template) {
-    final names = RegExp(r'\{([^}]+)\}')
-        .allMatches(template)
-        .map((m) => m.group(1)!)
-        .toSet();
+    final names = RegExp(
+      r'\{([^}]+)\}',
+    ).allMatches(template).map((m) => m.group(1)!).toSet();
     return PatternDraft(
       template: template,
       extractionMap: _extractionMapFor({for (final n in names) n: n}),
@@ -114,6 +117,7 @@ class PatternDraftBuilder {
       timestamp: group(PatternField.timestamp.name),
       accountLast4: group(PatternField.accountLast4.name),
       type: group(PatternField.transactionType.name),
+      notes: group(PatternField.notes.name),
     );
   }
 }

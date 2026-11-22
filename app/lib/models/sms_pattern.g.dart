@@ -13,6 +13,7 @@ ExtractionMap _$ExtractionMapFromJson(Map<String, dynamic> json) =>
       timestamp: json['timestamp'] as String?,
       accountLast4: json['accountLast4'] as String?,
       type: json['type'] as String?,
+      notes: json['notes'] as String?,
     );
 
 Map<String, dynamic> _$ExtractionMapToJson(ExtractionMap instance) =>
@@ -22,6 +23,7 @@ Map<String, dynamic> _$ExtractionMapToJson(ExtractionMap instance) =>
       'timestamp': instance.timestamp,
       'accountLast4': instance.accountLast4,
       'type': instance.type,
+      'notes': instance.notes,
     };
 
 SmsPattern _$SmsPatternFromJson(Map<String, dynamic> json) => SmsPattern(
@@ -31,6 +33,11 @@ SmsPattern _$SmsPatternFromJson(Map<String, dynamic> json) => SmsPattern(
   extractionMap: ExtractionMap.fromJson(
     json['extractionMap'] as Map<String, dynamic>,
   ),
+  fixedValues:
+      (json['fixedValues'] as Map<String, dynamic>?)?.map(
+        (k, e) => MapEntry(k, e as String),
+      ) ??
+      const {},
   sampleMessage: json['sampleMessage'] as String,
   categoryName: json['categoryName'] as String?,
   usageCount: (json['usageCount'] as num?)?.toInt() ?? 0,
@@ -55,6 +62,7 @@ Map<String, dynamic> _$SmsPatternToJson(SmsPattern instance) =>
       'sender': instance.sender,
       'template': instance.template,
       'extractionMap': instance.extractionMap,
+      'fixedValues': instance.fixedValues,
       'sampleMessage': instance.sampleMessage,
       'categoryName': instance.categoryName,
       'usageCount': instance.usageCount,

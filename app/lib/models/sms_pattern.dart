@@ -37,12 +37,16 @@ class ExtractionMap {
   /// Capture group name for debit/credit type (optional).
   final String? type;
 
+  /// Capture group name for free-form notes (optional).
+  final String? notes;
+
   const ExtractionMap({
     required this.amount,
     this.merchant,
     this.timestamp,
     this.accountLast4,
     this.type,
+    this.notes,
   });
 
   factory ExtractionMap.fromJson(Map<String, dynamic> json) =>
@@ -64,6 +68,10 @@ class SmsPattern {
 
   /// Maps capture groups to transaction fields.
   final ExtractionMap extractionMap;
+
+  /// Literal values pinned per field (merchant, accountLast4, notes). A fixed
+  /// value wins over the value extracted from the template.
+  final Map<String, String> fixedValues;
 
   /// The original SMS that generated this pattern.
   final String sampleMessage;
@@ -99,6 +107,7 @@ class SmsPattern {
     required this.sender,
     required this.template,
     required this.extractionMap,
+    this.fixedValues = const {},
     required this.sampleMessage,
     this.categoryName,
     this.usageCount = 0,

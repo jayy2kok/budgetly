@@ -68,14 +68,21 @@ class PatternCacheService {
   }
 
   /// Updates the category override for a template on the server and in cache.
-  Future<void> updatePatternCategory(String patternId, String? categoryName) async {
+  Future<void> updatePatternCategory(
+    String patternId,
+    String? categoryName,
+  ) async {
     try {
       final response = await _dio.patch(
         '/patterns/$patternId/category',
         data: {'categoryName': categoryName},
       );
-      final updated = SmsPattern.fromJson(response.data as Map<String, dynamic>);
-      _patterns = _patterns.map((p) => p.id == patternId ? updated : p).toList();
+      final updated = SmsPattern.fromJson(
+        response.data as Map<String, dynamic>,
+      );
+      _patterns = _patterns
+          .map((p) => p.id == patternId ? updated : p)
+          .toList();
     } catch (e) {
       // Keep existing cache if the update fails.
     }
@@ -87,16 +94,21 @@ class PatternCacheService {
     required String sender,
     required String template,
     required ExtractionMap extractionMap,
+    Map<String, String> fixedValues = const {},
     required String sampleMessage,
     String? categoryName,
   }) async {
-    final response = await _dio.post('/patterns', data: {
-      'sender': sender,
-      'template': template,
-      'extractionMap': extractionMap.toJson(),
-      'sampleMessage': sampleMessage,
-      'categoryName': ?categoryName,
-    });
+    final response = await _dio.post(
+      '/patterns',
+      data: {
+        'sender': sender,
+        'template': template,
+        'extractionMap': extractionMap.toJson(),
+        'fixedValues': fixedValues,
+        'sampleMessage': sampleMessage,
+        'categoryName': ?categoryName,
+      },
+    );
     final created = SmsPattern.fromJson(response.data as Map<String, dynamic>);
     _patterns = [created, ..._patterns];
     return created;
@@ -107,15 +119,20 @@ class PatternCacheService {
     String patternId, {
     String? template,
     ExtractionMap? extractionMap,
+    Map<String, String>? fixedValues,
     String? sampleMessage,
     String? categoryName,
   }) async {
-    final response = await _dio.put('/patterns/$patternId', data: {
-      'template': ?template,
-      'extractionMap': ?extractionMap?.toJson(),
-      'sampleMessage': ?sampleMessage,
-      'categoryName': ?categoryName,
-    });
+    final response = await _dio.put(
+      '/patterns/$patternId',
+      data: {
+        'template': ?template,
+        'extractionMap': ?extractionMap?.toJson(),
+        'fixedValues': ?fixedValues,
+        'sampleMessage': ?sampleMessage,
+        'categoryName': ?categoryName,
+      },
+    );
     final updated = SmsPattern.fromJson(response.data as Map<String, dynamic>);
     _patterns = _patterns.map((p) => p.id == patternId ? updated : p).toList();
     return updated;
