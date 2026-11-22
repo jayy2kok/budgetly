@@ -39,6 +39,12 @@ public class SmsPatternDocument {
     // Maps capture group names to transaction fields
     private Map<String, String> extractionMap;
 
+    /**
+     * Fixed literal values per transaction field (merchant, accountLast4, notes).
+     * A fixed value wins over the value extracted from the template.
+     */
+    private Map<String, String> fixedValues;
+
     private String sampleMessage;
 
     /** User-overridden category name (resolved per-family at transaction time). */

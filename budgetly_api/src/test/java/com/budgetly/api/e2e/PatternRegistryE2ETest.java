@@ -209,6 +209,48 @@ class PatternRegistryE2ETest extends BaseE2ETest {
                 .statusCode(409);
     }
 
+    @Test
+    void createPattern_withFixedValues_returnsAndPersistsThem() {
+        UserDocument user = seedUser("g-pat-fixed", "Fixed Author", "fixed@test.com");
+        seedFamily(user.getId(), "Fixed Family");
+
+        givenAuth(user.getId())
+                .body(Map.of(
+                        "sender", "HDFCBK",
+                        "template", "Rs.{amount} debited",
+                        "sampleMessage", "Rs.500 debited",
+                        "extractionMap", Map.of("amount", "amount"),
+                        "fixedValues", Map.of(
+                                "merchant", "Pan Shop",
+                                "accountLast4", "1234",
+                                "bankName", "HDFC Bank",
+                                "notes", "Monthly")))
+                .post("/patterns")
+                .then()
+                .statusCode(201)
+                .body("fixedValues.merchant", equalTo("Pan Shop"))
+                .body("fixedValues.accountLast4", equalTo("1234"))
+                .body("fixedValues.bankName", equalTo("HDFC Bank"))
+                .body("fixedValues.notes", equalTo("Monthly"));
+    }
+
+    @Test
+    void createPattern_fixedValueForAmount_returns400() {
+        UserDocument user = seedUser("g-pat-fixed-bad", "Bad Fixed", "badfixed@test.com");
+        seedFamily(user.getId(), "Bad Fixed Family");
+
+        givenAuth(user.getId())
+                .body(Map.of(
+                        "sender", "HDFCBK",
+                        "template", "Rs.{amount} debited",
+                        "sampleMessage", "Rs.500 debited",
+                        "extractionMap", Map.of("amount", "amount"),
+                        "fixedValues", Map.of("amount", "500")))
+                .post("/patterns")
+                .then()
+                .statusCode(400);
+    }
+
     // ── Family isolation ────────────────────────────────────────
 
     @Test

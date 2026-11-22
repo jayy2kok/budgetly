@@ -158,6 +158,7 @@ public class PatternRegistryService {
                 .sender(sender)
                 .template(template)
                 .extractionMap(extractionMapOf(request.getExtractionMap()))
+                .fixedValues(cleanFixedValues(request.getFixedValues()))
                 .sampleMessage(sampleMessage)
                 .categoryName(cleanCategory(request.getCategoryName()))
                 .scope(SmsPatternDocument.SCOPE_FAMILY)
@@ -166,6 +167,9 @@ public class PatternRegistryService {
                 .source(SmsPatternDocument.SOURCE_USER)
                 .usageCount(0)
                 .active(true)
+                // Match precedence within a scope is "newest updatedAt wins", so a
+                // freshly authored pattern must carry the timestamp from the start.
+                .updatedAt(Instant.now())
                 .build();
         return toDto(patternRepository.save(doc));
     }
@@ -205,6 +209,13 @@ public class PatternRegistryService {
         if (request.getCategoryName() != null) {
             doc.setCategoryName(cleanCategory(request.getCategoryName()));
         }
+        // Generated models default the map to an empty map when the field is
+        // omitted, so empty means "unchanged"; JSON null explicitly clears it.
+        if (request.getFixedValues() == null) {
+            doc.setFixedValues(null);
+        } else if (!request.getFixedValues().isEmpty()) {
+            doc.setFixedValues(cleanFixedValues(request.getFixedValues()));
+        }
         doc.setUpdatedAt(Instant.now());
         return toDto(patternRepository.save(doc));
     }
@@ -235,6 +246,8 @@ public class PatternRegistryService {
 
         doc.setScope(SmsPatternDocument.SCOPE_GLOBAL);
         doc.setOwnerFamilyGroupId(null);
+        // Family literals (e.g. "Pan Shop") must not leak into the shared library.
+        doc.setFixedValues(null);
         doc.setUpdatedAt(Instant.now());
         return toDto(patternRepository.save(doc));
     }
@@ -274,6 +287,9 @@ public class PatternRegistryService {
         if (doc.getUpdatedAt() != null) dto.setUpdatedAt(doc.getUpdatedAt().atOffset(ZoneOffset.UTC));
 
         dto.setExtractionMap(toExtractionMap(doc.getExtractionMap()));
+        dto.setFixedValues(doc.getFixedValues() != null
+                ? new LinkedHashMap<>(doc.getFixedValues())
+                : new LinkedHashMap<>());
         return dto;
     }
 
@@ -291,6 +307,31 @@ public class PatternRegistryService {
 
     private String cleanCategory(String categoryName) {
         return categoryName == null || categoryName.isBlank() ? null : categoryName.trim();
+    }
+
+    /** Fields a user may pin to a literal value instead of extracting them. */
+    private static final Set<String> FIXABLE_FIELDS = Set.of("merchant", "accountLast4", "bankName", "notes");
+
+    /**
+     * Normalises user-supplied fixed values: allowed fields only, blank values
+     * dropped. Fields that drive parsing (amount, timestamp, type) are rejected
+     * because a literal there would silently corrupt every matching message.
+     */
+    private Map<String, String> cleanFixedValues(Map<String, String> values) {
+        if (values == null || values.isEmpty()) return null;
+        Map<String, String> cleaned = new LinkedHashMap<>();
+        for (Map.Entry<String, String> entry : values.entrySet()) {
+            String field = entry.getKey();
+            if (!FIXABLE_FIELDS.contains(field)) {
+                throw new IllegalArgumentException(
+                        "Fixed values are not supported for field '" + field
+                                + "' (allowed: merchant, accountLast4, bankName, notes)");
+            }
+            if (entry.getValue() != null && !entry.getValue().isBlank()) {
+                cleaned.put(field, entry.getValue().trim());
+            }
+        }
+        return cleaned.isEmpty() ? null : cleaned;
     }
 
     /** Validates a draft template: it must parse the sample message and extract an amount. */
@@ -338,6 +379,7 @@ public class PatternRegistryService {
         if (em.getTimestamp() != null) map.put("timestamp", em.getTimestamp());
         if (em.getAccountLast4() != null) map.put("accountLast4", em.getAccountLast4());
         if (em.getType() != null) map.put("type", em.getType());
+        if (em.getNotes() != null) map.put("notes", em.getNotes());
         return map;
     }
 
@@ -350,6 +392,7 @@ public class PatternRegistryService {
         em.setTimestamp(source.get("timestamp"));
         em.setAccountLast4(source.get("accountLast4"));
         em.setType(source.get("type"));
+        em.setNotes(source.get("notes"));
         return em;
     }
 }

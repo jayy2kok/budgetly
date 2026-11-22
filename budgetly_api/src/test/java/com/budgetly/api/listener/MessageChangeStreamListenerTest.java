@@ -461,6 +461,35 @@ class MessageChangeStreamListenerTest {
     }
 
     @Test
+    void anchorMatchFixedValuesWinOverExtractedValues() {
+        claimIngress(pendingDoc());
+        SmsPatternDocument doc = patternDoc("Spent Rs {amount} at {merchant} on {timestamp}",
+                Map.of("amount", "amount", "merchant", "merchant", "timestamp", "timestamp"));
+        doc.setFixedValues(Map.of(
+                "merchant", "Pan Shop",
+                "accountLast4", "1234",
+                "bankName", "HDFC Bank",
+                "notes", "Monthly groceries"));
+        when(patternRegistryService.findActiveBySender("HDFCBK", "fam-1"))
+                .thenReturn(List.of(doc));
+        when(patternRegistryService.savePattern(any())).thenAnswer(inv -> inv.getArgument(0));
+        Transaction tx = new Transaction();
+        tx.setId("tx-fixed");
+        when(transactionService.createTransactionInternal(any(), any(), any(), any(), any(), any()))
+                .thenReturn(tx);
+
+        listener.processEventInternal(pendingDoc(), new BsonDocument());
+
+        var txCaptor = ArgumentCaptor.forClass(CreateTransactionRequest.class);
+        verify(transactionService).createTransactionInternal(
+                eq("u1"), eq("fam-1"), txCaptor.capture(), eq("REGEX_LOCAL"), any(), eq("pat-anchor"));
+        assertThat(txCaptor.getValue().getMerchant()).isEqualTo("Pan Shop");
+        assertThat(txCaptor.getValue().getNotes()).isEqualTo("Monthly groceries");
+        assertThat(txCaptor.getValue().getAccountLast4()).isEqualTo("1234");
+        assertThat(txCaptor.getValue().getBankName()).isEqualTo("HDFC Bank");
+    }
+
+    @Test
     void anchorMatchIncompleteFallsBackToLlm() {
         claimIngress(pendingDoc());
         // Template anchors match but only {amount} is present in the template:

@@ -50,6 +50,8 @@ public class TransactionDocument {
 
     private String sourceRawText;
     private String matchedPatternId;
+    private String accountLast4;
+    private String bankName;
     private String notes;
 
     @Indexed

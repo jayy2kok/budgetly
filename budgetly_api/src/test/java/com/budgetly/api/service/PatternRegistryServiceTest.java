@@ -109,6 +109,7 @@ class PatternRegistryServiceTest {
         assertThat(result.getSource()).isEqualTo(PatternSource.USER);
         assertThat(result.getOwnerFamilyGroupId()).isEqualTo("fam-1");
         assertThat(result.getCreatedByUserId()).isEqualTo("u1");
+        assertThat(result.getUpdatedAt()).isNotNull();
     }
 
     @Test
@@ -140,8 +141,44 @@ class PatternRegistryServiceTest {
                 .isInstanceOf(IllegalStateException.class);
     }
 
-    // ── updatePattern / deletePattern ownership ──────────────────
+    @Test
+    void createPattern_withFixedValues_persistsThem() {
+        when(familyGroupService.getMyFamily("u1")).thenReturn(family("fam-1"));
+        when(patternRepository.existsBySenderAndTemplateAndActiveTrue(any(), any())).thenReturn(false);
+        when(patternRepository.save(any(SmsPatternDocument.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
 
+        CreatePatternRequest req = createRequest("Rs.{amount} debited",
+                "Rs.500 debited", "amount");
+        req.setFixedValues(Map.of(
+                "merchant", " Pan Shop ",
+                "accountLast4", "1234",
+                "bankName", "HDFC Bank",
+                "notes", "Rent"));
+
+        SmsPattern result = service.createPattern("u1", req);
+
+        assertThat(result.getFixedValues())
+                .containsEntry("merchant", "Pan Shop")
+                .containsEntry("accountLast4", "1234")
+                .containsEntry("bankName", "HDFC Bank")
+                .containsEntry("notes", "Rent");
+    }
+
+    @Test
+    void createPattern_fixedValueForAmount_throws() {
+        when(familyGroupService.getMyFamily("u1")).thenReturn(family("fam-1"));
+
+        CreatePatternRequest req = createRequest("Rs.{amount} debited",
+                "Rs.500 debited", "amount");
+        req.setFixedValues(Map.of("amount", "500"));
+
+        assertThatThrownBy(() -> service.createPattern("u1", req))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("amount");
+    }
+
+    // ── updatePattern / deletePattern ownership ──────────────────
     @Test
     void updatePattern_authorAllowed_updatesTemplate() {
         SmsPatternDocument doc = familyPattern("p1", "fam-1", "u1", 1);
@@ -160,6 +197,61 @@ class PatternRegistryServiceTest {
         SmsPattern result = service.updatePattern("p1", "u1", req);
 
         assertThat(result.getTemplate()).isEqualTo("Rs.{amount} debited at {merchant}");
+    }
+
+    @Test
+    void updatePattern_omittedFixedValues_keepsStoredValues() {
+        SmsPatternDocument doc = familyPattern("p1", "fam-1", "u1", 1);
+        doc.setFixedValues(Map.of("merchant", "Pan Shop"));
+        when(patternRepository.findById("p1")).thenReturn(Optional.of(doc));
+        when(patternRepository.findBySenderAndActiveTrue("HDFCBK")).thenReturn(List.of(doc));
+        when(patternRepository.save(any(SmsPatternDocument.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        UpdatePatternRequest req = new UpdatePatternRequest();
+        req.setTemplate("Rs.{amount} debited at {merchant}");
+        req.setSampleMessage("Rs.500 debited at Amazon");
+
+        SmsPattern result = service.updatePattern("p1", "u1", req);
+
+        assertThat(result.getFixedValues()).containsEntry("merchant", "Pan Shop");
+    }
+
+    @Test
+    void updatePattern_nullFixedValues_clearsThem() {
+        SmsPatternDocument doc = familyPattern("p1", "fam-1", "u1", 1);
+        doc.setFixedValues(Map.of("merchant", "Pan Shop"));
+        when(patternRepository.findById("p1")).thenReturn(Optional.of(doc));
+        when(patternRepository.findBySenderAndActiveTrue("HDFCBK")).thenReturn(List.of(doc));
+        when(patternRepository.save(any(SmsPatternDocument.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        UpdatePatternRequest req = new UpdatePatternRequest();
+        req.setTemplate("Rs.{amount} debited at {merchant}");
+        req.setSampleMessage("Rs.500 debited at Amazon");
+        req.setFixedValues(null);
+
+        SmsPattern result = service.updatePattern("p1", "u1", req);
+
+        assertThat(result.getFixedValues()).isEmpty();
+    }
+
+    @Test
+    void updatePattern_nonEmptyFixedValues_replacesThem() {
+        SmsPatternDocument doc = familyPattern("p1", "fam-1", "u1", 1);
+        doc.setFixedValues(Map.of("merchant", "Pan Shop"));
+        when(patternRepository.findById("p1")).thenReturn(Optional.of(doc));
+        when(patternRepository.findBySenderAndActiveTrue("HDFCBK")).thenReturn(List.of(doc));
+        when(patternRepository.save(any(SmsPatternDocument.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        UpdatePatternRequest req = new UpdatePatternRequest();
+        req.setTemplate("Rs.{amount} debited at {merchant}");
+        req.setSampleMessage("Rs.500 debited at Amazon");
+        req.setFixedValues(Map.of("accountLast4", "1234"));
+
+        SmsPattern result = service.updatePattern("p1", "u1", req);
+
+        assertThat(result.getFixedValues())
+                .containsOnlyKeys("accountLast4")
+                .containsEntry("accountLast4", "1234");
     }
 
     @Test
@@ -222,6 +314,20 @@ class PatternRegistryServiceTest {
 
         assertThat(result.getScope()).isEqualTo(PatternScope.GLOBAL);
         assertThat(result.getOwnerFamilyGroupId()).isNull();
+    }
+
+    @Test
+    void promotePattern_clearsFamilyFixedValues() {
+        SmsPatternDocument doc = familyPattern("p1", "fam-1", "u1", 5);
+        doc.setFixedValues(Map.of("merchant", "Pan Shop"));
+        when(patternRepository.findById("p1")).thenReturn(Optional.of(doc));
+        when(familyMemberRepository.findByUserIdAndFamilyGroupId("u1", "fam-1"))
+                .thenReturn(Optional.of(member("u1", "fam-1", "ADMIN")));
+        when(patternRepository.save(any(SmsPatternDocument.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        SmsPattern result = service.promotePattern("p1", "u1");
+
+        assertThat(result.getFixedValues()).isEmpty();
     }
 
     @Test

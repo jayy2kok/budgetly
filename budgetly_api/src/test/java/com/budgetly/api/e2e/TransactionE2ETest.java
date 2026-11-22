@@ -63,6 +63,28 @@ class TransactionE2ETest extends BaseE2ETest {
                                 .body("categoryId", equalTo(cat.getId()));
         }
 
+        @Test
+        void createTransaction_withAccountLast4_returnsAndPersistsIt() {
+                UserDocument user = seedUser("g-tx-1c", "Acct User", "acct@test.com");
+                FamilyGroupDocument family = seedFamily(user.getId(), "Acct Family");
+
+                givenAuth(user.getId())
+                                .body(Map.of(
+                                                "amount", 499.0,
+                                                "merchant", "Pan Shop",
+                                                "type", "EXPENSE",
+                                                "accountLast4", "1234",
+                                                "bankName", "HDFC Bank",
+                                                "notes", "Monthly groceries",
+                                                "transactionDate", OffsetDateTime.now(ZoneOffset.UTC).toString()))
+                                .post("/families/" + family.getId() + "/transactions")
+                                .then()
+                                .statusCode(201)
+                                .body("accountLast4", equalTo("1234"))
+                                .body("bankName", equalTo("HDFC Bank"))
+                                .body("notes", equalTo("Monthly groceries"));
+        }
+
         // ── Get Transaction ─────────────────────────────────────────
 
         @Test

@@ -1402,6 +1402,12 @@ components:
         matchedPatternId:
           type: string
           description: ID of the regex pattern that parsed this transaction (if sourceType is REGEX_LOCAL)
+        accountLast4:
+          type: string
+          description: Last 4 digits of the account/card the transaction was made from
+        bankName:
+          type: string
+          description: Bank the account belongs to (e.g. HDFC Bank)
         notes:
           type: string
         transactionDate:
@@ -1455,6 +1461,12 @@ components:
           type: object
           additionalProperties:
             type: number
+        accountLast4:
+          type: string
+          description: Last 4 digits of the account/card the transaction was made from
+        bankName:
+          type: string
+          description: Bank the account belongs to (e.g. HDFC Bank)
         notes:
           type: string
         transactionDate:
@@ -1481,6 +1493,12 @@ components:
           type: object
           additionalProperties:
             type: number
+        accountLast4:
+          type: string
+          description: Last 4 digits of the account/card the transaction was made from
+        bankName:
+          type: string
+          description: Bank the account belongs to (e.g. HDFC Bank)
         notes:
           type: string
         transactionDate:
@@ -1662,10 +1680,15 @@ components:
           type: string
           description: SMS sender ID (e.g. "HDFCBK", "SBIUPI", "ICICIB")
         template:
-                  type: string
-                  description: Anchor template with {tokens}
+          type: string
+          description: Anchor template with {tokens}
         extractionMap:
           $ref: "#/components/schemas/ExtractionMap"
+        fixedValues:
+          type: object
+          additionalProperties:
+            type: string
+          description: Fixed literal values per field (merchant, accountLast4, bankName, notes). A fixed value wins over the tagged/extracted value; empty means use extraction.
         sampleMessage:
           type: string
           description: The original SMS that generated this pattern
@@ -1716,6 +1739,11 @@ components:
           description: Anchor template with {tokens} that extracts the tagged spans
         extractionMap:
           $ref: "#/components/schemas/ExtractionMap"
+        fixedValues:
+          type: object
+          additionalProperties:
+            type: string
+          description: Fixed literal values per field (merchant, accountLast4, bankName, notes). A fixed value wins over the tagged/extracted value.
         sampleMessage:
           type: string
           description: The raw SMS the template was authored against
@@ -1734,6 +1762,11 @@ components:
           description: Anchor template with {tokens} that extracts the tagged spans
         extractionMap:
           $ref: "#/components/schemas/ExtractionMap"
+        fixedValues:
+          type: object
+          additionalProperties:
+            type: string
+          description: Fixed literal values per field (merchant, accountLast4, bankName, notes). Omitted or empty leaves the stored values unchanged; JSON null clears them; a non-empty object replaces them.
         sampleMessage:
           type: string
           description: The raw SMS the template was authored against
@@ -1750,7 +1783,7 @@ components:
 
     ExtractionMap:
       type: object
-      description: Maps literal-anchor capture group names to transaction fields. amount is mandatory; merchant and timestamp are optional.
+      description: Maps literal-anchor capture group names to transaction fields. amount is mandatory; merchant, timestamp, accountLast4 and notes are optional.
       required: [amount]
       properties:
         amount:
@@ -1768,6 +1801,9 @@ components:
         type:
           type: string
           description: Capture group name for debit/credit type (optional)
+        notes:
+          type: string
+          description: Capture group name for free-form notes/description (optional)
 
     RejectedPattern:
       type: object

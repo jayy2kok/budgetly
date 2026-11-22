@@ -252,9 +252,12 @@ public class MessageChangeStreamListener {
                 : Map.of("amount", "amount", "merchant", "merchant", "timestamp", "timestamp");
 
         final Double amount = amountOf(parsed, em);
-        final String merchant = fieldOf(parsed, em, "merchant");
+        final String merchant = resolveField(matched, parsed, em, "merchant");
         final String timestampRaw = fieldOf(parsed, em, "timestamp");
         final String typeRaw = fieldOf(parsed, em, "type");
+        final String accountLast4 = resolveField(matched, parsed, em, "accountLast4");
+        final String bankName = resolveField(matched, parsed, em, "bankName");
+        final String notes = resolveField(matched, parsed, em, "notes");
 
         if (amount == null || merchant == null) {
             // Anchors matched but the pattern cannot extract all mandatory
@@ -277,6 +280,9 @@ public class MessageChangeStreamListener {
         CreateTransactionRequest txRequest = new CreateTransactionRequest();
         txRequest.setAmount(amount);
         txRequest.setMerchant(merchant);
+        txRequest.setAccountLast4(accountLast4);
+        txRequest.setBankName(bankName);
+        txRequest.setNotes(notes);
         txRequest.setType("INCOME".equalsIgnoreCase(typeRaw) ? TransactionType.INCOME : TransactionType.EXPENSE);
         txRequest.setTransactionDate(txDate.atOffset(ZoneOffset.UTC));
         txRequest.setCurrency(currency != null ? currency : "INR");
@@ -311,6 +317,9 @@ public class MessageChangeStreamListener {
         Map<String, Object> parsedData = new HashMap<>();
         parsedData.put("amount", amount);
         parsedData.put("merchant", merchant);
+        if (accountLast4 != null) parsedData.put("accountLast4", accountLast4);
+        if (bankName != null) parsedData.put("bankName", bankName);
+        if (notes != null) parsedData.put("notes", notes);
         if (timestampRaw != null) parsedData.put("timestamp", timestampRaw);
         doc.setParsedTransactionData(parsedData);
 
@@ -333,6 +342,23 @@ public class MessageChangeStreamListener {
         String token = em.get(field);
         String value = (token != null ? parsed.get(token) : parsed.get(field));
         return (value == null || value.isBlank()) ? null : value.trim();
+    }
+
+    /**
+     * Resolves a transaction field for a matched pattern. A user-pinned fixed
+     * value wins over whatever the template extracted; otherwise the extracted
+     * value is used.
+     */
+    private String resolveField(SmsPatternDocument pattern, Map<String, String> parsed,
+                                Map<String, String> em, String field) {
+        Map<String, String> fixed = pattern.getFixedValues();
+        if (fixed != null) {
+            String literal = fixed.get(field);
+            if (literal != null && !literal.isBlank()) {
+                return literal.trim();
+            }
+        }
+        return fieldOf(parsed, em, field);
     }
 
     // ── SLOW PATH: LLM classification + pattern proposal ─────────
