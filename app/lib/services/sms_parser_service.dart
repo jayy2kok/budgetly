@@ -39,9 +39,13 @@ class SmsParserService {
     String rawText,
     List<SmsPattern> patterns,
   ) {
-    // Filter patterns for this sender (case-insensitive)
+    // Filter patterns for this sender (case-insensitive). Disabled and
+    // hidden-for-family patterns never match, even if a caller passes the full
+    // registry list.
     final senderPatterns = patterns
-        .where((p) => p.sender.toUpperCase() == sender.toUpperCase())
+        .where((p) =>
+            p.isEnabledForFamily &&
+            p.sender.toUpperCase() == sender.toUpperCase())
         .toList();
 
     for (final pattern in _inPrecedenceOrder(senderPatterns)) {

@@ -74,7 +74,7 @@ budgetly_api/src/main/java/com/budgetly/api/
 ├── listener/         # MessageChangeStreamListener (change-stream consumer)
 ├── security/         # JwtTokenProvider, JwtAuthFilter, GoogleTokenVerifier,
 │                     #   GoogleAuthConfigValidator
-├── config/           # SecurityConfig, MongoConfig, CorsConfig, AsyncConfig
+├── config/           # SecurityConfig, MongoConfig, CorsConfig
 ├── health/           # MessageProcessorHealthIndicator
 └── exception/        # GlobalExceptionHandler + typed exceptions
 ```
@@ -136,7 +136,57 @@ sequenceDiagram
     end
 ```
 
-- The legacy synchronous path (`POST /messages/process`) stamps `source=DIRECT` and is never claimed by the listener (duplicate-processing race resolved — ADR-0003).
+- Legacy `source=DIRECT` documents were completed synchronously when they were written and are never claimed by the listener (duplicate-processing race resolved — ADR-0003). The message triage endpoints (`/messages/pending`, `/messages/ignored`, `/messages/failed`, `/messages/{id}/confirm|reject|restore`, `/messages/process`) have been removed; bulk ingestion + the change stream is the only server-side message path.
+
+### 3.3 Device inbox → two tabs (Recorded / Non-Transactions)
+
+The app's message inbox mirrors the phone's SMS store rather than the server's message triage queue. `InboxNotifier.refresh()` reads every device SMS (`SmsInboxReader.readAllInbox`), then classifies each one by asking whether a recorded transaction carries the same normalized body:
+
+```mermaid
+sequenceDiagram
+    participant Screen as MessageInboxScreen
+    participant Inbox as InboxNotifier
+    participant Reader as SmsInboxReader
+    participant Plugin as flutter_sms_inbox
+    participant Tx as TransactionService
+
+    Screen->>Inbox: refresh()
+    Inbox->>Reader: readAllInbox(userId) (newest first, limit 300)
+    Reader->>Plugin: querySms(kinds=[inbox], count=300)
+    Plugin-->>Reader: every SMS (sender, body, received date)
+    Reader-->>Inbox: Message list (empty sender/body skipped)
+    alt family available
+        Inbox->>Tx: getTransactions(familyId, page, size=200)
+        Tx-->>Inbox: recent transactions
+        Inbox->>Inbox: page until short page, oldest tx < oldest SMS − 1 day, or 5 pages
+    end
+    Inbox->>Inbox: multiset sourceRawText → transactions<br/>(SMS-sourced rows only, trim + collapse whitespace)
+    Inbox->>Inbox: consume one transaction per matching SMS (newest SMS ↔ newest tx)
+    Inbox-->>Screen: recordedMessages / nonTransactions
+```
+
+- `Recorded Transactions` = SMS with a consumed transaction; tapping one opens `AppRoutes.transactionDetail` for that transaction. The card hands the transaction to the route via `extra`, because the inbox window (300 SMS) can reach further back than the feed's first page (20 transactions); the detail screen falls back to the paged `transactionProvider` list when no transaction is handed over.
+- `Non-Transactions` = every other SMS (OTP, promo, personal, and parseable bank SMS not yet recorded). Each card shows sender, date-led timestamp, and body, with a single `Define pattern` action.
+- Manual rows (`sourceType=manual`) and legacy transaction rows created before `sourceRawText` existed can never match, so views created from them appear under Non-Transactions. This is acceptable: the inbox mirrors the device, and those messages can still produce a pattern.
+- Matching is one-to-one per normalized body. Two identical SMS bodies need two distinct transactions to both show as recorded; otherwise one stays under Non-Transactions.
+
+### 3.4 Timestamp resolution (date-only SMS)
+
+```mermaid
+flowchart TD
+    A[Body timestamp token] --> B{parses with time?}
+    B -- yes --> C[Use body date + body time]
+    B -- no --> D{parses as date only?}
+    D -- yes --> E[SMS received time-of-day]
+    E --> F{received time available?}
+    F -- yes --> G[body date + received hh:mm:ss]
+    F -- no --> H[body date + 00:00:00]
+    D -- no --> I{receivedAt present?}
+    I -- yes --> J[receivedAt]
+    I -- no --> K[Instant.now]
+```
+
+`TransactionDateResolver.resolve` (Dart) and `TransactionDateParser.resolveTransactionDate` (Java) implement the same rule: a body timestamp containing `\d{1,2}:\d{2}` wins completely; a date-only body keeps its date and borrows the received time-of-day; missing body or unparseable tokens fall back to the received time, then to now. The date is always the most important signal.
 
 ## 4. Literal-Anchor Parsing (no regex)
 
@@ -158,17 +208,43 @@ flowchart TD
     GG --> MATCH
 ```
 
-- The on-device parser (`SmsParserService.parseMessage`) applies the same precedence — family first, newest `updatedAt` within a scope — before anchor-matching locally, so an authored family pattern and its fixed values are not shadowed by a newer global LLM pattern. When a matched pattern carries a `categoryName` override, the client loads the family's categories on demand to resolve it to a `categoryId` when it posts the transaction as `REGEX_LOCAL`.
-- The registry viewer only lists global + caller-family patterns; `GET /patterns` resolves the caller's family server-side, so another family's authored templates are never exposed.
-- Authored patterns are editable/deletable by their author (or a family admin); globals are read-only. A family admin can promote a family pattern once `usageCount >= pattern.promote-usage-threshold`, after which it becomes `GLOBAL` and is shared by every family.
+- The on-device parser (`SmsParserService.parseMessage`) applies the same precedence — family first, newest `updatedAt` within a scope — before anchor-matching locally, so an authored family pattern and its fixed values are not shadowed by a newer global LLM pattern. It additionally filters to `matchablePatterns` (`active && !hiddenForFamily`), so a global hidden by the caller's family never parses on that device. When a matched pattern carries a `categoryName` override, the client loads the family's categories on demand to resolve it to a `categoryId` when it posts the transaction as `REGEX_LOCAL`.
+- The registry viewer lists active globals minus the caller's hidden globals, plus every pattern owned by the caller's family (active and inactive). `GET /patterns` resolves the caller's family server-side, so another family's authored templates are never exposed.
+- Any family member can act on a global: editing it creates a family copy and hides the global for that family only. Family patterns are edited/disabled by their author or a family admin. A family admin can promote a family pattern once `usageCount >= pattern.promote-usage-threshold`, after which it becomes `GLOBAL` and is shared by every family. There is no delete endpoint — patterns are disabled, and globals are hidden per family.
+
+#### 4.1.1 Editing / disabling a GLOBAL: copy-on-write + hide marker
+
+The family's registry row for a global is shared, so the server never mutates it. Editing first materializes a family copy, then hides the global for that family:
+
+```mermaid
+sequenceDiagram
+    participant App as Pattern builder (edit mode)
+    participant API as PatternRegistryController
+    participant Svc as PatternRegistryService
+    participant DB as MongoDB
+
+    App->>API: PUT /patterns/{globalId} (merged fields)
+    API->>Svc: updatePattern(globalId, ...)
+    Svc->>DB: find visible pattern → GLOBAL
+    Svc->>DB: find family copy by derivedFromPatternId<br/>(else same sender+template)
+    alt family copy exists
+        Svc->>DB: update copy in place (merged fields, active=true)
+    else no copy
+        Svc->>DB: insert FAMILY copy (source=USER, usageCount=0,<br/>ownerFamilyGroupId=caller, derivedFromPatternId=globalId)
+    end
+    Svc->>DB: upsert hidden_patterns(familyGroupId, globalId)
+    Svc-->>App: 200 family copy
+```
+
+Ordering matters: the marker is written only after the copy exists, so a mid-flight failure can never leave the family with neither pattern. Repeating the edit updates the same copy. `POST /patterns/{id}/disable` follows the same split: `GLOBAL` → upsert marker; `FAMILY` → `active=false`. `POST /patterns/{id}/enable` reverses it; enabling a family pattern returns `409` when another active visible pattern shares its sender+template.
 
 ### 4.2 Highlight-and-tag pattern builder
 
-A FAILED or IGNORED message can be recovered by authoring a template from it. The client derives the template, previews the match with the same anchor algorithm, and the server re-validates the effective `(template, sampleMessage)` pair before persisting:
+Every non-transaction message carries a single `Define pattern` action that opens the builder prefilled with that SMS. The client derives the template, previews the match with the same anchor algorithm, and the server re-validates the effective `(template, sampleMessage)` pair before persisting:
 
 ```mermaid
 flowchart LR
-    A[FAILED / IGNORED message] --> B[Select span in raw SMS]
+    A[Non-transaction SMS] --> B[Select span in raw SMS]
     B --> C[Tag span: Amount / Merchant / Date / Type / Account / Notes]
     C --> D[PatternDraftBuilder.fromSpans<br/>literals + tokens, identity extractionMap]
     D --> E{contains amount?}
@@ -181,7 +257,9 @@ flowchart LR
     H -->|201| I[FAMILY pattern, source=USER, active=true]
 ```
 
-- Manual edits to the template bypass the client dry-run but are still validated server-side (400 when no fields or no `amount` extract).
+- Manual edits to the template bypass the client dry-run but are still validated server-side (400 when no fields or no `amount` extract). This is the known gap for OTP/promo/personal SMS: `Define pattern` is offered on every non-transaction message, but a body with no amount cannot be saved and the builder surfaces the validation message.
+- On create, a successful save also calls `SmsNotifier.recordLocally(message)`: the sync checkpoint means this SMS is never re-read by the background pipeline, so the source message is parsed against the fresh cache and posted immediately when complete. On edit the source message is not re-recorded (the pattern only changes future matching).
+- Edit mode (`?patternId=`) prefills sender, sample, template, fixed values, and category from the registry. Span tagging is hidden because spans cannot be reconstructed from a stored template. Editing a GLOBAL shows "Customize for family" and saves as the copy-on-write flow in 4.1.1.
 - Overlapping tagged spans are rejected client-side; the derivation is pure logic (`pattern_draft_builder.dart`) unit-tested independently of the widget.
 - The builder also offers an optional **category override** (resolved per family by name at match time) and **fixed values** for Merchant / Account / Bank name / Notes. A fixed value is stored in `pattern_registry.fixedValues` and wins over the template-extracted value; an empty input uses the extracted value. `amount`, `timestamp`, and `type` are rejected as fixed values (they drive parsing), and promotion to `GLOBAL` clears `fixedValues` so family-specific literals do not leak into the shared library.
 

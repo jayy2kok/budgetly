@@ -40,21 +40,23 @@
 - **FR5.1** On-device parsing: `SmsInboxReader` reads the inbox → `SmsParserService` literal-anchor matches cached `SmsPattern`s. Complete match auto-posts a transaction (`REGEX_LOCAL`); incomplete/unknown goes to the server.
 - **FR5.2** Bulk ingestion: batched `POST /messages/bulk` (≤500/request, `202 Accepted`).
 - **FR5.3** Async processing: `MessageChangeStreamListener` consumes `BULK + PENDING` inserts, atomically claims them (`IN_PROGRESS`), runs the anchor fast-path then LLM fallback, and transitions to `PROCESSED`/`FAILED`. Resume token persisted in `change_stream_tokens`.
-- **FR5.4** Synchronous legacy path: `POST /messages/process` (stamps `DIRECT`), never claimed by the listener.
-- **FR5.5** Message triage: pending list, ignored list, confirm/reject/restore.
+- **FR5.4** Legacy `source=DIRECT` documents are historical only: they were completed when they were written and are never re-claimed by the listener. The synchronous `/messages/process` endpoint no longer exists.
+- **FR5.5** Device-inbox mirror: the Flutter inbox reads **every** SMS from the phone (not a server message queue) and splits it into exactly two tabs — **Recorded Transactions** (an SMS whose body matches a recorded transaction) and **Non-Transactions** (everything else: OTP, promo, personal, and financial SMS not yet recorded). There is no incomplete, confirm/reject, or ignored workflow.
 - **FR5.6** Non-financial classification: `OTP`, `PROMO`, `PERSONAL`, `DELIVERY`, `UNKNOWN`.
+- **FR5.7** Timestamp completion: a body timestamp with a time wins outright; a date-only body keeps its date and borrows the SMS received time-of-day (falling back to `00:00:00`); a missing/unparseable body timestamp uses the received time; with neither, the current time. The date is the primary signal.
 
 ### FR6 — Pattern Registry
 - **FR6.1** Full sync `GET /patterns` (with `?since=` delta sync) and sender list `GET /patterns/senders`.
 - **FR6.2** Report a pattern (`POST /patterns/{id}/report`); auto-disable after `pattern.report-threshold` reports and move to `rejected_patterns`.
 - **FR6.3** Stats `GET /patterns/stats`.
 - **FR6.4** Override a pattern's resolved category (`PATCH /patterns/{id}/category`).
-- **FR6.5** Browse the cached registry: active **global + caller-family** patterns grouped by sender, showing template, sample, usage count, active state, scope (`GLOBAL`/`FAMILY`), and source (`LLM`/`USER`). Family scoping is enforced server-side, not just in the UI.
-- **FR6.6** Author a pattern from a failed or ignored SMS by **highlighting spans and tagging** them (Amount/Merchant/Date/Type/Account/Notes). The tagged spans derive the literal-anchor `template` and identity `extractionMap`; the token vocabulary is `{amount}` (required), `{merchant}`, `{timestamp}`, `{transactionType}`, `{accountLast4}`, `{notes}`. A client dry-run previews the match; the server re-validates the `(template, sampleMessage)` pair on save and rejects templates that extract no fields or no `amount`. Authored patterns are family-scoped and editable/deletable only by their author. Family admins may promote a family pattern to `GLOBAL` once `usageCount` reaches `pattern.promote-usage-threshold`.
-- **FR6.7** Match precedence: for a given sender, family-scoped active patterns are tried before global ones; within each scope the most recently updated pattern wins.
-- **FR6.8** Failed-message listing (`GET /messages/failed`, paginated) exposing FAILED messages with their `errorMessage` so they can be recovered via the builder.
+- **FR6.5** Browse the cached registry: active **global + caller-family** patterns (active and disabled) grouped by sender, showing template, sample, usage count, status (`Active` / `Disabled` / `Hidden for family`), scope (`GLOBAL`/`FAMILY`), and source (`LLM`/`USER`). Each row offers **Edit** and **Disable**/**Enable**; there is no "New pattern" button and no delete. Family scoping is enforced server-side, not just in the UI.
+- **FR6.6** Author a pattern from any **non-transaction SMS** by highlighting spans and tagging them (Amount/Merchant/Date/Type/Account/Notes). The tagged spans derive the literal-anchor `template` and identity `extractionMap`; the token vocabulary is `{amount}` (required), `{merchant}`, `{timestamp}`, `{transactionType}`, `{accountLast4}`, `{notes}`. A client dry-run previews the match; the server re-validates the `(template, sampleMessage)` pair on save and rejects templates that extract no fields or no `amount`. Authored patterns are family-scoped. Family admins may promote a family pattern to `GLOBAL` once `usageCount` reaches `pattern.promote-usage-threshold`.
+- **FR6.7** Match precedence: for a given sender, family-scoped active patterns are tried before global ones; within each scope the most recently updated pattern wins. Patterns the family has hidden are excluded.
+- **FR6.8** Edit an existing pattern in place (`PUT /patterns/{id}`): family patterns update directly; editing a `GLOBAL` is copy-on-write — the server creates/updates a family-scoped copy (linked by `derivedFromPatternId`) and records a hide marker for the caller's family, leaving the global untouched for other families.
 - **FR6.9** When authoring a pattern, optionally assign a **category** (persisted as `categoryName` and resolved per family at match time) and pin **fixed literal values** for Merchant, Account, Bank name, or Notes (persisted as `fixedValues`). A fixed value wins over the value extracted from the template; leaving the field empty uses the tagged/extracted value. `amount`, `timestamp`, and `type` cannot be pinned. Promotion to `GLOBAL` clears `fixedValues`.
 - **FR6.10** Transactions record `accountLast4` and `bankName` end-to-end (creation request, document, API response, mobile model) and the detail screen shows "A/C •••• 1234" and the bank name.
+- **FR6.11** Disable/enable without deletion: `POST /patterns/{id}/disable` upserts a hide marker for a `GLOBAL` (other families unaffected) or sets `active=false` for a `FAMILY` pattern; `POST /patterns/{id}/enable` reverses it. Re-enabling a family pattern that would collide with another active visible template is rejected (`409`).
 
 ### FR7 — Budget & Dashboard
 - **FR7.1** Dashboard aggregation (`GET /families/{fid}/dashboard`).
@@ -63,8 +65,8 @@
 
 ### FR8 — Mobile App (Flutter)
 - **FR8.1** Bottom-nav shell with 4 tabs: Home (Dashboard), Feed, Budget, Settings.
-- **FR8.2** Screens: Login, Dashboard, Transaction Feed, Add Expense, Transaction Detail, Message Inbox (Incomplete/Unprocessed/Failed), Ignored Messages, Pattern Registry, Pattern Builder, Monthly Budget, Settings, Link Family, Join Family, Family Settings, Profile.
-- **FR8.3** SMS permission consent dialog + on-demand inbox sync and pattern-cache sync UX.
+- **FR8.2** Screens: Login, Dashboard, Transaction Feed, Add Expense, Transaction Detail, Message Inbox (Recorded Transactions / Non-Transactions), Pattern Registry, Pattern Builder (create from an SMS; edit an existing pattern), Monthly Budget, Settings, Link Family, Join Family, Family Settings, Profile.
+- **FR8.3** SMS permission consent dialog + on-demand inbox sync (all device SMS mirrored into the two tabs) and pattern-cache sync UX.
 - **FR8.4** Mock data layer (`data/mock`) for offline/dev and remote layer (`data/remote`, Dio) for the real API.
 
 ## Non-Functional Requirements
