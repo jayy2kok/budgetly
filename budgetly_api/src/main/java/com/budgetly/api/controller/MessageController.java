@@ -7,7 +7,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 @RestController
@@ -18,54 +17,9 @@ public class MessageController implements MessagesApi {
     private final MessageService messageService;
 
     @Override
-    public CompletableFuture<ResponseEntity<ProcessMessageResponse>> processMessage(ProcessMessageRequest processMessageRequest) {
-        String userId = ControllerUtils.getCurrentUserId();
-        return messageService.processMessage(userId, processMessageRequest)
-                .thenApply(ResponseEntity::ok);
-    }
-
-    @Override
-    public CompletableFuture<ResponseEntity<List<Message>>> getPendingMessages() {
-        String userId = ControllerUtils.getCurrentUserId();
-        return CompletableFuture.completedFuture(ResponseEntity.ok(messageService.getPendingMessages(userId)));
-    }
-
-    @Override
-    public CompletableFuture<ResponseEntity<List<Message>>> getIgnoredMessages() {
-        String userId = ControllerUtils.getCurrentUserId();
-        return CompletableFuture.completedFuture(ResponseEntity.ok(messageService.getIgnoredMessages(userId)));
-    }
-
-    @Override
-    public CompletableFuture<ResponseEntity<MessagePage>> getFailedMessages(Integer page, Integer size) {
-        String userId = ControllerUtils.getCurrentUserId();
-        MessagePage result = messageService.getFailedMessages(
-                userId, page != null ? page : 0, size != null ? size : 20);
-        return CompletableFuture.completedFuture(ResponseEntity.ok(result));
-    }
-
-    @Override
-    public CompletableFuture<ResponseEntity<Transaction>> confirmMessage(String id) {
-        String userId = ControllerUtils.getCurrentUserId();
-        return CompletableFuture.completedFuture(ResponseEntity.ok(messageService.confirmMessage(userId, id)));
-    }
-
-    @Override
     public CompletableFuture<ResponseEntity<BulkMessageResponse>> bulkInsertMessages(BulkMessageRequest bulkMessageRequest) {
         String userId = ControllerUtils.getCurrentUserId();
         return messageService.bulkInsertMessages(userId, bulkMessageRequest)
                 .thenApply(res -> ResponseEntity.status(org.springframework.http.HttpStatus.ACCEPTED).body(res));
-    }
-
-    @Override
-    public CompletableFuture<ResponseEntity<Message>> rejectMessage(String id) {
-        String userId = ControllerUtils.getCurrentUserId();
-        return CompletableFuture.completedFuture(ResponseEntity.ok(messageService.rejectMessage(userId, id)));
-    }
-
-    @Override
-    public CompletableFuture<ResponseEntity<Message>> restoreMessage(String id) {
-        String userId = ControllerUtils.getCurrentUserId();
-        return CompletableFuture.completedFuture(ResponseEntity.ok(messageService.restoreMessage(userId, id)));
     }
 }

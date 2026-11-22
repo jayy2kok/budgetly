@@ -1,9 +1,9 @@
 package com.budgetly.api.service;
 
 import com.budgetly.api.document.FamilyMemberDocument;
+import com.budgetly.api.document.HiddenPatternDocument;
 import com.budgetly.api.document.SmsPatternDocument;
 import com.budgetly.api.exception.ForbiddenException;
-import com.budgetly.api.exception.ResourceNotFoundException;
 import com.budgetly.api.generated.model.CreatePatternRequest;
 import com.budgetly.api.generated.model.ExtractionMap;
 import com.budgetly.api.generated.model.FamilyGroup;
@@ -12,10 +12,12 @@ import com.budgetly.api.generated.model.PatternSource;
 import com.budgetly.api.generated.model.SmsPattern;
 import com.budgetly.api.generated.model.UpdatePatternRequest;
 import com.budgetly.api.repository.FamilyMemberRepository;
+import com.budgetly.api.repository.HiddenPatternRepository;
 import com.budgetly.api.repository.PatternRegistryRepository;
 import com.budgetly.api.repository.RejectedPatternRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
@@ -30,7 +32,12 @@ import static org.mockito.Mockito.*;
 
 class PatternRegistryServiceTest {
 
+    private static final String SENDER = "HDFCBK";
+    private static final String TEMPLATE = "Rs.{amount} debited for {merchant}";
+    private static final String SAMPLE = "Rs.500 debited for Amazon";
+
     private PatternRegistryRepository patternRepository;
+    private HiddenPatternRepository hiddenPatternRepository;
     private RejectedPatternRepository rejectedPatternRepository;
     private FamilyGroupService familyGroupService;
     private FamilyMemberRepository familyMemberRepository;
@@ -39,11 +46,13 @@ class PatternRegistryServiceTest {
     @BeforeEach
     void setUp() {
         patternRepository = mock(PatternRegistryRepository.class);
+        hiddenPatternRepository = mock(HiddenPatternRepository.class);
         rejectedPatternRepository = mock(RejectedPatternRepository.class);
         familyGroupService = mock(FamilyGroupService.class);
         familyMemberRepository = mock(FamilyMemberRepository.class);
-        service = new PatternRegistryService(patternRepository, rejectedPatternRepository,
-                familyGroupService, familyMemberRepository, new AnchorParserService());
+        service = new PatternRegistryService(patternRepository, hiddenPatternRepository,
+                rejectedPatternRepository, familyGroupService, familyMemberRepository,
+                new AnchorParserService());
         ReflectionTestUtils.setField(service, "promoteUsageThreshold", 3);
     }
 
@@ -57,9 +66,9 @@ class PatternRegistryServiceTest {
             long usageCount) {
         return SmsPatternDocument.builder()
                 .id(id)
-                .sender("HDFCBK")
-                .template("Rs.{amount} debited for {merchant}")
-                .sampleMessage("Rs.500 debited for Amazon")
+                .sender(SENDER)
+                .template(TEMPLATE)
+                .sampleMessage(SAMPLE)
                 .extractionMap(Map.of("amount", "amount", "merchant", "merchant"))
                 .usageCount(usageCount)
                 .active(true)
@@ -70,9 +79,23 @@ class PatternRegistryServiceTest {
                 .build();
     }
 
+    private SmsPatternDocument globalPattern(String id) {
+        return SmsPatternDocument.builder()
+                .id(id)
+                .sender(SENDER)
+                .template(TEMPLATE)
+                .sampleMessage(SAMPLE)
+                .extractionMap(Map.of("amount", "amount", "merchant", "merchant"))
+                .usageCount(5)
+                .active(true)
+                .scope(SmsPatternDocument.SCOPE_GLOBAL)
+                .source(SmsPatternDocument.SOURCE_LLM)
+                .build();
+    }
+
     private CreatePatternRequest createRequest(String template, String sampleMessage, String amountGroup) {
         CreatePatternRequest req = new CreatePatternRequest();
-        req.setSender("HDFCBK");
+        req.setSender(SENDER);
         req.setTemplate(template);
         req.setSampleMessage(sampleMessage);
         if (amountGroup != null) {
@@ -80,6 +103,17 @@ class PatternRegistryServiceTest {
             em.setAmount(amountGroup);
             req.setExtractionMap(em);
         }
+        return req;
+    }
+
+    private UpdatePatternRequest updateRequest(String template, String sampleMessage) {
+        UpdatePatternRequest req = new UpdatePatternRequest();
+        req.setTemplate(template);
+        req.setSampleMessage(sampleMessage);
+        ExtractionMap em = new ExtractionMap();
+        em.setAmount("amount");
+        em.setMerchant("merchant");
+        req.setExtractionMap(em);
         return req;
     }
 
@@ -97,13 +131,10 @@ class PatternRegistryServiceTest {
     @Test
     void createPattern_validTemplate_savesFamilyScopedUserPattern() {
         when(familyGroupService.getMyFamily("u1")).thenReturn(family("fam-1"));
-        when(patternRepository.existsBySenderAndTemplateAndActiveTrue("HDFCBK", "Rs.{amount} debited for {merchant}"))
-                .thenReturn(false);
         when(patternRepository.save(any(SmsPatternDocument.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
 
-        SmsPattern result = service.createPattern("u1",
-                createRequest("Rs.{amount} debited for {merchant}", "Rs.500 debited for Amazon", "amount"));
+        SmsPattern result = service.createPattern("u1", createRequest(TEMPLATE, SAMPLE, "amount"));
 
         assertThat(result.getScope()).isEqualTo(PatternScope.FAMILY);
         assertThat(result.getSource()).isEqualTo(PatternSource.USER);
@@ -117,7 +148,7 @@ class PatternRegistryServiceTest {
         when(familyGroupService.getMyFamily("u1")).thenReturn(family("fam-1"));
 
         assertThatThrownBy(() -> service.createPattern("u1",
-                createRequest("Hello {amount} world", "Rs.500 debited for Amazon", "amount")))
+                createRequest("Hello {amount} world", SAMPLE, "amount")))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -131,25 +162,50 @@ class PatternRegistryServiceTest {
     }
 
     @Test
-    void createPattern_duplicateTemplate_throws() {
+    void createPattern_duplicateActiveFamilyTemplate_throws() {
         when(familyGroupService.getMyFamily("u1")).thenReturn(family("fam-1"));
-        when(patternRepository.existsBySenderAndTemplateAndActiveTrue("HDFCBK", "Rs.{amount} debited for {merchant}"))
-                .thenReturn(true);
+        when(patternRepository.findByOwnerFamilyGroupIdAndSenderAndTemplate("fam-1", SENDER, TEMPLATE))
+                .thenReturn(List.of(familyPattern("p1", "fam-1", "u1", 1)));
 
-        assertThatThrownBy(() -> service.createPattern("u1",
-                createRequest("Rs.{amount} debited for {merchant}", "Rs.500 debited for Amazon", "amount")))
+        assertThatThrownBy(() -> service.createPattern("u1", createRequest(TEMPLATE, SAMPLE, "amount")))
                 .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void createPattern_globalTemplateDoesNotBlock() {
+        when(familyGroupService.getMyFamily("u1")).thenReturn(family("fam-1"));
+        when(patternRepository.save(any(SmsPatternDocument.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        SmsPattern result = service.createPattern("u1", createRequest(TEMPLATE, SAMPLE, "amount"));
+
+        assertThat(result.getScope()).isEqualTo(PatternScope.FAMILY);
+    }
+
+    @Test
+    void createPattern_reactivatesInactiveFamilyTemplate() {
+        SmsPatternDocument inactive = familyPattern("p-old", "fam-1", "u1", 4);
+        inactive.setActive(false);
+        when(familyGroupService.getMyFamily("u1")).thenReturn(family("fam-1"));
+        when(patternRepository.findByOwnerFamilyGroupIdAndSenderAndTemplate("fam-1", SENDER, TEMPLATE))
+                .thenReturn(List.of(inactive));
+        when(patternRepository.save(any(SmsPatternDocument.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        SmsPattern result = service.createPattern("u1", createRequest(TEMPLATE, SAMPLE, "amount"));
+
+        assertThat(result.getId()).isEqualTo("p-old");
+        assertThat(result.getActive()).isTrue();
+        verify(patternRepository, never()).insert(any(SmsPatternDocument.class));
     }
 
     @Test
     void createPattern_withFixedValues_persistsThem() {
         when(familyGroupService.getMyFamily("u1")).thenReturn(family("fam-1"));
-        when(patternRepository.existsBySenderAndTemplateAndActiveTrue(any(), any())).thenReturn(false);
         when(patternRepository.save(any(SmsPatternDocument.class)))
                 .thenAnswer(inv -> inv.getArgument(0));
 
-        CreatePatternRequest req = createRequest("Rs.{amount} debited",
-                "Rs.500 debited", "amount");
+        CreatePatternRequest req = createRequest("Rs.{amount} debited", "Rs.500 debited", "amount");
         req.setFixedValues(Map.of(
                 "merchant", " Pan Shop ",
                 "accountLast4", "1234",
@@ -169,8 +225,7 @@ class PatternRegistryServiceTest {
     void createPattern_fixedValueForAmount_throws() {
         when(familyGroupService.getMyFamily("u1")).thenReturn(family("fam-1"));
 
-        CreatePatternRequest req = createRequest("Rs.{amount} debited",
-                "Rs.500 debited", "amount");
+        CreatePatternRequest req = createRequest("Rs.{amount} debited", "Rs.500 debited", "amount");
         req.setFixedValues(Map.of("amount", "500"));
 
         assertThatThrownBy(() -> service.createPattern("u1", req))
@@ -178,25 +233,20 @@ class PatternRegistryServiceTest {
                 .hasMessageContaining("amount");
     }
 
-    // ── updatePattern / deletePattern ownership ──────────────────
+    // ── updatePattern: FAMILY in place ───────────────────────────
+
     @Test
     void updatePattern_authorAllowed_updatesTemplate() {
         SmsPatternDocument doc = familyPattern("p1", "fam-1", "u1", 1);
         when(patternRepository.findById("p1")).thenReturn(Optional.of(doc));
-        when(patternRepository.findBySenderAndActiveTrue("HDFCBK")).thenReturn(List.of(doc));
+        when(familyGroupService.getMyFamily("u1")).thenReturn(family("fam-1"));
         when(patternRepository.save(any(SmsPatternDocument.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        UpdatePatternRequest req = new UpdatePatternRequest();
-        req.setTemplate("Rs.{amount} debited at {merchant}");
-        req.setSampleMessage("Rs.500 debited at Amazon");
-        ExtractionMap em = new ExtractionMap();
-        em.setAmount("amount");
-        em.setMerchant("merchant");
-        req.setExtractionMap(em);
-
-        SmsPattern result = service.updatePattern("p1", "u1", req);
+        SmsPattern result = service.updatePattern("p1", "u1",
+                updateRequest("Rs.{amount} debited at {merchant}", "Rs.500 debited at Amazon"));
 
         assertThat(result.getTemplate()).isEqualTo("Rs.{amount} debited at {merchant}");
+        assertThat(result.getId()).isEqualTo("p1");
     }
 
     @Test
@@ -204,14 +254,11 @@ class PatternRegistryServiceTest {
         SmsPatternDocument doc = familyPattern("p1", "fam-1", "u1", 1);
         doc.setFixedValues(Map.of("merchant", "Pan Shop"));
         when(patternRepository.findById("p1")).thenReturn(Optional.of(doc));
-        when(patternRepository.findBySenderAndActiveTrue("HDFCBK")).thenReturn(List.of(doc));
+        when(familyGroupService.getMyFamily("u1")).thenReturn(family("fam-1"));
         when(patternRepository.save(any(SmsPatternDocument.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        UpdatePatternRequest req = new UpdatePatternRequest();
-        req.setTemplate("Rs.{amount} debited at {merchant}");
-        req.setSampleMessage("Rs.500 debited at Amazon");
-
-        SmsPattern result = service.updatePattern("p1", "u1", req);
+        SmsPattern result = service.updatePattern("p1", "u1",
+                updateRequest("Rs.{amount} debited at {merchant}", "Rs.500 debited at Amazon"));
 
         assertThat(result.getFixedValues()).containsEntry("merchant", "Pan Shop");
     }
@@ -221,12 +268,10 @@ class PatternRegistryServiceTest {
         SmsPatternDocument doc = familyPattern("p1", "fam-1", "u1", 1);
         doc.setFixedValues(Map.of("merchant", "Pan Shop"));
         when(patternRepository.findById("p1")).thenReturn(Optional.of(doc));
-        when(patternRepository.findBySenderAndActiveTrue("HDFCBK")).thenReturn(List.of(doc));
+        when(familyGroupService.getMyFamily("u1")).thenReturn(family("fam-1"));
         when(patternRepository.save(any(SmsPatternDocument.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        UpdatePatternRequest req = new UpdatePatternRequest();
-        req.setTemplate("Rs.{amount} debited at {merchant}");
-        req.setSampleMessage("Rs.500 debited at Amazon");
+        UpdatePatternRequest req = updateRequest("Rs.{amount} debited at {merchant}", "Rs.500 debited at Amazon");
         req.setFixedValues(null);
 
         SmsPattern result = service.updatePattern("p1", "u1", req);
@@ -239,12 +284,10 @@ class PatternRegistryServiceTest {
         SmsPatternDocument doc = familyPattern("p1", "fam-1", "u1", 1);
         doc.setFixedValues(Map.of("merchant", "Pan Shop"));
         when(patternRepository.findById("p1")).thenReturn(Optional.of(doc));
-        when(patternRepository.findBySenderAndActiveTrue("HDFCBK")).thenReturn(List.of(doc));
+        when(familyGroupService.getMyFamily("u1")).thenReturn(family("fam-1"));
         when(patternRepository.save(any(SmsPatternDocument.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        UpdatePatternRequest req = new UpdatePatternRequest();
-        req.setTemplate("Rs.{amount} debited at {merchant}");
-        req.setSampleMessage("Rs.500 debited at Amazon");
+        UpdatePatternRequest req = updateRequest("Rs.{amount} debited at {merchant}", "Rs.500 debited at Amazon");
         req.setFixedValues(Map.of("accountLast4", "1234"));
 
         SmsPattern result = service.updatePattern("p1", "u1", req);
@@ -261,32 +304,131 @@ class PatternRegistryServiceTest {
         when(familyMemberRepository.findByUserIdAndFamilyGroupId("u2", "fam-1"))
                 .thenReturn(Optional.of(member("u2", "fam-1", "MEMBER")));
 
-        UpdatePatternRequest req = new UpdatePatternRequest();
-        req.setTemplate("Rs.{amount} debited at {merchant}");
-
-        assertThatThrownBy(() -> service.updatePattern("p1", "u2", req))
+        assertThatThrownBy(() -> service.updatePattern("p1", "u2",
+                updateRequest("Rs.{amount} debited at {merchant}", "Rs.500 debited at Amazon")))
                 .isInstanceOf(ForbiddenException.class);
     }
 
+    // ── updatePattern: GLOBAL → family copy + hide ───────────────
+
     @Test
-    void updatePattern_globalPattern_readOnly() {
-        SmsPatternDocument doc = familyPattern("p1", null, null, 1);
-        doc.setScope(SmsPatternDocument.SCOPE_GLOBAL);
+    void updatePattern_global_createsFamilyCopyAndHidesGlobal() {
+        SmsPatternDocument global = globalPattern("g1");
+        when(patternRepository.findById("g1")).thenReturn(Optional.of(global));
+        when(familyGroupService.getMyFamily("u1")).thenReturn(family("fam-1"));
+        when(patternRepository.save(any(SmsPatternDocument.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        SmsPattern result = service.updatePattern("g1", "u1",
+                updateRequest("Rs.{amount} debited at {merchant}", "Rs.500 debited at Amazon"));
+
+        assertThat(result.getScope()).isEqualTo(PatternScope.FAMILY);
+        assertThat(result.getOwnerFamilyGroupId()).isEqualTo("fam-1");
+        assertThat(result.getTemplate()).isEqualTo("Rs.{amount} debited at {merchant}");
+        // The shared global must not be mutated.
+        assertThat(global.getTemplate()).isEqualTo(TEMPLATE);
+        assertThat(global.getScope()).isEqualTo(SmsPatternDocument.SCOPE_GLOBAL);
+
+        ArgumentCaptor<HiddenPatternDocument> hidden = ArgumentCaptor.forClass(HiddenPatternDocument.class);
+        verify(hiddenPatternRepository).save(hidden.capture());
+        assertThat(hidden.getValue().getFamilyGroupId()).isEqualTo("fam-1");
+        assertThat(hidden.getValue().getPatternId()).isEqualTo("g1");
+    }
+
+    @Test
+    void updatePattern_globalTwice_updatesTheSameFamilyCopy() {
+        SmsPatternDocument global = globalPattern("g1");
+        SmsPatternDocument existingCopy = familyPattern("c1", "fam-1", "u1", 2);
+        existingCopy.setDerivedFromPatternId("g1");
+        when(patternRepository.findById("g1")).thenReturn(Optional.of(global));
+        when(familyGroupService.getMyFamily("u1")).thenReturn(family("fam-1"));
+        when(patternRepository.findByOwnerFamilyGroupIdAndDerivedFromPatternId("fam-1", "g1"))
+                .thenReturn(Optional.of(existingCopy));
+        when(patternRepository.save(any(SmsPatternDocument.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        SmsPattern result = service.updatePattern("g1", "u1",
+                updateRequest("Rs.{amount} debited at {merchant}", "Rs.500 debited at Amazon"));
+
+        assertThat(result.getId()).isEqualTo("c1");
+        assertThat(existingCopy.getTemplate()).isEqualTo("Rs.{amount} debited at {merchant}");
+        // Only the copy is written; no second copy is inserted.
+        verify(patternRepository, times(1)).save(any(SmsPatternDocument.class));
+    }
+
+    // ── disable / enable ─────────────────────────────────────────
+
+    @Test
+    void disablePattern_global_upsertsHideMarker() {
+        when(patternRepository.findById("g1")).thenReturn(Optional.of(globalPattern("g1")));
+        when(familyGroupService.getMyFamily("u1")).thenReturn(family("fam-1"));
+
+        SmsPattern result = service.disablePattern("g1", "u1");
+
+        assertThat(result.getHiddenForFamily()).isTrue();
+        verify(hiddenPatternRepository).save(any(HiddenPatternDocument.class));
+        // The global itself stays active for other families.
+        verify(patternRepository, never()).save(any(SmsPatternDocument.class));
+    }
+
+    @Test
+    void disablePattern_global_isIdempotent() {
+        when(patternRepository.findById("g1")).thenReturn(Optional.of(globalPattern("g1")));
+        when(familyGroupService.getMyFamily("u1")).thenReturn(family("fam-1"));
+        when(hiddenPatternRepository.findByFamilyGroupIdAndPatternId("fam-1", "g1"))
+                .thenReturn(Optional.of(HiddenPatternDocument.builder()
+                        .familyGroupId("fam-1").patternId("g1").build()));
+
+        service.disablePattern("g1", "u1");
+
+        verify(hiddenPatternRepository, never()).save(any(HiddenPatternDocument.class));
+    }
+
+    @Test
+    void disablePattern_family_deactivates() {
+        SmsPatternDocument doc = familyPattern("p1", "fam-1", "u1", 1);
         when(patternRepository.findById("p1")).thenReturn(Optional.of(doc));
+        when(patternRepository.save(any(SmsPatternDocument.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        UpdatePatternRequest req = new UpdatePatternRequest();
-        req.setTemplate("Rs.{amount} debited at {merchant}");
+        SmsPattern result = service.disablePattern("p1", "u1");
 
-        assertThatThrownBy(() -> service.updatePattern("p1", "u1", req))
-                .isInstanceOf(ForbiddenException.class);
+        assertThat(result.getActive()).isFalse();
     }
 
     @Test
-    void deletePattern_missingPattern_throws() {
-        when(patternRepository.findById("nope")).thenReturn(Optional.empty());
+    void enablePattern_global_removesHideMarker() {
+        when(patternRepository.findById("g1")).thenReturn(Optional.of(globalPattern("g1")));
+        when(familyGroupService.getMyFamily("u1")).thenReturn(family("fam-1"));
 
-        assertThatThrownBy(() -> service.deletePattern("nope", "u1"))
-                .isInstanceOf(ResourceNotFoundException.class);
+        SmsPattern result = service.enablePattern("g1", "u1");
+
+        assertThat(result.getHiddenForFamily()).isFalse();
+        verify(hiddenPatternRepository).deleteByFamilyGroupIdAndPatternId("fam-1", "g1");
+    }
+
+    @Test
+    void enablePattern_family_collisionThrows() {
+        SmsPatternDocument doc = familyPattern("p1", "fam-1", "u1", 1);
+        doc.setActive(false);
+        SmsPatternDocument other = familyPattern("p2", "fam-1", "u1", 1);
+        when(patternRepository.findById("p1")).thenReturn(Optional.of(doc));
+        when(patternRepository.findByOwnerFamilyGroupIdAndSenderAndTemplate("fam-1", SENDER, TEMPLATE))
+                .thenReturn(List.of(doc, other));
+
+        assertThatThrownBy(() -> service.enablePattern("p1", "u1"))
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void enablePattern_family_reactivates() {
+        SmsPatternDocument doc = familyPattern("p1", "fam-1", "u1", 1);
+        doc.setActive(false);
+        when(patternRepository.findById("p1")).thenReturn(Optional.of(doc));
+        when(patternRepository.findByOwnerFamilyGroupIdAndSenderAndTemplate("fam-1", SENDER, TEMPLATE))
+                .thenReturn(List.of(doc));
+        when(patternRepository.save(any(SmsPatternDocument.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        SmsPattern result = service.enablePattern("p1", "u1");
+
+        assertThat(result.getActive()).isTrue();
     }
 
     // ── promotePattern ───────────────────────────────────────────
@@ -341,20 +483,19 @@ class PatternRegistryServiceTest {
                 .isInstanceOf(ForbiddenException.class);
     }
 
-    // ── Precedence ───────────────────────────────────────────────
+    // ── Precedence and hiding ────────────────────────────────────
 
     @Test
     void findActiveBySender_familyPatternFirstThenGlobal() {
-        SmsPatternDocument global = familyPattern("g1", null, null, 1);
-        global.setScope(SmsPatternDocument.SCOPE_GLOBAL);
+        SmsPatternDocument global = globalPattern("g1");
         global.setUpdatedAt(Instant.parse("2026-01-01T00:00:00Z"));
         SmsPatternDocument family = familyPattern("f1", "fam-1", "u1", 1);
         family.setUpdatedAt(Instant.parse("2026-02-01T00:00:00Z"));
 
-        when(patternRepository.findActiveForSenderAndFamily("HDFCBK", "fam-1"))
+        when(patternRepository.findActiveForSenderAndFamily(SENDER, "fam-1"))
                 .thenReturn(List.of(global, family));
 
-        List<SmsPatternDocument> result = service.findActiveBySender("HDFCBK", "fam-1");
+        List<SmsPatternDocument> result = service.findActiveBySender(SENDER, "fam-1");
 
         assertThat(result).extracting(SmsPatternDocument::getId).containsExactly("f1", "g1");
     }
@@ -366,28 +507,84 @@ class PatternRegistryServiceTest {
         SmsPatternDocument newer = familyPattern("n1", "fam-1", "u1", 1);
         newer.setUpdatedAt(Instant.parse("2026-03-01T00:00:00Z"));
 
-        when(patternRepository.findActiveForSenderAndFamily("HDFCBK", "fam-1"))
+        when(patternRepository.findActiveForSenderAndFamily(SENDER, "fam-1"))
                 .thenReturn(List.of(older, newer));
 
-        List<SmsPatternDocument> result = service.findActiveBySender("HDFCBK", "fam-1");
+        List<SmsPatternDocument> result = service.findActiveBySender(SENDER, "fam-1");
 
         assertThat(result).extracting(SmsPatternDocument::getId).containsExactly("n1", "o1");
     }
 
-    // ── Family-filtered listing ──────────────────────────────────
+    @Test
+    void findActiveBySender_excludesGlobalsHiddenForTheFamily() {
+        SmsPatternDocument global = globalPattern("g1");
+        global.setUpdatedAt(Instant.parse("2026-01-01T00:00:00Z"));
+        SmsPatternDocument family = familyPattern("f1", "fam-1", "u1", 1);
+        family.setUpdatedAt(Instant.parse("2026-02-01T00:00:00Z"));
+
+        when(patternRepository.findActiveForSenderAndFamily(SENDER, "fam-1"))
+                .thenReturn(List.of(global, family));
+        when(hiddenPatternRepository.findByFamilyGroupId("fam-1"))
+                .thenReturn(List.of(HiddenPatternDocument.builder()
+                        .familyGroupId("fam-1").patternId("g1").build()));
+
+        List<SmsPatternDocument> result = service.findActiveBySender(SENDER, "fam-1");
+
+        assertThat(result).extracting(SmsPatternDocument::getId).containsExactly("f1");
+    }
 
     @Test
-    void getPatterns_filtersToGlobalPlusCallerFamily() {
-        SmsPatternDocument global = familyPattern("g1", null, null, 1);
-        global.setScope(SmsPatternDocument.SCOPE_GLOBAL);
+    void findActiveBySender_withoutFamily_returnsGlobalsOnly() {
+        SmsPatternDocument global = globalPattern("g1");
         SmsPatternDocument family = familyPattern("f1", "fam-1", "u1", 1);
+        when(patternRepository.findBySenderAndActiveTrue(SENDER)).thenReturn(List.of(global, family));
+
+        List<SmsPatternDocument> result = service.findActiveBySender(SENDER, null);
+
+        assertThat(result).extracting(SmsPatternDocument::getId).containsExactly("g1");
+    }
+
+    // ── Registry listing ─────────────────────────────────────────
+
+    @Test
+    void getPatterns_returnsVisiblePatternsAndMarksHiddenGlobals() {
+        SmsPatternDocument global = globalPattern("g1");
+        SmsPatternDocument family = familyPattern("f1", "fam-1", "u1", 1);
+        SmsPatternDocument disabled = familyPattern("f2", "fam-1", "u1", 1);
+        disabled.setActive(false);
 
         when(familyGroupService.getMyFamily("u1")).thenReturn(family("fam-1"));
-        when(patternRepository.findActiveGlobalOrFamily("fam-1")).thenReturn(List.of(global, family));
+        when(patternRepository.findVisibleForFamily("fam-1")).thenReturn(List.of(global, family, disabled));
+        when(hiddenPatternRepository.findByFamilyGroupId("fam-1"))
+                .thenReturn(List.of(HiddenPatternDocument.builder()
+                        .familyGroupId("fam-1").patternId("g1").build()));
 
         List<SmsPattern> result = service.getPatterns(null, "u1");
 
-        assertThat(result).hasSize(2);
-        verify(patternRepository).findActiveGlobalOrFamily("fam-1");
+        assertThat(result).hasSize(3);
+        assertThat(result.stream().filter(SmsPattern::getHiddenForFamily).map(SmsPattern::getId))
+                .containsExactly("g1");
+        assertThat(result.stream().filter(p -> !p.getActive()).map(SmsPattern::getId))
+                .containsExactly("f2");
+    }
+
+    @Test
+    void getPatternSenders_countsOnlyMatchablePatterns() {
+        SmsPatternDocument global = globalPattern("g1");
+        SmsPatternDocument hiddenGlobal = globalPattern("g2");
+        hiddenGlobal.setSender("SBIUPI");
+        SmsPatternDocument disabled = familyPattern("f1", "fam-1", "u1", 1);
+        disabled.setActive(false);
+
+        when(familyGroupService.getMyFamily("u1")).thenReturn(family("fam-1"));
+        when(patternRepository.findVisibleForFamily("fam-1")).thenReturn(List.of(global, hiddenGlobal, disabled));
+        when(hiddenPatternRepository.findByFamilyGroupId("fam-1"))
+                .thenReturn(List.of(HiddenPatternDocument.builder()
+                        .familyGroupId("fam-1").patternId("g2").build()));
+
+        List<Map<String, Object>> senders = service.getPatternSenders("u1");
+
+        assertThat(senders).hasSize(1);
+        assertThat(senders.get(0)).containsEntry("sender", SENDER).containsEntry("patternCount", 1);
     }
 }

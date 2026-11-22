@@ -1,10 +1,12 @@
 package com.budgetly.api.service;
 
+import com.budgetly.api.document.HiddenPatternDocument;
 import com.budgetly.api.document.SmsPatternDocument;
 import com.budgetly.api.document.FamilyMemberDocument;
 import com.budgetly.api.exception.ForbiddenException;
 import com.budgetly.api.exception.ResourceNotFoundException;
 import com.budgetly.api.generated.model.*;
+import com.budgetly.api.repository.HiddenPatternRepository;
 import com.budgetly.api.repository.PatternRegistryRepository;
 import com.budgetly.api.repository.FamilyMemberRepository;
 import com.budgetly.api.repository.RejectedPatternRepository;
@@ -25,6 +27,7 @@ import java.util.stream.Collectors;
 public class PatternRegistryService {
 
     private final PatternRegistryRepository patternRepository;
+    private final HiddenPatternRepository hiddenPatternRepository;
     private final RejectedPatternRepository rejectedPatternRepository;
     private final FamilyGroupService familyGroupService;
     private final FamilyMemberRepository familyMemberRepository;
@@ -36,20 +39,31 @@ public class PatternRegistryService {
     @Value("${pattern.promote-usage-threshold:3}")
     private int promoteUsageThreshold;
 
-    /** Active patterns visible to the caller's family: global + the family's own patterns. */
+    /**
+     * Patterns the caller's family can see: active GLOBALs plus every pattern
+     * owned by the family (disabled ones included, so the registry can offer
+     * Enable). GLOBALs the family has hidden carry {@code hiddenForFamily}.
+     */
     public List<SmsPattern> getPatterns(Instant since, String userId) {
         String familyGroupId = callerFamilyGroupId(userId);
         List<SmsPatternDocument> docs = since != null
-                ? patternRepository.findActiveGlobalOrFamilySince(familyGroupId, since)
-                : patternRepository.findActiveGlobalOrFamily(familyGroupId);
-        return docs.stream().map(this::toDto).collect(Collectors.toList());
+                ? patternRepository.findVisibleForFamilySince(familyGroupId, since)
+                : patternRepository.findVisibleForFamily(familyGroupId);
+        Set<String> hiddenIds = hiddenPatternIds(familyGroupId);
+        return docs.stream()
+                .map(doc -> toDto(doc, hiddenIds.contains(doc.getId())))
+                .collect(Collectors.toList());
     }
 
-    /** Sender → pattern-count map, restricted to patterns visible to the caller's family. */
+    /** Sender → pattern-count map, restricted to patterns actually matching for the family. */
     public List<Map<String, Object>> getPatternSenders(String userId) {
         String familyGroupId = callerFamilyGroupId(userId);
-        List<SmsPatternDocument> active = patternRepository.findActiveGlobalOrFamily(familyGroupId);
-        Map<String, Long> senderCounts = active.stream()
+        Set<String> hiddenIds = hiddenPatternIds(familyGroupId);
+        List<SmsPatternDocument> matchable = patternRepository.findVisibleForFamily(familyGroupId).stream()
+                .filter(SmsPatternDocument::isActive)
+                .filter(doc -> !hiddenIds.contains(doc.getId()))
+                .collect(Collectors.toList());
+        Map<String, Long> senderCounts = matchable.stream()
                 .collect(Collectors.groupingBy(SmsPatternDocument::getSender, Collectors.counting()));
         return senderCounts.entrySet().stream()
                 .map(e -> {
@@ -140,7 +154,9 @@ public class PatternRegistryService {
     /**
      * Creates a FAMILY-scoped, USER-authored pattern for the caller's family.
      * The template is validated against the sample message and must extract an
-     * amount; a duplicate active template for the same sender returns 409.
+     * amount. A duplicate active FAMILY template for the same sender returns
+     * 409; an identical GLOBAL pattern does not block (the family may shadow
+     * it). Re-creating a disabled family template reactivates it.
      */
     public SmsPattern createPattern(String userId, CreatePatternRequest request) {
         String sender = requireText(request.getSender(), "sender is required");
@@ -149,81 +165,91 @@ public class PatternRegistryService {
 
         validateTemplate(template, sampleMessage, request.getExtractionMap());
 
-        if (patternRepository.existsBySenderAndTemplateAndActiveTrue(sender, template)) {
-            throw new IllegalStateException("A pattern with this template already exists for sender " + sender);
-        }
-
         String familyGroupId = callerFamilyGroupId(userId);
-        SmsPatternDocument doc = SmsPatternDocument.builder()
-                .sender(sender)
-                .template(template)
-                .extractionMap(extractionMapOf(request.getExtractionMap()))
-                .fixedValues(cleanFixedValues(request.getFixedValues()))
-                .sampleMessage(sampleMessage)
-                .categoryName(cleanCategory(request.getCategoryName()))
-                .scope(SmsPatternDocument.SCOPE_FAMILY)
-                .ownerFamilyGroupId(familyGroupId)
-                .createdByUserId(userId)
-                .source(SmsPatternDocument.SOURCE_USER)
-                .usageCount(0)
-                .active(true)
-                // Match precedence within a scope is "newest updatedAt wins", so a
-                // freshly authored pattern must carry the timestamp from the start.
-                .updatedAt(Instant.now())
-                .build();
-        return toDto(patternRepository.save(doc));
-    }
-
-    /**
-     * Updates a FAMILY-scoped pattern. Only the author or a family admin may
-     * edit it; GLOBAL patterns are read-only.
-     */
-    public SmsPattern updatePattern(String patternId, String userId, UpdatePatternRequest request) {
-        SmsPatternDocument doc = requireEditable(patternId, userId);
-
-        String sender = request.getSender() != null
-                ? requireText(request.getSender(), "sender cannot be blank")
-                : doc.getSender();
-        String template = request.getTemplate() != null
-                ? requireText(request.getTemplate(), "template cannot be blank")
-                : doc.getTemplate();
-        String sampleMessage = request.getSampleMessage() != null
-                ? request.getSampleMessage()
-                : doc.getSampleMessage();
-        ExtractionMap em = request.getExtractionMap() != null
-                ? request.getExtractionMap()
-                : toExtractionMap(doc.getExtractionMap());
-
-        validateTemplate(template, sampleMessage, em);
-
-        boolean duplicateByAnother = patternRepository.findBySenderAndActiveTrue(sender).stream()
-                .anyMatch(p -> template.equals(p.getTemplate()) && !p.getId().equals(doc.getId()));
-        if (duplicateByAnother) {
+        List<SmsPatternDocument> sameTemplate = patternRepository
+                .findByOwnerFamilyGroupIdAndSenderAndTemplate(familyGroupId, sender, template);
+        if (sameTemplate.stream().anyMatch(SmsPatternDocument::isActive)) {
             throw new IllegalStateException("A pattern with this template already exists for sender " + sender);
         }
 
+        SmsPatternDocument doc = sameTemplate.stream()
+                .filter(p -> !p.isActive())
+                .findFirst()
+                .orElseGet(SmsPatternDocument::new);
         doc.setSender(sender);
         doc.setTemplate(template);
+        doc.setExtractionMap(extractionMapOf(request.getExtractionMap()));
+        doc.setFixedValues(cleanFixedValues(request.getFixedValues()));
         doc.setSampleMessage(sampleMessage);
-        doc.setExtractionMap(extractionMapOf(em));
-        if (request.getCategoryName() != null) {
-            doc.setCategoryName(cleanCategory(request.getCategoryName()));
-        }
-        // Generated models default the map to an empty map when the field is
-        // omitted, so empty means "unchanged"; JSON null explicitly clears it.
-        if (request.getFixedValues() == null) {
-            doc.setFixedValues(null);
-        } else if (!request.getFixedValues().isEmpty()) {
-            doc.setFixedValues(cleanFixedValues(request.getFixedValues()));
-        }
+        doc.setCategoryName(cleanCategory(request.getCategoryName()));
+        doc.setScope(SmsPatternDocument.SCOPE_FAMILY);
+        doc.setOwnerFamilyGroupId(familyGroupId);
+        doc.setCreatedByUserId(userId);
+        doc.setSource(SmsPatternDocument.SOURCE_USER);
+        doc.setActive(true);
+        // Match precedence within a scope is "newest updatedAt wins", so a
+        // freshly authored pattern must carry the timestamp from the start.
         doc.setUpdatedAt(Instant.now());
         return toDto(patternRepository.save(doc));
     }
 
-    /** Deletes a FAMILY-scoped pattern the caller is allowed to manage. */
-    public void deletePattern(String patternId, String userId) {
-        SmsPatternDocument doc = requireEditable(patternId, userId);
-        patternRepository.delete(doc);
+    /**
+     * Edits a pattern. A FAMILY pattern is updated in place by its author or a
+     * family admin. A GLOBAL pattern is never mutated: the caller's family gets
+     * a family copy carrying the new values, and the global is hidden for that
+     * family only.
+     */
+    public SmsPattern updatePattern(String patternId, String userId, UpdatePatternRequest request) {
+        SmsPatternDocument doc = patternRepository.findById(patternId)
+                .orElseThrow(() -> new ResourceNotFoundException("SmsPattern", patternId));
+
+        if (SmsPatternDocument.SCOPE_GLOBAL.equals(doc.getScope())) {
+            return customizeGlobalForFamily(doc, userId, request);
+        }
+
+        requireEditable(doc, userId);
+        applyUpdate(doc, request, callerFamilyGroupId(userId));
+        return toDto(patternRepository.save(doc));
+    }
+
+    /** Hides a GLOBAL pattern for the caller's family, or deactivates a FAMILY pattern. */
+    public SmsPattern disablePattern(String patternId, String userId) {
+        SmsPatternDocument doc = patternRepository.findById(patternId)
+                .orElseThrow(() -> new ResourceNotFoundException("SmsPattern", patternId));
+
+        if (SmsPatternDocument.SCOPE_GLOBAL.equals(doc.getScope())) {
+            String familyGroupId = callerFamilyGroupId(userId);
+            hideForFamily(familyGroupId, patternId, userId);
+            return toDto(doc, true);
+        }
+
+        requireEditable(doc, userId);
+        doc.setActive(false);
+        doc.setUpdatedAt(Instant.now());
+        return toDto(patternRepository.save(doc));
+    }
+
+    /** Un-hides a GLOBAL pattern for the caller's family, or reactivates a FAMILY pattern. */
+    public SmsPattern enablePattern(String patternId, String userId) {
+        SmsPatternDocument doc = patternRepository.findById(patternId)
+                .orElseThrow(() -> new ResourceNotFoundException("SmsPattern", patternId));
+
+        if (SmsPatternDocument.SCOPE_GLOBAL.equals(doc.getScope())) {
+            String familyGroupId = callerFamilyGroupId(userId);
+            hiddenPatternRepository.deleteByFamilyGroupIdAndPatternId(familyGroupId, patternId);
+            return toDto(doc, false);
+        }
+
+        requireEditable(doc, userId);
+        boolean collision = patternRepository.findByOwnerFamilyGroupIdAndSenderAndTemplate(
+                        doc.getOwnerFamilyGroupId(), doc.getSender(), doc.getTemplate()).stream()
+                .anyMatch(p -> !p.getId().equals(doc.getId()) && p.isActive());
+        if (collision) {
+            throw new IllegalStateException("A pattern with this template already exists for sender " + doc.getSender());
+        }
+        doc.setActive(true);
+        doc.setUpdatedAt(Instant.now());
+        return toDto(patternRepository.save(doc));
     }
 
     /**
@@ -254,14 +280,22 @@ public class PatternRegistryService {
 
     /**
      * Active templates for a sender, family-first (newest updatedAt) then global
-     * (newest updatedAt). Used by the change-stream listener to parse messages.
+     * (newest updatedAt), excluding GLOBALs the family has hidden. With no
+     * family context only GLOBAL patterns are returned.
      */
     public List<SmsPatternDocument> findActiveBySender(String sender, String familyGroupId) {
         if (sender == null) return List.of();
         if (familyGroupId == null) {
-            return patternRepository.findBySenderAndActiveTrue(sender);
+            return patternRepository.findBySenderAndActiveTrue(sender).stream()
+                    .filter(p -> !SmsPatternDocument.SCOPE_FAMILY.equals(p.getScope()))
+                    .sorted(Comparator.comparing(SmsPatternDocument::getUpdatedAt,
+                            Comparator.nullsLast(Comparator.reverseOrder())))
+                    .collect(Collectors.toList());
         }
-        List<SmsPatternDocument> docs = patternRepository.findActiveForSenderAndFamily(sender, familyGroupId);
+        Set<String> hiddenIds = hiddenPatternIds(familyGroupId);
+        List<SmsPatternDocument> docs = patternRepository.findActiveForSenderAndFamily(sender, familyGroupId).stream()
+                .filter(p -> !hiddenIds.contains(p.getId()))
+                .collect(Collectors.toList());
         return docs.stream()
                 .sorted(Comparator
                         .comparing((SmsPatternDocument p) -> !SmsPatternDocument.SCOPE_FAMILY.equals(p.getScope()))
@@ -271,6 +305,10 @@ public class PatternRegistryService {
     }
 
     public SmsPattern toDto(SmsPatternDocument doc) {
+        return toDto(doc, false);
+    }
+
+    public SmsPattern toDto(SmsPatternDocument doc, boolean hiddenForFamily) {
         SmsPattern dto = new SmsPattern();
         dto.setId(doc.getId());
         dto.setSender(doc.getSender());
@@ -283,6 +321,7 @@ public class PatternRegistryService {
         dto.setCreatedByUserId(doc.getCreatedByUserId());
         dto.setSource(PatternSource.fromValue(doc.getSource() != null ? doc.getSource() : SmsPatternDocument.SOURCE_LLM));
         dto.setActive(doc.isActive());
+        dto.setHiddenForFamily(hiddenForFamily);
         if (doc.getCreatedAt() != null) dto.setCreatedAt(doc.getCreatedAt().atOffset(ZoneOffset.UTC));
         if (doc.getUpdatedAt() != null) dto.setUpdatedAt(doc.getUpdatedAt().atOffset(ZoneOffset.UTC));
 
@@ -294,6 +333,125 @@ public class PatternRegistryService {
     }
 
     // ── Helpers ──────────────────────────────────────────────────
+
+    /** Applies a validated update to a FAMILY pattern in place. */
+    private void applyUpdate(SmsPatternDocument doc, UpdatePatternRequest request, String familyGroupId) {
+        String sender = request.getSender() != null
+                ? requireText(request.getSender(), "sender cannot be blank")
+                : doc.getSender();
+        String template = request.getTemplate() != null
+                ? requireText(request.getTemplate(), "template cannot be blank")
+                : doc.getTemplate();
+        String sampleMessage = request.getSampleMessage() != null
+                ? request.getSampleMessage()
+                : doc.getSampleMessage();
+        ExtractionMap em = request.getExtractionMap() != null
+                ? request.getExtractionMap()
+                : toExtractionMap(doc.getExtractionMap());
+
+        validateTemplate(template, sampleMessage, em);
+        requireNoDuplicate(familyGroupId, sender, template, doc.getId());
+
+        doc.setSender(sender);
+        doc.setTemplate(template);
+        doc.setSampleMessage(sampleMessage);
+        doc.setExtractionMap(extractionMapOf(em));
+        if (request.getCategoryName() != null) {
+            doc.setCategoryName(cleanCategory(request.getCategoryName()));
+        }
+        applyFixedValues(doc, request);
+        doc.setUpdatedAt(Instant.now());
+    }
+
+    /**
+     * Copy-on-write for a GLOBAL pattern: the family's copy receives the new
+     * values and the global is hidden for that family. The copy is written
+     * before the hide marker so a failure never leaves the family with no
+     * matching pattern.
+     */
+    private SmsPattern customizeGlobalForFamily(SmsPatternDocument global,
+                                                String userId,
+                                                UpdatePatternRequest request) {
+        String familyGroupId = callerFamilyGroupId(userId);
+
+        SmsPatternDocument copy = patternRepository
+                .findByOwnerFamilyGroupIdAndDerivedFromPatternId(familyGroupId, global.getId())
+                .orElseGet(SmsPatternDocument::new);
+        boolean isNewCopy = copy.getId() == null;
+
+        if (isNewCopy) {
+            copy.setScope(SmsPatternDocument.SCOPE_FAMILY);
+            copy.setOwnerFamilyGroupId(familyGroupId);
+            copy.setCreatedByUserId(userId);
+            copy.setSource(SmsPatternDocument.SOURCE_USER);
+            copy.setDerivedFromPatternId(global.getId());
+            copy.setSender(global.getSender());
+            copy.setTemplate(global.getTemplate());
+            copy.setExtractionMap(global.getExtractionMap());
+            copy.setFixedValues(global.getFixedValues());
+            copy.setSampleMessage(global.getSampleMessage());
+            copy.setCategoryName(global.getCategoryName());
+            copy.setActive(true);
+        }
+
+        String sender = request.getSender() != null
+                ? requireText(request.getSender(), "sender cannot be blank")
+                : copy.getSender();
+        String template = request.getTemplate() != null
+                ? requireText(request.getTemplate(), "template cannot be blank")
+                : copy.getTemplate();
+        String sampleMessage = request.getSampleMessage() != null
+                ? request.getSampleMessage()
+                : copy.getSampleMessage();
+        ExtractionMap em = request.getExtractionMap() != null
+                ? request.getExtractionMap()
+                : toExtractionMap(copy.getExtractionMap());
+
+        validateTemplate(template, sampleMessage, em);
+        requireNoDuplicate(familyGroupId, sender, template, copy.getId());
+
+        copy.setSender(sender);
+        copy.setTemplate(template);
+        copy.setSampleMessage(sampleMessage);
+        copy.setExtractionMap(extractionMapOf(em));
+        if (request.getCategoryName() != null) {
+            copy.setCategoryName(cleanCategory(request.getCategoryName()));
+        }
+        applyFixedValues(copy, request);
+        copy.setUpdatedAt(Instant.now());
+        copy = patternRepository.save(copy);
+
+        hideForFamily(familyGroupId, global.getId(), userId);
+        return toDto(copy);
+    }
+
+    /** fixedValues: omitted/empty leaves them unchanged, JSON null clears them. */
+    private void applyFixedValues(SmsPatternDocument doc, UpdatePatternRequest request) {
+        // Generated models default the map to an empty map when the field is
+        // omitted, so empty means "unchanged"; JSON null explicitly clears it.
+        if (request.getFixedValues() == null) {
+            doc.setFixedValues(null);
+        } else if (!request.getFixedValues().isEmpty()) {
+            doc.setFixedValues(cleanFixedValues(request.getFixedValues()));
+        }
+    }
+
+    private void hideForFamily(String familyGroupId, String patternId, String userId) {
+        if (hiddenPatternRepository.findByFamilyGroupIdAndPatternId(familyGroupId, patternId).isPresent()) {
+            return;
+        }
+        hiddenPatternRepository.save(HiddenPatternDocument.builder()
+                .familyGroupId(familyGroupId)
+                .patternId(patternId)
+                .createdByUserId(userId)
+                .build());
+    }
+
+    private Set<String> hiddenPatternIds(String familyGroupId) {
+        return hiddenPatternRepository.findByFamilyGroupId(familyGroupId).stream()
+                .map(HiddenPatternDocument::getPatternId)
+                .collect(Collectors.toSet());
+    }
 
     /** Resolves the caller's current family (auto-creating a personal family if needed). */
     private String callerFamilyGroupId(String userId) {
@@ -346,19 +504,22 @@ public class PatternRegistryService {
         }
     }
 
-    /** Loads a pattern and enforces the author-or-admin edit gate. */
-    private SmsPatternDocument requireEditable(String patternId, String userId) {
-        SmsPatternDocument doc = patternRepository.findById(patternId)
-                .orElseThrow(() -> new ResourceNotFoundException("SmsPattern", patternId));
-
-        if (SmsPatternDocument.SCOPE_GLOBAL.equals(doc.getScope())) {
-            throw new ForbiddenException("Global patterns are read-only");
+    /** Blocks a second active FAMILY template for the same sender. */
+    private void requireNoDuplicate(String familyGroupId, String sender, String template, String excludeId) {
+        boolean duplicate = patternRepository
+                .findByOwnerFamilyGroupIdAndSenderAndTemplate(familyGroupId, sender, template).stream()
+                .anyMatch(p -> p.isActive() && !p.getId().equals(excludeId));
+        if (duplicate) {
+            throw new IllegalStateException("A pattern with this template already exists for sender " + sender);
         }
+    }
+
+    /** Enforces the author-or-admin gate on a FAMILY pattern. */
+    private void requireEditable(SmsPatternDocument doc, String userId) {
         boolean isAuthor = doc.getCreatedByUserId() != null && doc.getCreatedByUserId().equals(userId);
         if (!isAuthor) {
             requireFamilyAdmin(userId, doc.getOwnerFamilyGroupId());
         }
-        return doc;
     }
 
     private void requireFamilyAdmin(String userId, String familyGroupId) {

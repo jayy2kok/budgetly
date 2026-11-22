@@ -23,7 +23,6 @@ public class DashboardService {
     private final TransactionRepository transactionRepository;
     private final CategoryRepository categoryRepository;
     private final FamilyMemberRepository familyMemberRepository;
-    private final MessageRepository messageRepository;
     private final FamilyGroupRepository familyGroupRepository;
     private final CurrencyConversionService currencyConversionService;
 
@@ -55,8 +54,6 @@ public class DashboardService {
         List<TransactionDocument> recent = transactionRepository
                 .findTop5ByFamilyGroupIdOrderByTransactionDateDesc(familyId);
 
-        long pendingCount = messageRepository.countByFamilyGroupIdAndStatus(familyId, "PENDING");
-
         DashboardData data = new DashboardData();
         data.setMonthlyBudgetLimit(monthlyBudgetLimit);
         data.setTotalSpent(totalSpent);
@@ -64,7 +61,6 @@ public class DashboardService {
         data.setDailyAverage(dailyAverage);
         data.setProjectedSpend(projectedSpend);
         data.setEstimatedSavings(estimatedSavings);
-        data.setPendingMessageCount((int) pendingCount);
 
         // Recent transactions — keep simple for dashboard
         data.setRecentTransactions(recent.stream()

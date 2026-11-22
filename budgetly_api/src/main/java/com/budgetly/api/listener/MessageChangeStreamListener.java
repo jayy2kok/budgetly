@@ -266,13 +266,10 @@ public class MessageChangeStreamListener {
             return false;
         }
 
-        // Use the SMS's authoritative receivedAt (correct UTC instant); fall back
-        // to the body timestamp only when it is absent.
-        Instant txDate = doc.getReceivedAt() != null
-                ? doc.getReceivedAt()
-                : transactionDateParser
-                        .parse(timestampRaw, java.time.ZoneId.of("Asia/Kolkata"))
-                        .orElse(Instant.now());
+        // The body's date is authoritative; a date-only body takes the SMS
+        // received time-of-day (see TransactionDateParser).
+        Instant txDate = transactionDateParser.resolveTransactionDate(
+                doc.getReceivedAt(), timestampRaw, java.time.ZoneId.of("Asia/Kolkata"));
         // Currency lives in the amount text (e.g. "Rs.", "USD"); the pattern
         // usually omits a dedicated {currency} token.
         String currency = TransactionService.currencyFromText(doc.getRawText());
@@ -379,7 +376,8 @@ public class MessageChangeStreamListener {
         txRequest.setMerchant(llmResult.getMerchant() != null ? llmResult.getMerchant() : "Unknown");
         txRequest.setType("INCOME".equals(llmResult.getTransactionType()) ? TransactionType.INCOME : TransactionType.EXPENSE);
         txRequest.setTransactionDate(transactionDateParser
-                .parseOrDefault(doc.getReceivedAt(), llmResult.getRawTimestamp(), java.time.ZoneId.of("Asia/Kolkata"))
+                .resolveTransactionDate(doc.getReceivedAt(), llmResult.getRawTimestamp(),
+                        java.time.ZoneId.of("Asia/Kolkata"))
                 .atOffset(ZoneOffset.UTC));
         String llmCurrency = llmResult.getCurrency();
         txRequest.setCurrency(llmCurrency != null && !llmCurrency.isBlank() ? llmCurrency.toUpperCase(java.util.Locale.ROOT) : "INR");

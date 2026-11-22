@@ -73,10 +73,15 @@ public class PatternRegistryController implements PatternRegistryApi {
     }
 
     @Override
-    public ResponseEntity<Void> deletePattern(String id) {
+    public ResponseEntity<SmsPattern> disablePattern(String id) {
         String userId = ControllerUtils.getCurrentUserId();
-        patternRegistryService.deletePattern(id, userId);
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(patternRegistryService.disablePattern(id, userId));
+    }
+
+    @Override
+    public ResponseEntity<SmsPattern> enablePattern(String id) {
+        String userId = ControllerUtils.getCurrentUserId();
+        return ResponseEntity.ok(patternRegistryService.enablePattern(id, userId));
     }
 
     @Override

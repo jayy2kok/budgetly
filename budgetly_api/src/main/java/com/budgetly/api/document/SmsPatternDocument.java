@@ -69,6 +69,13 @@ public class SmsPatternDocument {
     /** User who authored this pattern; null for LLM-learned patterns. */
     private String createdByUserId;
 
+    /**
+     * For a FAMILY copy created by editing a GLOBAL pattern, the id of that
+     * global. Lets a second edit update the same copy instead of creating a
+     * duplicate. Null for every other pattern.
+     */
+    private String derivedFromPatternId;
+
     /** LLM (first-sighting pipeline) or USER (authored via pattern builder). */
     @Builder.Default
     private String source = SOURCE_LLM;

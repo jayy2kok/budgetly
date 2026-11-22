@@ -308,31 +308,186 @@ class PatternRegistryE2ETest extends BaseE2ETest {
                 .statusCode(403);
     }
 
+    // ── Global edit = hide for family + family copy ─────────────
+
     @Test
-    void deletePattern_authorAllowed_otherFamilyForbidden() {
-        UserDocument userA = seedUser("g-pat-13-a", "Owner A", "delownera@test.com");
-        FamilyGroupDocument famA = seedFamily(userA.getId(), "Family A");
-        UserDocument userB = seedUser("g-pat-13-b", "Intruder B", "delintruder@test.com");
-        seedFamily(userB.getId(), "Family B");
+    void updatePattern_global_createsFamilyCopyAndHidesGlobalForCallerFamily() {
+        UserDocument owner = seedUser("g-pat-global-edit", "Owner", "globaledit@test.com");
+        FamilyGroupDocument famA = seedFamily(owner.getId(), "Edit Family");
+        SmsPatternDocument global = globalWithTemplate();
 
-        SmsPatternDocument pattern = seedFamilyPattern(famA.getId(), userA.getId(), "HDFCBK",
-                "Rs.{amount} debited for {merchant}", "Rs.500 debited for Amazon", 1);
-
-        givenAuth(userB.getId())
-                .delete("/patterns/" + pattern.getId())
+        givenAuth(owner.getId())
+                .body(Map.of(
+                        "template", "Rs.{amount} debited at {merchant}",
+                        "sampleMessage", "Rs.500 debited at Amazon",
+                        "extractionMap", Map.of("amount", "amount", "merchant", "merchant")))
+                .put("/patterns/" + global.getId())
                 .then()
-                .statusCode(403);
+                .statusCode(200)
+                .body("scope", equalTo("FAMILY"))
+                .body("ownerFamilyGroupId", equalTo(famA.getId()))
+                .body("template", equalTo("Rs.{amount} debited at {merchant}"))
+                .body("active", equalTo(true));
 
-        givenAuth(userA.getId())
-                .delete("/patterns/" + pattern.getId())
-                .then()
-                .statusCode(204);
-
-        givenAuth(userA.getId())
+        // The caller's family sees the copy and the global is hidden for it.
+        givenAuth(owner.getId())
                 .get("/patterns")
                 .then()
                 .statusCode(200)
-                .body("find { it.id == '" + pattern.getId() + "' }", nullValue());
+                .body("find { it.id == '" + global.getId() + "' }.hiddenForFamily", equalTo(true))
+                .body("find { it.scope == 'FAMILY' }.template", equalTo("Rs.{amount} debited at {merchant}"));
+
+        // Another family keeps the untouched global and cannot see the copy.
+        UserDocument other = seedUser("g-pat-global-edit-b", "Other", "globaleditb@test.com");
+        seedFamily(other.getId(), "Other Family");
+        givenAuth(other.getId())
+                .get("/patterns")
+                .then()
+                .statusCode(200)
+                .body("$.size()", equalTo(1))
+                .body("[0].id", equalTo(global.getId()))
+                .body("[0].hiddenForFamily", equalTo(false))
+                .body("[0].template", equalTo("Rs.{amount} debited for {merchant}"));
+    }
+
+    @Test
+    void updatePattern_globalTwice_reusesTheSameFamilyCopy() {
+        UserDocument owner = seedUser("g-pat-global-edit-twice", "Owner", "globaledittwice@test.com");
+        seedFamily(owner.getId(), "Edit Family");
+        SmsPatternDocument global = globalWithTemplate();
+
+        String firstCopyId = givenAuth(owner.getId())
+                .body(Map.of(
+                        "template", "Rs.{amount} debited at {merchant}",
+                        "sampleMessage", "Rs.500 debited at Amazon",
+                        "extractionMap", Map.of("amount", "amount", "merchant", "merchant")))
+                .put("/patterns/" + global.getId())
+                .then()
+                .statusCode(200)
+                .extract().path("id");
+
+        givenAuth(owner.getId())
+                .body(Map.of(
+                        "template", "Rs.{amount} spent at {merchant}",
+                        "sampleMessage", "Rs.500 spent at Amazon",
+                        "extractionMap", Map.of("amount", "amount", "merchant", "merchant")))
+                .put("/patterns/" + global.getId())
+                .then()
+                .statusCode(200)
+                .body("id", equalTo(firstCopyId))
+                .body("template", equalTo("Rs.{amount} spent at {merchant}"));
+
+        givenAuth(owner.getId())
+                .get("/patterns")
+                .then()
+                .statusCode(200)
+                .body("findAll { it.scope == 'FAMILY' }.size()", equalTo(1));
+    }
+
+    // ── Disable / Enable ────────────────────────────────────────
+
+    @Test
+    void disableGlobalPattern_hidesItOnlyForTheCallerFamily() {
+        UserDocument owner = seedUser("g-pat-disable-global", "Owner", "disableg@test.com");
+        seedFamily(owner.getId(), "Disable Family");
+        SmsPatternDocument global = globalWithTemplate();
+
+        givenAuth(owner.getId())
+                .post("/patterns/" + global.getId() + "/disable")
+                .then()
+                .statusCode(200)
+                .body("hiddenForFamily", equalTo(true));
+
+        givenAuth(owner.getId())
+                .get("/patterns")
+                .then()
+                .statusCode(200)
+                .body("find { it.id == '" + global.getId() + "' }.hiddenForFamily", equalTo(true));
+
+        UserDocument other = seedUser("g-pat-disable-global-b", "Other", "disablegb@test.com");
+        seedFamily(other.getId(), "Other Family");
+        givenAuth(other.getId())
+                .get("/patterns")
+                .then()
+                .statusCode(200)
+                .body("find { it.id == '" + global.getId() + "' }.hiddenForFamily", equalTo(false));
+
+        // Enable un-hides it for the caller's family.
+        givenAuth(owner.getId())
+                .post("/patterns/" + global.getId() + "/enable")
+                .then()
+                .statusCode(200)
+                .body("hiddenForFamily", equalTo(false));
+
+        givenAuth(owner.getId())
+                .get("/patterns")
+                .then()
+                .statusCode(200)
+                .body("find { it.id == '" + global.getId() + "' }.hiddenForFamily", equalTo(false));
+    }
+
+    @Test
+    void disableAndEnableFamilyPattern_togglesActive() {
+        UserDocument owner = seedUser("g-pat-disable-family", "Owner", "disablef@test.com");
+        FamilyGroupDocument family = seedFamily(owner.getId(), "Family");
+        SmsPatternDocument pattern = seedFamilyPattern(family.getId(), owner.getId(), "HDFCBK",
+                "Rs.{amount} debited for {merchant}", "Rs.500 debited for Amazon", 1);
+
+        givenAuth(owner.getId())
+                .post("/patterns/" + pattern.getId() + "/disable")
+                .then()
+                .statusCode(200)
+                .body("active", equalTo(false));
+
+        givenAuth(owner.getId())
+                .get("/patterns")
+                .then()
+                .statusCode(200)
+                .body("find { it.id == '" + pattern.getId() + "' }.active", equalTo(false));
+
+        givenAuth(owner.getId())
+                .post("/patterns/" + pattern.getId() + "/enable")
+                .then()
+                .statusCode(200)
+                .body("active", equalTo(true));
+
+        givenAuth(owner.getId())
+                .get("/patterns")
+                .then()
+                .statusCode(200)
+                .body("find { it.id == '" + pattern.getId() + "' }.active", equalTo(true));
+    }
+
+    @Test
+    void disableFamilyPattern_otherFamilyForbidden() {
+        UserDocument owner = seedUser("g-pat-disable-own", "Owner", "disableown@test.com");
+        FamilyGroupDocument family = seedFamily(owner.getId(), "Family");
+        UserDocument intruder = seedUser("g-pat-disable-intruder", "Intruder", "disableintruder@test.com");
+        seedFamily(intruder.getId(), "Intruder Family");
+        SmsPatternDocument pattern = seedFamilyPattern(family.getId(), owner.getId(), "HDFCBK",
+                "Rs.{amount} debited for {merchant}", "Rs.500 debited for Amazon", 1);
+
+        givenAuth(intruder.getId())
+                .post("/patterns/" + pattern.getId() + "/disable")
+                .then()
+                .statusCode(403);
+    }
+
+    /** Seeds an active GLOBAL pattern with a usable template (seedPattern has none). */
+    private SmsPatternDocument globalWithTemplate() {
+        SmsPatternDocument global = SmsPatternDocument.builder()
+                .sender("HDFCBK")
+                .template("Rs.{amount} debited for {merchant}")
+                .sampleMessage("Rs.500 debited for Amazon")
+                .extractionMap(Map.of("amount", "amount", "merchant", "merchant"))
+                .usageCount(5)
+                .active(true)
+                .reportCount(0)
+                .scope(SmsPatternDocument.SCOPE_GLOBAL)
+                .source(SmsPatternDocument.SOURCE_LLM)
+                .createdAt(java.time.Instant.now())
+                .build();
+        return patternRegistryRepository.save(global);
     }
 
     // ── Promote ─────────────────────────────────────────────────

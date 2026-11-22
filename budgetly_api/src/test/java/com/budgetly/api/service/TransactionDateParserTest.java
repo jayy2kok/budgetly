@@ -63,9 +63,42 @@ class TransactionDateParserTest {
     }
 
     @Test
-    void parseOrDefaultFallsBackToSuppliedInstant() {
-        Instant fallback = Instant.parse("2026-11-14T00:00:00Z");
-        assertThat(parser.parseOrDefault(null, fallback)).isEqualTo(fallback);
-        assertThat(parser.parseOrDefault("2026-10-01", fallback)).isEqualTo(D20261001);
+    void resolveTransactionDate_bodyDateTimeWinsOverReceivedTime() {
+        Instant received = Instant.parse("2026-11-14T18:30:00Z");
+        assertThat(parser.resolveTransactionDate(received, "01/10/2026 14:30", ZONE))
+                .isEqualTo(java.time.LocalDateTime.of(2026, 10, 1, 14, 30)
+                        .atZone(ZONE).toInstant());
     }
+
+    @Test
+    void resolveTransactionDate_dateOnlyUsesReceivedTimeOfDay() {
+        // Received at 18:30 IST (13:00 UTC) → the body date keeps 18:30 IST.
+        Instant received = Instant.parse("2026-11-14T13:00:00Z");
+        assertThat(parser.resolveTransactionDate(received, "01/10/2026", ZONE))
+                .isEqualTo(java.time.LocalDateTime.of(2026, 10, 1, 18, 30)
+                        .atZone(ZONE).toInstant());
+    }
+
+    @Test
+    void resolveTransactionDate_dateOnlyWithoutReceivedTimeFallsBackToMidnight() {
+        assertThat(parser.resolveTransactionDate(null, "2026-10-01", ZONE))
+                .isEqualTo(java.time.LocalDate.of(2026, 10, 1)
+                        .atStartOfDay(ZONE).toInstant());
+    }
+
+    @Test
+    void resolveTransactionDate_missingBodyTimestampUsesReceivedInstant() {
+        Instant received = Instant.parse("2026-11-14T13:00:00Z");
+        assertThat(parser.resolveTransactionDate(received, null, ZONE)).isEqualTo(received);
+        assertThat(parser.resolveTransactionDate(received, "not a date", ZONE)).isEqualTo(received);
+    }
+
+    @Test
+    void resolveTransactionDate_noBodyAndNoReceivedFallsBackToNow() {
+        Instant before = Instant.now();
+        Instant resolved = parser.resolveTransactionDate(null, null, ZONE);
+        assertThat(resolved).isBetween(before, Instant.now());
+    }
+
+    private static final java.time.ZoneId ZONE = java.time.ZoneId.of("Asia/Kolkata");
 }
