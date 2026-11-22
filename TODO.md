@@ -24,6 +24,7 @@
 - [ ] Backfill ADRs `0001` and `0002` (only `0003` and `0004` are present in `doc/adr/`).
 
 ## Recently Completed
+- ✅ Pattern builder category override + fixed values (Merchant / Account / Bank name / Notes) and `accountLast4` + `bankName` on transactions: `fixedValues` in the contract + docs, fixed-wins resolution in the listener and local parser, reusable category picker, "A/C •••• 1234" and bank row on transaction detail. Also fixed family-first precedence in the on-device parser and on-demand category resolution for `REGEX_LOCAL` posts.
 - ✅ Cached pattern registry viewer + custom pattern builder (issue #57): `GET /messages/failed`, `POST`/`PUT`/`DELETE /patterns`, `POST /patterns/{id}/promote`, family-scoped match precedence, Flutter registry/builder screens, docs sync.
 - ✅ Java 25 / Spring Boot 4.1.2 upgrade (ADR-0004).
 - ✅ Bulk insert + change-stream message consumer (ADR-0003), duplicate-processing race resolved (WORK-001).

@@ -158,6 +158,7 @@ flowchart TD
     GG --> MATCH
 ```
 
+- The on-device parser (`SmsParserService.parseMessage`) applies the same precedence — family first, newest `updatedAt` within a scope — before anchor-matching locally, so an authored family pattern and its fixed values are not shadowed by a newer global LLM pattern. When a matched pattern carries a `categoryName` override, the client loads the family's categories on demand to resolve it to a `categoryId` when it posts the transaction as `REGEX_LOCAL`.
 - The registry viewer only lists global + caller-family patterns; `GET /patterns` resolves the caller's family server-side, so another family's authored templates are never exposed.
 - Authored patterns are editable/deletable by their author (or a family admin); globals are read-only. A family admin can promote a family pattern once `usageCount >= pattern.promote-usage-threshold`, after which it becomes `GLOBAL` and is shared by every family.
 
@@ -182,6 +183,24 @@ flowchart LR
 
 - Manual edits to the template bypass the client dry-run but are still validated server-side (400 when no fields or no `amount` extract).
 - Overlapping tagged spans are rejected client-side; the derivation is pure logic (`pattern_draft_builder.dart`) unit-tested independently of the widget.
+- The builder also offers an optional **category override** (resolved per family by name at match time) and **fixed values** for Merchant / Account / Bank name / Notes. A fixed value is stored in `pattern_registry.fixedValues` and wins over the template-extracted value; an empty input uses the extracted value. `amount`, `timestamp`, and `type` are rejected as fixed values (they drive parsing), and promotion to `GLOBAL` clears `fixedValues` so family-specific literals do not leak into the shared library.
+
+### 4.3 Pattern resolution at transaction time
+
+The listener resolves each field with fixed-value precedence, then persists the result (including `accountLast4`, `bankName`, and `notes`) on the transaction:
+
+```mermaid
+flowchart LR
+    P[Matched pattern] --> A[amountOf parsed]
+    P --> F{fixedValues has field?}
+    F -- yes --> L[Use literal]
+    F -- no --> E{extracted field?}
+    E -- yes --> X[Use extracted value]
+    E -- no --> N[null]
+    L --> TX[CreateTransactionRequest<br/>amount/merchant/accountLast4/bankName/notes]
+    X --> TX
+    N --> TX
+```
 
 ## 5. API Contract (Contract-First)
 

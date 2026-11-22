@@ -123,6 +123,8 @@ erDiagram
         string sourceType "MANUAL | REGEX_LOCAL | LLM_SERVER"
         string sourceRawText
         string matchedPatternId FK "→ pattern_registry"
+        string accountLast4 "last 4 digits of account/card"
+        string bankName "bank the account belongs to"
         string notes
         datetime transactionDate "indexed"
         datetime createdAt
@@ -169,6 +171,7 @@ erDiagram
         string sender "indexed, e.g. HDFCBK"
         string template "literal-anchor template with {tokens}"
         map extractionMap "token → transaction field (Map string string)"
+        map fixedValues "field → literal (merchant/accountLast4/bankName/notes)"
         string sampleMessage
         string categoryName "user-overridden category"
         long usageCount
@@ -187,6 +190,7 @@ erDiagram
 - `scope`/`ownerFamilyGroupId` partition the library: global patterns are readable by every family; `FAMILY` patterns are visible only to the owning family.
 - Precedence when matching an incoming SMS (`findActiveBySender(sender, familyGroupId)`): **family-scoped patterns first** (newest `updatedAt`), then globals (newest `updatedAt`).
 - Authored (`source = USER`) family patterns are validated against their `sampleMessage` before insert/update, may be promoted to `GLOBAL` by a family admin once `usageCount` reaches `pattern.promote-usage-threshold`, and stay read-only after promotion.
+- `fixedValues` pins a literal for `merchant`, `accountLast4`, `bankName`, or `notes`; a fixed value wins over the template-extracted value. `amount`, `timestamp`, and `type` cannot be fixed (they drive parsing), and promotion clears `fixedValues` so family literals do not leak into the global library.
 
 ### `rejected_patterns`
 
