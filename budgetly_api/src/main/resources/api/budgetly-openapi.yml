@@ -22,9 +22,9 @@ tags:
   - name: Transactions
     description: Expense/income transaction CRUD with filtering and pagination
   - name: Messages
-    description: SMS processing — submit unprocessed messages for LLM analysis, confirm/reject parsed transactions
+    description: Bulk SMS ingestion for asynchronous server-side processing
   - name: Pattern Registry
-    description: Global regex pattern library — fetch, report, and sync SMS parsing patterns
+    description: Regex pattern library — fetch visible patterns, author/edit family patterns, hide/disable them per family
   - name: Dashboard
     description: Aggregated dashboard and budget summary
 
@@ -603,174 +603,18 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
-  /messages/process:
-    post:
-      tags: [Messages]
-      operationId: processMessage
-      summary: Submit unprocessed SMS for LLM analysis
-      description: >
-        Sends raw SMS text to the server for Gemini LLM analysis.
-        If the message is financial, validates & posts the transaction first.
-        Only if transaction validation passes, the LLM-generated regex is saved to the pattern registry.
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ProcessMessageRequest"
-      responses:
-        "200":
-          description: Message analyzed by LLM
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ProcessMessageResponse"
-        "400":
-          description: Invalid request
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-
-  /messages/pending:
-    get:
-      tags: [Messages]
-      operationId: getPendingMessages
-      summary: Get pending messages for triage (incomplete or unprocessed)
-      security:
-        - bearerAuth: []
-      responses:
-        "200":
-          description: Pending messages
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Message"
-
-  /messages/ignored:
-    get:
-      tags: [Messages]
-      operationId: getIgnoredMessages
-      summary: Get non-financial / deleted messages
-      security:
-        - bearerAuth: []
-      responses:
-        "200":
-          description: Ignored messages
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/Message"
-
-  /messages/failed:
-    get:
-      tags: [Messages]
-      operationId: getFailedMessages
-      summary: Get failed messages for the caller's family (paginated)
-      description: >
-        Lists messages whose processing failed (status FAILED) for the
-        caller's family. Each message carries an `errorMessage` explaining
-        the failure, and can be used to author a replacement pattern.
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: page
-          in: query
-          schema:
-            type: integer
-            default: 0
-        - name: size
-          in: query
-          schema:
-            type: integer
-            default: 20
-      responses:
-        "200":
-          description: Paginated failed-message list
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/MessagePage"
-
-  /messages/{id}/confirm:
-    parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
-    post:
-      tags: [Messages]
-      operationId: confirmMessage
-      summary: Confirm parsed transaction
-      security:
-        - bearerAuth: []
-      responses:
-        "200":
-          description: Message confirmed, transaction created
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Transaction"
-
-  /messages/{id}/reject:
-    parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
-    post:
-      tags: [Messages]
-      operationId: rejectMessage
-      summary: Reject / ignore message
-      security:
-        - bearerAuth: []
-      responses:
-        "200":
-          description: Message rejected
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Message"
-
-  /messages/{id}/restore:
-    parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
-    post:
-      tags: [Messages]
-      operationId: restoreMessage
-      summary: Restore an ignored message
-      security:
-        - bearerAuth: []
-      responses:
-        "200":
-          description: Message restored to pending
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Message"
-
   # ─────────────────── PATTERN REGISTRY ───────────────────────
   /patterns:
     get:
       tags: [Pattern Registry]
       operationId: getPatterns
-      summary: Get all active regex patterns (full or delta sync)
+      summary: Get patterns visible to the caller's family
       description: >
-        Returns all active patterns from the global pattern registry.
-        Supports delta sync via the `since` query parameter — returns only patterns
-        created or updated after the given timestamp.
+        Returns active GLOBAL patterns plus every pattern owned by the caller's
+        family (active and inactive). A global hidden by the caller's family is
+        returned with `hiddenForFamily=true`; a disabled family pattern is
+        returned with `active=false`. Supports delta sync via `since` on
+        `updatedAt`; the Flutter client always performs a full refresh.
       security:
         - bearerAuth: []
       parameters:
@@ -796,7 +640,8 @@ paths:
       description: >
         Creates a FAMILY-scoped pattern owned by the caller's family. The
         template is validated against the sample message and must extract an
-        amount. A duplicate active template for the same sender returns 409.
+        amount. A duplicate active FAMILY template for the same sender returns 409;
+        an identical GLOBAL pattern does not block creation.
       security:
         - bearerAuth: []
       requestBody:
@@ -857,11 +702,13 @@ paths:
     put:
       tags: [Pattern Registry]
       operationId: updatePattern
-      summary: Update an authored pattern
+      summary: Update a pattern (editing a global customises it for the caller's family)
       description: >
-        Only the author or a family admin may update a FAMILY-scoped pattern.
-        Global patterns are read-only. The new template is re-validated
-        against the sample message.
+        A FAMILY-scoped pattern is edited in place by its author or a family
+        admin. Editing a GLOBAL pattern never mutates the shared pattern:
+        the caller's family gets a family-scoped copy carrying the new values,
+        and the global is hidden for that family. The response is the pattern
+        the family will now match (the copy for a global edit).
       security:
         - bearerAuth: []
       requestBody:
@@ -872,7 +719,7 @@ paths:
               $ref: "#/components/schemas/UpdatePatternRequest"
       responses:
         "200":
-          description: Pattern updated
+          description: Pattern updated (or family copy returned for a global edit)
           content:
             application/json:
               schema:
@@ -895,18 +742,37 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-    delete:
+        "409":
+          description: Another active pattern with the same template exists for this sender
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /patterns/{id}/disable:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
       tags: [Pattern Registry]
-      operationId: deletePattern
-      summary: Delete an authored pattern
+      operationId: disablePattern
+      summary: Disable a pattern for the caller's family
       description: >
-        Only the author or a family admin may delete a FAMILY-scoped pattern.
-        Global patterns are read-only.
+        A FAMILY-scoped pattern is deactivated (author or family admin only).
+        A GLOBAL pattern is hidden for the caller's family only; other families
+        keep matching it. Idempotent.
       security:
         - bearerAuth: []
       responses:
-        "204":
-          description: Pattern deleted
+        "200":
+          description: Pattern disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SmsPattern"
         "403":
           description: Caller is not the author or a family admin
           content:
@@ -915,6 +781,50 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Pattern not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /patterns/{id}/enable:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      tags: [Pattern Registry]
+      operationId: enablePattern
+      summary: Re-enable a pattern for the caller's family
+      description: >
+        A FAMILY-scoped pattern is reactivated (author or family admin only);
+        returns 409 if another active pattern with the same template exists for
+        the sender. A GLOBAL pattern is un-hidden for the caller's family.
+        Idempotent.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Pattern enabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SmsPattern"
+        "403":
+          description: Caller is not the author or a family admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Pattern not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Another active pattern with the same template exists for this sender
           content:
             application/json:
               schema:
@@ -1524,25 +1434,6 @@ components:
         last:
           type: boolean
 
-    MessagePage:
-      type: object
-      properties:
-        content:
-          type: array
-          items:
-            $ref: "#/components/schemas/Message"
-        page:
-          type: integer
-        size:
-          type: integer
-        totalElements:
-          type: integer
-          format: int64
-        totalPages:
-          type: integer
-        last:
-          type: boolean
-
     # ── Message ──
     Message:
       type: object
@@ -1641,35 +1532,6 @@ components:
           items:
             $ref: "#/components/schemas/Message"
 
-    ProcessMessageRequest:
-      type: object
-      required: [sender, rawText, familyGroupId]
-      properties:
-        sender:
-          type: string
-          description: SMS sender ID (e.g. "HDFCBK", "SBIUPI")
-        rawText:
-          type: string
-          description: Full raw SMS text
-        familyGroupId:
-          type: string
-
-    ProcessMessageResponse:
-      type: object
-      properties:
-        isFinancial:
-          type: boolean
-          description: Whether the LLM classified this message as financial
-        parsedData:
-          $ref: "#/components/schemas/CreateTransactionRequest"
-        generatedPattern:
-          $ref: "#/components/schemas/SmsPattern"
-        transactionId:
-          type: string
-          description: ID of the created transaction (if financial and validation passed)
-        message:
-          $ref: "#/components/schemas/Message"
-
     # ── SMS Pattern Registry ──
     SmsPattern:
       type: object
@@ -1712,6 +1574,12 @@ components:
         active:
           type: boolean
           description: Whether the pattern is active (in the registry)
+        hiddenForFamily:
+          type: boolean
+          readOnly: true
+          description: >
+            True when the caller's family has hidden this GLOBAL pattern.
+            Always false for FAMILY-scoped patterns (use `active` there).
         createdAt:
           type: string
           format: date-time
@@ -1889,8 +1757,6 @@ components:
           items:
             $ref: "#/components/schemas/Transaction"
           maxItems: 5
-        pendingMessageCount:
-          type: integer
 
     BudgetSummary:
       type: object
