@@ -346,7 +346,8 @@ flowchart LR
 
 ## 5. API Contract (Contract-First)
 
-- Canonical spec: `budgetly_api/src/main/resources/api/budgetly-openapi.yml`.
+- Canonical spec (single source of truth): `budgetly_api/src/main/resources/api/budgetly-openapi.yml`.
+- `budgetly_api/pom.xml` points both generator executions at that file via `<inputSpec>`; the former root-level `api/budgetly-openapi.yml` copy was deleted (2026-11-22) and must not be reintroduced.
 - `openapi-generator-maven-plugin:7.27.0` generates Spring interfaces (tags → `Auth`, `FamilyGroups`, `Categories`, `Transactions`, `Messages`, `PatternRegistry`, `Dashboard`, `Devices`) and DTO models; controllers implement those interfaces.
 - SpringDoc serves Swagger UI (`/swagger-ui.html`) and OpenAPI JSON (`/api-docs`).
 

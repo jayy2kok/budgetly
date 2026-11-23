@@ -476,6 +476,40 @@ class PatternRegistryE2ETest extends BaseE2ETest {
     // ── Category override ────────────────────────────────────────
 
     @Test
+    void updatePatternCategory_familyPatternByAuthor_updatesCategory() {
+        UserDocument owner = seedUser("g-pat-cat-author", "Owner", "catauthor@test.com");
+        FamilyGroupDocument family = seedFamily(owner.getId(), "Cat Family");
+        SmsPatternDocument pattern = seedFamilyPattern(family.getId(), owner.getId(), "HDFCBK",
+                "Rs.{amount} debited for {merchant}", "Rs.500 debited for Amazon", 1);
+
+        givenAuth(owner.getId())
+                .body(Map.of("categoryName", "Travel"))
+                .patch("/patterns/" + pattern.getId() + "/category")
+                .then()
+                .statusCode(200)
+                .body("id", equalTo(pattern.getId()))
+                .body("scope", equalTo("FAMILY"))
+                .body("categoryName", equalTo("Travel"));
+
+        givenAuth(owner.getId())
+                .get("/patterns")
+                .then()
+                .statusCode(200)
+                .body("find { it.id == '" + pattern.getId() + "' }.categoryName", equalTo("Travel"));
+    }
+
+    @Test
+    void updatePatternCategory_unknownPattern_returns404() {
+        UserDocument user = seedUser("g-pat-cat-404", "User", "cat404@test.com");
+
+        givenAuth(user.getId())
+                .body(Map.of("categoryName", "Travel"))
+                .patch("/patterns/does-not-exist/category")
+                .then()
+                .statusCode(404);
+    }
+
+    @Test
     void updatePatternCategory_familyPatternNonAuthor_returns403() {
         UserDocument owner = seedUser("g-pat-cat-owner", "Owner", "catowner@test.com");
         FamilyGroupDocument family = seedFamily(owner.getId(), "Cat Family");
