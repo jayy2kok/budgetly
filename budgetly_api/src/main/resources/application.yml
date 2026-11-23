@@ -40,6 +40,15 @@ gemini:
 pattern:
   report-threshold: 5   # Auto-disable pattern after this many reports
 
+# Push notifications for expense alerts (plan §4.4)
+# Provider: "log" (default; writes payloads to the log) or "fcm" (Firebase HTTP v1)
+push:
+  provider: ${PUSH_PROVIDER:log}
+  fcm:
+    project-id: ${FCM_PROJECT_ID:}
+    service-account-file: ${FCM_SERVICE_ACCOUNT_FILE:}
+    base-url: ${FCM_BASE_URL:https://fcm.googleapis.com}
+
 # SpringDoc / Swagger UI
 springdoc:
   api-docs:

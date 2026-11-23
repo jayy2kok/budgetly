@@ -47,6 +47,9 @@ public abstract class BaseE2ETest {
     @Autowired
     protected TestLlmProvider llmProvider;
 
+    @Autowired
+    protected TestPushNotificationService pushNotificationService;
+
     // ── Repositories for direct seeding ────────────────────────
     @Autowired
     protected UserRepository userRepository;
@@ -72,6 +75,9 @@ public abstract class BaseE2ETest {
     @Autowired
     protected RejectedPatternRepository rejectedPatternRepository;
 
+    @Autowired
+    protected DeviceTokenRepository deviceTokenRepository;
+
     // ── Setup ──────────────────────────────────────────────────
 
     @BeforeEach
@@ -82,6 +88,7 @@ public abstract class BaseE2ETest {
         // Reset test doubles between tests
         googleTokenVerifier.clearPayload();
         llmProvider.resetResult();
+        pushNotificationService.clear();
 
         // Clean all collections for test isolation
         mongoTemplate.getCollectionNames()

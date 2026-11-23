@@ -5,6 +5,7 @@ import com.budgetly.api.document.TransactionDocument;
 import com.budgetly.api.exception.ForbiddenException;
 import com.budgetly.api.exception.ResourceNotFoundException;
 import com.budgetly.api.generated.model.*;
+import com.budgetly.api.push.ExpenseAlertNotifier;
 import com.budgetly.api.repository.CategoryRepository;
 import com.budgetly.api.repository.FamilyMemberRepository;
 import com.budgetly.api.repository.TransactionRepository;
@@ -28,6 +29,7 @@ public class TransactionService {
     private final FamilyMemberRepository familyMemberRepository;
     private final CategoryRepository categoryRepository;
     private final UserRepository userRepository;
+    private final ExpenseAlertNotifier expenseAlertNotifier;
 
     public TransactionPage listTransactions(String userId, String familyId,
                                              String type, String startDate, String endDate,
@@ -81,7 +83,9 @@ public class TransactionService {
                 .transactionDate(request.getTransactionDate() != null
                         ? request.getTransactionDate().toInstant() : Instant.now())
                 .build();
-        return toDto(transactionRepository.save(doc));
+        TransactionDocument saved = transactionRepository.save(doc);
+        expenseAlertNotifier.onTransactionCreated(saved, userId);
+        return toDto(saved);
     }
 
     public Transaction getTransaction(String userId, String familyId, String transactionId) {
@@ -146,7 +150,9 @@ public class TransactionService {
                 .transactionDate(request.getTransactionDate() != null
                         ? request.getTransactionDate().toInstant() : Instant.now())
                 .build();
-        return toDto(transactionRepository.save(doc));
+        TransactionDocument saved = transactionRepository.save(doc);
+        expenseAlertNotifier.onTransactionCreated(saved, userId);
+        return toDto(saved);
     }
 
     // ── Helpers ──────────────────────────────────────────────────

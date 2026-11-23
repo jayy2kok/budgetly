@@ -17,6 +17,7 @@
 | `pattern_registry` | `SmsPatternDocument` | Learned literal-anchor templates per sender |
 | `hidden_patterns` | `HiddenPatternDocument` | GLOBAL patterns a family has hidden from its own registry |
 | `rejected_patterns` | `RejectedPatternDocument` | Templates reported/auto-disabled |
+| `device_tokens` | `DeviceTokenDocument` | Push-notification tokens per user (registration lifecycle) |
 | `change_stream_tokens` | `ChangeStreamTokenDocument` | Change-stream resume token (idempotent restarts) |
 
 MongoDB does not enforce foreign keys; relationships below are **logical** (string references to `_id` values).
@@ -39,6 +40,7 @@ erDiagram
     pattern_registry |o--o| rejected_patterns : "patternId"
     pattern_registry ||--o{ hidden_patterns : "patternId"
     family_groups ||--o{ hidden_patterns : "familyGroupId"
+    users ||--o{ device_tokens : "userId"
 ```
 
 ## Collections
@@ -240,6 +242,25 @@ erDiagram
         datetime updatedAt
     }
 ```
+
+### `device_tokens`
+
+```mermaid
+erDiagram
+    device_tokens {
+        string id PK "_id"
+        string userId FK "indexed → users"
+        string token UK "unique index — provider registration token"
+        string platform "ANDROID | IOS | WEB"
+        string deviceId "optional stable client device identifier"
+        datetime createdAt
+        datetime updatedAt
+    }
+```
+
+- A token belongs to exactly one user at a time: re-registering the same token (reinstall, or a device handed to another account) moves it to the caller instead of creating a duplicate row.
+- On sign-out the app calls `DELETE /devices/{token}`, which removes the token only when the caller is its owner.
+- Read for push fan-out: `ExpenseAlertNotifier` loads tokens for the recipient member ids (`findByUserIdIn`) and hands them to the push transport.
 
 ## Notes
 

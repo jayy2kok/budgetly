@@ -219,7 +219,7 @@
                             <generatorName>spring</generatorName>
                             <apiPackage>com.budgetly.api.generated.controller</apiPackage>
                             <modelPackage>com.budgetly.api.generated.model</modelPackage>
-                            <apisToGenerate>Auth,Categories,Dashboard,FamilyGroups,PatternRegistry,Transactions</apisToGenerate>
+                            <apisToGenerate>Auth,Categories,Dashboard,Devices,FamilyGroups,PatternRegistry,Transactions</apisToGenerate>
                             <configOptions>
                                 <interfaceOnly>true</interfaceOnly>
                                 <useSpringBoot4>true</useSpringBoot4>
