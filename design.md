@@ -13,35 +13,42 @@ flowchart TB
         CACHE[PatternCacheService]
         REMOTE[Dio remote services<br/>JWT interceptor]
         MOCK[Mock services<br/>dev/offline]
+        PUSH[PushMessagingService + PushController<br/>provider-agnostic adapter]
     end
 
     subgraph API["Spring Boot API (budgetly_api/)"]
         CTRL[REST Controllers<br/>implement OpenAPI-generated interfaces]
-        SVC[Services<br/>Auth / Family / Category / Transaction / Message / Dashboard / Pattern]
+        SVC[Services<br/>Auth / Family / Category / Transaction / Message / Dashboard / Pattern / Device]
         LISTENER[MessageChangeStreamListener<br/>async consumer]
         ANCHOR[AnchorParserService]
         LLM["LlmProvider<br/>OpenAiCompatible / Gemini"]
         SEC[JwtAuthFilter + GoogleTokenVerifier]
+        PUSHSVC[PushNotificationService<br/>Logging / FCM HTTP v1]
+        ALERT[ExpenseAlertNotifier<br/>alert fan-out]
     end
 
     subgraph Data["Data Layer"]
         MONGO[(MongoDB 7<br/>replica set rs0)]
         STREAM[(Change Streams<br/>messages collection)]
+        TOKENS[(device_tokens<br/>push registrations)]
     end
 
     subgraph Ext["External Services"]
         GOOGLE[Google OAuth 2.0]
         RATES[open.er-api.com<br/>FX rates]
         LLMAPI[OpenAI-compatible / Gemini API]
+        FCM[Firebase Cloud Messaging<br/>HTTP v1]
     end
 
     UI --> REMOTE
     UI -.-> MOCK
     PARSER --> CACHE
     CACHE --> REMOTE
+    PUSH --> REMOTE
     REMOTE -- "REST JSON /api/v1" --> CTRL
     CTRL --> SVC
     SVC --> MONGO
+    SVC --> TOKENS
     LISTENER -- "watch insert (PENDING+BULK)" --> STREAM
     LISTENER --> ANCHOR
     LISTENER --> LLM
@@ -49,6 +56,10 @@ flowchart TB
     SEC --> GOOGLE
     SVC --> RATES
     LLM --> LLMAPI
+    CTRL --> PUSHSVC
+    LISTENER --> ALERT
+    ALERT --> PUSHSVC
+    PUSHSVC --> FCM
 ```
 
 ### Components
@@ -60,6 +71,7 @@ flowchart TB
 | MongoDB | MongoDB 7 (replica set) | Document store + change-stream ingestion pipeline |
 | LLM layer | `LlmProvider` → `OpenAiCompatibleLlmProvider` / `GeminiLlmProvider` | Server-side SMS classification + template generation |
 | Pattern engine | `AnchorParserService` (Java) / `SmsParserService` (Dart) | Literal-anchor template matching (parity algorithm) |
+| Push transport | `PushNotificationService` → `LoggingPushNotificationService` / `FcmPushNotificationService` | Provider-agnostic alert delivery (see ADR-0005) |
 
 ## 2. Backend Package Layout
 
@@ -67,9 +79,11 @@ flowchart TB
 budgetly_api/src/main/java/com/budgetly/api/
 ├── controller/       # REST controllers implementing generated interfaces
 ├── service/          # Business logic + AnchorParserService, TransactionDateParser,
-│                     #   CurrencyConversionService, CategoryResolver
+│                     #   CurrencyConversionService, CategoryResolver, DeviceService
 ├── repository/       # Spring Data MongoDB repositories
 ├── document/         # @Document entities (see ERD.md)
+├── push/             # PushNotificationService (Logging / FCM HTTP v1),
+│                     #   PushMessage, ExpenseAlertNotifier
 ├── llm/              # LlmProvider interface, OpenAI-compatible + Gemini impls, prompt
 ├── listener/         # MessageChangeStreamListener (change-stream consumer)
 ├── security/         # JwtTokenProvider, JwtAuthFilter, GoogleTokenVerifier,
@@ -188,6 +202,56 @@ flowchart TD
 
 `TransactionDateResolver.resolve` (Dart) and `TransactionDateParser.resolveTransactionDate` (Java) implement the same rule: a body timestamp containing `\d{1,2}:\d{2}` wins completely; a date-only body keeps its date and borrows the received time-of-day; missing body or unparseable tokens fall back to the received time, then to now. The date is always the most important signal.
 
+### 3.5 Push notifications for expense alerts
+
+Device-token registration and alert fan-out are provider-agnostic (see [ADR-0005](doc/adr/0005-push-notification-provider.md)):
+
+```mermaid
+sequenceDiagram
+    participant App as Flutter app
+    participant PUSH as PushMessagingService
+    participant API as DeviceController
+    participant SVC as DeviceService
+    participant DB as MongoDB (device_tokens)
+    participant TX as TransactionService
+    participant ALERT as ExpenseAlertNotifier
+    participant PSVC as PushNotificationService
+    participant FCM as FCM HTTP v1 (or log)
+
+    rect rgb(238, 244, 255)
+        Note over App,DB: Token registration (sign-in / token refresh)
+        App->>PUSH: getToken()
+        PUSH-->>App: fcm-token
+        App->>API: POST /api/v1/devices {token, platform, deviceId?}
+        API->>SVC: register(ownerUserId, request)
+        SVC->>DB: upsert (unique token → owner)
+        SVC-->>App: 201 / 204
+    end
+
+    rect rgb(255, 244, 238)
+        Note over TX,FCM: Alert fan-out (transaction created)
+        TX->>TX: createTransaction (EXPENSE)
+        TX->>ALERT: onTransactionCreated(tx, family)
+        ALERT->>ALERT: expenseAlertsEnabled? other active members?
+        ALERT->>DB: findByUserIdIn(memberIds)
+        ALERT->>PSVC: send(memberTokens, PushMessage{title, body, data})
+        PSVC->>FCM: messages:send (per token, best-effort)
+        Note over TX,FCM: send failures are swallowed — tx creation never fails
+    end
+
+    rect rgb(238, 255, 238)
+        Note over App,PSVC: Client receive (terminated / background / foreground)
+        FCM-->>App: notification + data{type=EXPENSE_ALERT, transactionId}
+        App->>App: tap → router.go('/transaction/{id}')
+        Note over App: foreground → SnackBar via scaffoldMessengerKey
+    end
+```
+
+Client lifecycle:
+- **Sign-in** → `PushController.registerForUser(userId)` fires once per `(userId, token)`; provider token rotation re-registers automatically.
+- **Sign-out** → `unregisterCurrentToken()` calls `DELETE /devices/{token}` first, while the session is still valid, so the backend stops fanning alerts out to this device.
+- The default `PushMessagingService` is a no-op (no Firebase project required); a real adapter (e.g. `firebase_messaging`) plugs into the same interface. `app.dart` subscribes to `onMessageOpened`/`onForegroundMessage` and routes taps via `pushTapLocation`.
+
 ## 4. Literal-Anchor Parsing (no regex)
 
 The pattern engine stores sender templates as literal text with `{token}` placeholders and matches by **left/right literal anchors** using `indexOf` on both Java and Dart — guaranteeing identical behavior across platforms. See [`plans/token_template_sms_parsing.md`](plans/token_template_sms_parsing.md) and the parity tests `AnchorParserTest` (Java) / `sms_parser_service_test.dart` (Dart).
@@ -283,13 +347,14 @@ flowchart LR
 ## 5. API Contract (Contract-First)
 
 - Canonical spec: `budgetly_api/src/main/resources/api/budgetly-openapi.yml`.
-- `openapi-generator-maven-plugin:7.27.0` generates Spring interfaces (tags → `Auth`, `FamilyGroups`, `Categories`, `Transactions`, `Messages`, `PatternRegistry`, `Dashboard`) and DTO models; controllers implement those interfaces.
+- `openapi-generator-maven-plugin:7.27.0` generates Spring interfaces (tags → `Auth`, `FamilyGroups`, `Categories`, `Transactions`, `Messages`, `PatternRegistry`, `Dashboard`, `Devices`) and DTO models; controllers implement those interfaces.
 - SpringDoc serves Swagger UI (`/swagger-ui.html`) and OpenAPI JSON (`/api-docs`).
 
 ## 6. Configuration & Observability
 
 - Runtime config: `application.yml`, `application-docker.yml`, `application-test.yml`.
 - Key env: `GOOGLE_CLIENT_ID` (required), `JWT_SECRET`, `LLM_PROVIDER` (`openai` default / `gemini`), `OPENAI_*`, `SPRING_MONGODB_URI`, `BUDGETLY_CHANGE_STREAM_ENABLED`.
+- Push config: `push.provider` (`log` default / `fcm`), `push.fcm.project-id`, `push.fcm.service-account-file` (or inline credentials), `push.fcm.base-url` (defaults to the FCM HTTP v1 endpoint) — see [ADR-0005](doc/adr/0005-push-notification-provider.md).
 - Actuator: `/actuator/health`, `/actuator/prometheus`, `/actuator/metrics`.
 
 ## 7. Testing Strategy
@@ -297,8 +362,9 @@ flowchart LR
 | Layer | Tool | Notes |
 |---|---|---|
 | Backend E2E | RestAssured `*E2ETest.java` | Full `@SpringBootTest` context against embedded Flapdoodle MongoDB 7.0.9 (no Docker required) |
-| Backend unit | JUnit + Mockito + Awaitility | `AnchorParserTest`, `MessageChangeStreamListenerTest`, service tests |
-| Flutter | `flutter test` (`app/test/`) | Widget + provider + service + model tests (`mocktail`) |
+| Backend unit | JUnit + Mockito + Awaitility | `AnchorParserTest`, `MessageChangeStreamListenerTest`, `ExpenseAlertNotifierTest`, service tests |
+| Push | `TestPushNotificationService` (`@Primary` in `TestBeanConfig`) | `DeviceE2ETest`, `ExpenseAlertE2ETest` assert registration/cleanup and alert gating with a mocked transport |
+| Flutter | `flutter test` (`app/test/`) | Widget + provider + service + model tests (`mocktail`); `push_messaging_service_test.dart`, `push_controller_test.dart` |
 | Release gate | E2E smoke tests | Per CLAUDE.md — run on the Android emulator before completion |
 
 ## 8. Decision Log
@@ -306,3 +372,4 @@ flowchart LR
 Architecture decisions are recorded as ADRs in `doc/adr/`:
 - `0003-bulk-insert-change-stream.md` — bulk ingestion + change-stream consumer.
 - `0004-upgrade-to-java-25-and-spring-boot-4.md` — Java 25 / Spring Boot 4.1.2 migration.
+- `0005-push-notification-provider.md` — provider-agnostic push transport (Logging / FCM HTTP v1, no new Maven deps).

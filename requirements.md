@@ -69,6 +69,14 @@
 - **FR8.3** SMS permission consent dialog + on-demand inbox sync (all device SMS mirrored into the two tabs) and pattern-cache sync UX.
 - **FR8.4** Mock data layer (`data/mock`) for offline/dev and remote layer (`data/remote`, Dio) for the real API.
 
+### FR9 — Push Notifications for Expense Alerts
+- **FR9.1** Device-token registration: authenticated `POST /devices` upserts the caller's provider token (`token` + `platform`, optional `deviceId`); `DELETE /devices/{token}` removes it on sign-out (owner-only, idempotent). Tokens are stored per user in `device_tokens` and cleaned up on logout.
+- **FR9.2** Provider-agnostic transport: `PushNotificationService` with a `log` provider (default — writes payloads to the log, used locally and in CI) and an `fcm` provider (Firebase Cloud Messaging HTTP v1). No new Maven dependency: the OAuth2 service-account JWT is minted and exchanged with the JDK HTTP client.
+- **FR9.3** Trigger: creating an `EXPENSE` transaction fans an alert out to the **other active members'** registered devices when the family's `expenseAlertsEnabled` is `true` (manual `createTransaction` and the change-stream/listener path both notify). The actor is never notified, and delivery is best-effort — a failed send never fails transaction creation.
+- **FR9.4** Payload: `title`/`body` for display plus a `data` payload (`type = EXPENSE_ALERT`, `transactionId`, `familyGroupId`) the client uses to route a tap to the transaction detail screen.
+- **FR9.5** Client lifecycle: the app registers its push token after sign-in and removes it during sign-out (`PushController`); provider token rotation re-registers. Taps (background/terminated) navigate to `/transaction/{id}`; foreground messages surface as a snackbar. The no-op `PushMessagingService` ships by default; a real provider adapter plugs into the same interface.
+- **FR9.6** Settings: the **Budget Alerts** toggle mirrors the family-wide `expenseAlertsEnabled` setting (admin-only server-side); the **Push Notifications** toggle stays a local preference.
+
 ## Non-Functional Requirements
 
 | ID | Requirement |
@@ -83,7 +91,8 @@
 | **NFR8** | **Local verification**: Docker Compose (`mongo:7` replica set + API). |
 
 ## Out of Scope / Deferred
-- Push notifications for expense alerts.
+- Amount/category thresholds for alerts (alerts fire for every expense).
+- In-app notification center / history.
 - Release APK signing (see [TODO.md](TODO.md)).
 - Full multi-currency UI (transaction currency remains INR-first).
 - Change-stream lag metric + large-scale load testing.
