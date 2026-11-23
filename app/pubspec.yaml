@@ -69,3 +69,9 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  # Fonts are bundled so typography never depends on a runtime download from
+  # fonts.gstatic.com (offline-first app, hermetic tests). File names must match
+  # google_fonts' `<Family>-<Weight>.ttf` API naming.
+  assets:
+    - assets/google_fonts/

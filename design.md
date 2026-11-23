@@ -299,6 +299,7 @@ flowchart LR
 | Backend E2E | RestAssured `*E2ETest.java` | Full `@SpringBootTest` context against embedded Flapdoodle MongoDB 7.0.9 (no Docker required) |
 | Backend unit | JUnit + Mockito + Awaitility | `AnchorParserTest`, `MessageChangeStreamListenerTest`, service tests |
 | Flutter | `flutter test` (`app/test/`) | Widget + provider + service + model tests (`mocktail`) |
+| Flutter E2E | `flutter test integration_test -d <emulator>` (`app/integration_test/`) | Boot, auth, add-expense and SMS ingestion flows on the real widget tree with mocked services — see `app/integration_test/README.md` |
 | Release gate | E2E smoke tests | Per CLAUDE.md — run on the Android emulator before completion |
 
 ## 8. Decision Log
