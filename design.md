@@ -370,6 +370,8 @@ flowchart LR
 ## 8. Decision Log
 
 Architecture decisions are recorded as ADRs in `doc/adr/`:
+- `0001-raw-google-oauth-and-custom-jwt.md` — raw Google OAuth 2.0 verification + custom JWT (no Firebase).
+- `0002-contract-first-openapi-generation.md` — contract-first OpenAPI code generation (`openapi-generator-maven-plugin`).
 - `0003-bulk-insert-change-stream.md` — bulk ingestion + change-stream consumer.
 - `0004-upgrade-to-java-25-and-spring-boot-4.md` — Java 25 / Spring Boot 4.1.2 migration.
 - `0005-push-notification-provider.md` — provider-agnostic push transport (Logging / FCM HTTP v1, no new Maven deps).
