@@ -35,8 +35,16 @@ class _FakeFamilyNotifier extends FamilyNotifier {
 
   final FamilyState _state;
 
+  /// Updates requested through the notifier (e.g. the expense-alert toggle).
+  final List<Map<String, dynamic>> settingsUpdates = [];
+
   @override
   FamilyState build() => _state;
+
+  @override
+  Future<void> updateSettings(Map<String, dynamic> updates) async {
+    settingsUpdates.add(updates);
+  }
 }
 
 class _FakeSmsNotifier extends SmsNotifier {
@@ -144,6 +152,17 @@ void main() {
       expect(container.read(preferencesProvider).budgetAlerts, isFalse);
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.getBool(PreferencesNotifier.budgetAlertsKey), isFalse);
+
+      // Admins also flip the family-wide setting the backend uses to gate
+      // expense-alert pushes.
+      final familyNotifier =
+          container.read(familyProvider.notifier) as _FakeFamilyNotifier;
+      expect(
+        familyNotifier.settingsUpdates,
+        [
+          {'expenseAlertsEnabled': false},
+        ],
+      );
 
       // The switch reflects the new persisted value, not a transient copy.
       expect(switches(tester)[2].value, isFalse);

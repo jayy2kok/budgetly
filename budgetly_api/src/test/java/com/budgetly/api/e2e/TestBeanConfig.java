@@ -25,4 +25,11 @@ public class TestBeanConfig {
     public LlmProvider testLlmProvider() {
         return new TestLlmProvider();
     }
+
+    /** Captures expense-alert pushes instead of contacting a real provider. */
+    @Bean
+    @Primary
+    public TestPushNotificationService testPushNotificationService() {
+        return new TestPushNotificationService();
+    }
 }

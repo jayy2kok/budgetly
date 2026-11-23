@@ -27,6 +27,8 @@ tags:
     description: Regex pattern library — fetch visible patterns, author/edit family patterns, hide/disable them per family
   - name: Dashboard
     description: Aggregated dashboard and budget summary
+  - name: Devices
+    description: Push-notification device token registration per user
 
 paths:
   # ─────────────────────────── AUTH ───────────────────────────
@@ -1034,6 +1036,64 @@ paths:
               schema:
                 $ref: "#/components/schemas/FamilyGroup"
 
+  # ─────────────────── DEVICES ───────────────────────────────
+  /devices:
+    post:
+      tags: [Devices]
+      operationId: registerDevice
+      summary: Register (or refresh) a push-notification token for the caller
+      description: >
+        Upserts a device token against the authenticated user. Registering the
+        same token again refreshes its platform and last-seen time, so clients
+        may call this on every sign-in without creating duplicates.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterDeviceRequest"
+      responses:
+        "204":
+          description: Token registered
+        "400":
+          description: Missing or invalid token / platform
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /devices/{token}:
+    parameters:
+      - name: token
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Push token to remove
+    delete:
+      tags: [Devices]
+      operationId: unregisterDevice
+      summary: Remove a push token (call on sign-out)
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Token removed (or already absent)
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   # ─────────────────── SECURITY ──────────────────────────────
   securitySchemes:
@@ -1170,6 +1230,24 @@ components:
         monthlyBudgetLimit:
           type: number
           format: double
+
+    # ── Devices ──
+    RegisterDeviceRequest:
+      type: object
+      required: [token, platform]
+      properties:
+        token:
+          type: string
+          description: Provider registration token (FCM registration token)
+        platform:
+          $ref: "#/components/schemas/DevicePlatform"
+        deviceId:
+          type: string
+          description: Optional stable client device identifier
+
+    DevicePlatform:
+      type: string
+      enum: [ANDROID, IOS, WEB]
 
     # ── Family Member ──
     FamilyMember:

@@ -6,7 +6,9 @@ import 'package:go_router/go_router.dart';
 
 import 'config/theme.dart';
 import 'config/routes.dart';
+import 'providers/push_providers.dart';
 import 'providers/theme_provider.dart';
+import 'services/push/push_messaging_service.dart';
 
 /// Root widget for the Budgetly app.
 class BudgetlyApp extends ConsumerStatefulWidget {
@@ -33,6 +35,10 @@ class BudgetlyApp extends ConsumerStatefulWidget {
 class _BudgetlyAppState extends ConsumerState<BudgetlyApp> {
   GoRouter? _router;
   StreamSubscription<dynamic>? _deepLinkSub;
+  StreamSubscription<PushNotificationPayload>? _pushForegroundSub;
+  PushTapHandler? _pushTapHandler;
+  final GlobalKey<ScaffoldMessengerState> _messengerKey =
+      GlobalKey<ScaffoldMessengerState>();
 
   @override
   void initState() {
@@ -40,13 +46,37 @@ class _BudgetlyAppState extends ConsumerState<BudgetlyApp> {
     // Subscribe to warm deep-link events as early as possible.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _subscribeToDeepLinks();
+      _subscribeToPush();
     });
   }
 
   @override
   void dispose() {
     _deepLinkSub?.cancel();
+    _pushForegroundSub?.cancel();
+    unawaited(_pushTapHandler?.dispose());
     super.dispose();
+  }
+
+  /// Routes tapped notifications (background/terminated) to their screen and
+  /// surfaces foreground alerts without stealing focus.
+  void _subscribeToPush() {
+    if (_pushTapHandler != null) return;
+    final messaging = ref.read(pushMessagingServiceProvider);
+
+    _pushTapHandler = PushTapHandler(
+      taps: messaging.onMessageOpened,
+      onNavigate: (location) => (_router ?? appRouter).go(location),
+    );
+
+    _pushForegroundSub = messaging.onForegroundMessage.listen((payload) {
+      final text = payload.body?.isNotEmpty == true
+          ? payload.body!
+          : payload.title?.isNotEmpty == true
+              ? payload.title!
+              : 'New expense alert';
+      _messengerKey.currentState?.showSnackBar(SnackBar(content: Text(text)));
+    });
   }
 
   void _subscribeToDeepLinks() {
@@ -87,6 +117,7 @@ class _BudgetlyAppState extends ConsumerState<BudgetlyApp> {
     return MaterialApp.router(
       title: 'Budgetly',
       debugShowCheckedModeBanner: false,
+      scaffoldMessengerKey: _messengerKey,
       theme: BudgetlyTheme.lightTheme(),
       darkTheme: BudgetlyTheme.darkTheme(),
       themeMode: themeMode,
