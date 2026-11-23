@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -5,6 +7,7 @@ import '../data/auth_service.dart';
 import '../models/user.dart';
 import 'auth_error.dart';
 import 'family_provider.dart';
+import 'push_providers.dart';
 import 'service_providers.dart';
 
 /// Auth state — tracks the current user's sign-in state.
@@ -86,6 +89,12 @@ class AuthNotifier extends Notifier<AuthState> {
         refreshToken: result.refreshToken,
       );
 
+      // Register this device for push while the session is fresh. Best-effort:
+      // a missing token or provider failure must not affect sign-in.
+      unawaited(
+        ref.read(pushControllerProvider.notifier).registerForUser(result.user.id),
+      );
+
       // After auth, load (or auto-create) the user's family.
       // This stores the real family ID in familyProvider for all screens to use.
       ref.read(familyProvider.notifier).loadMyFamily();
@@ -102,7 +111,11 @@ class AuthNotifier extends Notifier<AuthState> {
   }
 
   /// Sign out the current user.
+  ///
+  /// The push token is removed first, while the session is still valid, so
+  /// the backend stops delivering alerts to this device.
   Future<void> signOut() async {
+    await ref.read(pushControllerProvider.notifier).unregisterCurrentToken();
     state = const AuthState(status: AuthStatus.unauthenticated);
   }
 }

@@ -386,8 +386,16 @@ class SettingsScreen extends ConsumerWidget {
                 icon: Icons.warning_amber_outlined,
                 label: 'Budget Alerts',
                 value: prefs.budgetAlerts,
-                onChanged: (v) =>
-                    ref.read(preferencesProvider.notifier).setBudgetAlerts(v),
+                onChanged: (v) {
+                  ref.read(preferencesProvider.notifier).setBudgetAlerts(v);
+                  // The backend fans expense alerts out based on the family's
+                  // `expenseAlertsEnabled`; keep the two in step for admins.
+                  if (isAdmin) {
+                    ref
+                        .read(familyProvider.notifier)
+                        .updateExpenseAlerts(v);
+                  }
+                },
               ),
             ],
           ),

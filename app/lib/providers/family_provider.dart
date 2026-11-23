@@ -125,6 +125,17 @@ class FamilyNotifier extends Notifier<FamilyState> {
     await updateSettings({'monthlyBudgetLimit': limit});
   }
 
+  /// Mirrors the notification toggle into the family-wide
+  /// `expenseAlertsEnabled` setting the backend uses to gate push fan-out.
+  ///
+  /// The backend only allows admins to change family settings; callers that
+  /// are not admins keep the value local instead of hitting a 403.
+  Future<void> updateExpenseAlerts(bool enabled) async {
+    final current = state.currentFamily;
+    if (current == null || current.expenseAlertsEnabled == enabled) return;
+    await updateSettings({'expenseAlertsEnabled': enabled});
+  }
+
   /// Joins a family group using an invite code, then reloads the family.
   Future<bool> joinViaInvite(String inviteCode) async {
     state = state.copyWith(isLoading: true, error: null);
