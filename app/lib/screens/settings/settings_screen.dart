@@ -10,6 +10,7 @@ import '../../providers/theme_provider.dart';
 import '../../providers/sms_provider.dart';
 import '../../providers/family_provider.dart';
 import '../../providers/preferences_provider.dart';
+import '../../providers/backend_base_url_provider.dart';
 import '../../models/family_member.dart';
 
 /// Settings screen — Profile card, grouped settings, SMS & Parsing, sign out.
@@ -396,6 +397,30 @@ class SettingsScreen extends ConsumerWidget {
                         .updateExpenseAlerts(v);
                   }
                 },
+              ),
+            ],
+          ),
+
+          // ── Developer ──
+          _SectionHeader('DEVELOPER'),
+          _SettingsGroup(
+            children: [
+              _SettingsRow(
+                icon: Icons.link,
+                label: 'Backend URL',
+                trailing: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 150),
+                  child: Text(
+                    ref.watch(backendBaseUrlProvider).baseUrl,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.inter(
+                      fontSize: 14,
+                      color: context.colors.textDim,
+                    ),
+                  ),
+                ),
+                onTap: () => context.push(AppRoutes.backendUrl),
               ),
             ],
           ),

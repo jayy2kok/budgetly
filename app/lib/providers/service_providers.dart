@@ -23,6 +23,7 @@ import '../data/remote/remote_message_service.dart';
 import '../data/remote/remote_transaction_service.dart';
 import '../services/pattern_cache_service.dart';
 import '../services/sms_inbox_reader.dart';
+import 'backend_base_url_provider.dart';
 
 /// Toggle between mock and real API.
 ///
@@ -38,7 +39,11 @@ const bool useRealApi = true;
 /// services) read [ApiClient.instance.dio], which must be initialized before
 /// they can be constructed — otherwise opening Settings in mock/dev mode
 /// throws a LateInitializationError.
+///
+/// Watches [backendBaseUrlProvider] so a persisted user override is applied to
+/// the live Dio client before any remote service is constructed.
 final _apiClientInitProvider = Provider<void>((ref) {
+  ref.watch(backendBaseUrlProvider);
   ApiClient.instance.init();
 });
 

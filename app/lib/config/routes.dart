@@ -17,6 +17,7 @@ import '../screens/settings/profile_screen.dart';
 import '../screens/settings/join_family_screen.dart';
 import '../screens/settings/pattern_registry_screen.dart';
 import '../screens/settings/pattern_builder_screen.dart';
+import '../screens/settings/backend_url_screen.dart';
 
 /// Route path constants.
 class AppRoutes {
@@ -36,6 +37,7 @@ class AppRoutes {
   static const String joinFamily = '/join';
   static const String patternRegistry = '/settings/patterns';
   static const String patternBuilder = '/settings/patterns/new';
+  static const String backendUrl = '/settings/backend-url';
 }
 
 /// All route definitions, reused by both the default and deep-link routers.
@@ -117,6 +119,10 @@ final List<RouteBase> appRouteList = [
       messageId: state.uri.queryParameters['messageId'],
       patternId: state.uri.queryParameters['patternId'],
     ),
+  ),
+  GoRoute(
+    path: AppRoutes.backendUrl,
+    builder: (context, state) => const BackendUrlScreen(),
   ),
 
   // ── Join Family — from deep link or manual entry ──

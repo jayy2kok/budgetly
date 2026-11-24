@@ -2,7 +2,7 @@
 class ApiConfig {
   ApiConfig._();
 
-  /// Base URL for the Budgetly REST API.
+  /// Build-time default base URL for the Budgetly REST API.
   ///
   /// For local development, the Spring Boot server runs on port 8080.
   /// For Android emulators, use `10.0.2.2` instead of `localhost`.
@@ -12,7 +12,11 @@ class ApiConfig {
   ///
   /// Override at build/run time with
   ///   `--dart-define=API_BASE_URL=http://<host>:8080/api/v1`
-  static const String baseUrl = String.fromEnvironment(
+  ///
+  /// This is only the default: the user can override it at runtime from
+  /// Settings → Developer → Backend URL (persisted in SharedPreferences and
+  /// applied by [ApiClient]); see `backend_base_url_provider.dart`.
+  static const String defaultBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
     defaultValue: 'http://192.168.31.50:8080/api/v1',
   );
