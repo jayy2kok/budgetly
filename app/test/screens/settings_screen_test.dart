@@ -9,6 +9,7 @@ import 'package:budgetly/data/mock/sample_data.dart';
 import 'package:budgetly/models/family_member.dart';
 import 'package:budgetly/models/user.dart';
 import 'package:budgetly/providers/auth_provider.dart';
+import 'package:budgetly/providers/backend_base_url_provider.dart';
 import 'package:budgetly/providers/family_provider.dart';
 import 'package:budgetly/providers/preferences_provider.dart';
 import 'package:budgetly/providers/sms_provider.dart';
@@ -56,6 +57,14 @@ class _FakeSmsNotifier extends SmsNotifier {
   SmsState build() => _state;
 }
 
+class _FakeBackendBaseUrlNotifier extends BackendBaseUrlNotifier {
+  @override
+  BackendBaseUrlState build() => const BackendBaseUrlState(
+        baseUrl: 'http://192.168.31.50:8080/api/v1',
+        isCustom: false,
+      );
+}
+
 // ── Test rig ──────────────────────────────────────────────────────
 
 late ProviderContainer container;
@@ -93,6 +102,10 @@ Future<void> pumpApp(
             lastSyncTime: DateTime.utc(2026, 11, 10, 9),
           ),
         ),
+      ),
+      // Deterministic base URL for the DEVELOPER row (no SharedPreferences).
+      backendBaseUrlProvider.overrideWith(
+        () => _FakeBackendBaseUrlNotifier(),
       ),
     ],
   );
@@ -238,6 +251,7 @@ void main() {
         'Message Inbox',
         'Family Members',
         'Join Family',
+        'Backend URL',
       ]) {
         final row = rowOf(label);
         expect(

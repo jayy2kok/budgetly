@@ -66,7 +66,7 @@ flowchart TB
 
 | Component | Technology | Responsibility |
 |---|---|---|
-| Flutter app (`app/`) | Dart 3.11, Riverpod 3, go_router, Dio, google_sign_in | UI + on-device SMS parsing + API client |
+| Flutter app (`app/`) | Dart 3.11, Riverpod 3, go_router, Dio, google_sign_in | UI + on-device SMS parsing + API client (runtime-configurable base URL) |
 | REST API (`budgetly_api/`) | Java 25, Spring Boot 4.1.2, SpringDoc, JJWT | Auth, CRUD, budget aggregation, message/pattern APIs |
 | MongoDB | MongoDB 7 (replica set) | Document store + change-stream ingestion pipeline |
 | LLM layer | `LlmProvider` → `OpenAiCompatibleLlmProvider` / `GeminiLlmProvider` | Server-side SMS classification + template generation |
@@ -357,6 +357,21 @@ flowchart LR
 - Key env: `GOOGLE_CLIENT_ID` (required), `JWT_SECRET`, `LLM_PROVIDER` (`openai` default / `gemini`), `OPENAI_*`, `SPRING_MONGODB_URI`, `BUDGETLY_CHANGE_STREAM_ENABLED`.
 - Push config: `push.provider` (`log` default / `fcm`), `push.fcm.project-id`, `push.fcm.service-account-file` (or inline credentials), `push.fcm.base-url` (defaults to the FCM HTTP v1 endpoint) — see [ADR-0005](doc/adr/0005-push-notification-provider.md).
 - Actuator: `/actuator/health`, `/actuator/prometheus`, `/actuator/metrics`.
+
+### 6.1 Flutter backend base URL
+
+The app's REST base URL starts from the build-time default (`ApiConfig.defaultBaseUrl`, overridable with `--dart-define=API_BASE_URL=…`) and can be overridden at runtime from **Settings → Developer → Backend URL** (`BackendUrlScreen`). The override is persisted in SharedPreferences (`backend_base_url`), applied to the shared `ApiClient`/Dio client (and the token-refresh client) on load and on save, and normalized (scheme defaulting, trailing-slash trim, `http(s)`-only validation). Because JWTs are issued per backend, saving a different URL signs the user out and returns to the login screen.
+
+```mermaid
+flowchart LR
+    A[Settings → Developer → Backend URL] --> B[normalizeBackendBaseUrl]
+    B --> C[BackendBaseUrlNotifier.applyBaseUrl]
+    C --> D[ApiClient.setBaseUrl → Dio baseUrl]
+    C --> E[SharedPreferences backend_base_url]
+    D --> F[All remote services + token refresh]
+    E -. app restart .-> G[BackendBaseUrlNotifier._load]
+    G --> D
+```
 
 ## 7. Testing Strategy
 

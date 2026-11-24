@@ -5,7 +5,8 @@ import '../../config/api_config.dart';
 ///
 /// Provides a pre-configured [Dio] instance for all remote services.
 /// Handles:
-///  - Base URL configuration
+///  - Base URL configuration (build-time default, overridable at runtime via
+///    [setBaseUrl] from Settings → Developer → Backend URL)
 ///  - Authorization header injection
 ///  - Token refresh on 401
 ///  - Logging in debug mode
@@ -14,7 +15,8 @@ class ApiClient {
 
   static final ApiClient instance = ApiClient._();
 
-  late final Dio _dio;
+  Dio? _dio;
+  String _baseUrl = ApiConfig.defaultBaseUrl;
   String? _accessToken;
   String? _refreshToken;
 
@@ -22,7 +24,7 @@ class ApiClient {
   void init() {
     _dio = Dio(
       BaseOptions(
-        baseUrl: ApiConfig.baseUrl,
+        baseUrl: _baseUrl,
         connectTimeout: Duration(milliseconds: ApiConfig.connectTimeout),
         receiveTimeout: Duration(milliseconds: ApiConfig.receiveTimeout),
         headers: {
@@ -32,7 +34,7 @@ class ApiClient {
       ),
     );
 
-    _dio.interceptors.add(
+    _dio!.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) {
           if (_accessToken != null) {
@@ -49,7 +51,7 @@ class ApiClient {
                 // Retry the original request with the new token
                 final opts = error.requestOptions;
                 opts.headers['Authorization'] = 'Bearer $_accessToken';
-                final response = await _dio.fetch(opts);
+                final response = await _dio!.fetch(opts);
                 return handler.resolve(response);
               }
             } catch (_) {
@@ -63,7 +65,23 @@ class ApiClient {
   }
 
   /// Get the configured Dio instance.
-  Dio get dio => _dio;
+  Dio get dio {
+    final client = _dio;
+    if (client == null) {
+      throw StateError('ApiClient.init() must be called before use.');
+    }
+    return client;
+  }
+
+  /// Applies [baseUrl] to the live Dio client.
+  ///
+  /// Safe to call before [init] (the value is used when the client is created)
+  /// and after (the existing client's `baseUrl` is updated in place, so every
+  /// remote service and the token-refresh client pick it up without a restart).
+  void setBaseUrl(String baseUrl) {
+    _baseUrl = baseUrl;
+    _dio?.options.baseUrl = baseUrl;
+  }
 
   /// Store JWT tokens after login/refresh.
   void setTokens({required String accessToken, String? refreshToken}) {
@@ -88,7 +106,7 @@ class ApiClient {
       // Use a fresh Dio instance to avoid interceptor loops
       final refreshDio = Dio(
         BaseOptions(
-          baseUrl: ApiConfig.baseUrl,
+          baseUrl: _baseUrl,
           headers: {'Content-Type': 'application/json'},
         ),
       );
