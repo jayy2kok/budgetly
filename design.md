@@ -381,6 +381,7 @@ flowchart LR
 | Backend unit | JUnit + Mockito + Awaitility | `AnchorParserTest`, `MessageChangeStreamListenerTest`, `ExpenseAlertNotifierTest`, service tests |
 | Push | `TestPushNotificationService` (`@Primary` in `TestBeanConfig`) | `DeviceE2ETest`, `ExpenseAlertE2ETest` assert registration/cleanup and alert gating with a mocked transport |
 | Flutter | `flutter test` (`app/test/`) | Widget + provider + service + model tests (`mocktail`); `push_messaging_service_test.dart`, `push_controller_test.dart` |
+| Flutter E2E | `flutter test integration_test -d <emulator>` (`app/integration_test/`) | Boot, auth, add-expense and SMS ingestion flows on the real widget tree with mocked services — see `app/integration_test/README.md` |
 | Release gate | E2E smoke tests | Per CLAUDE.md — run on the Android emulator before completion |
 
 ## 8. Decision Log
